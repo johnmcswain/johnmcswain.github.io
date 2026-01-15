@@ -1,0 +1,20 @@
+{
+    "name": "John McSwain",
+    "short_name": "John McSwain",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#151716",
+    "theme_color": "#151716",
+    "icons": [
+        {
+            "src": "favicon.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "favicon.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
