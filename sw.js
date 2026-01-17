@@ -1,14 +1,16 @@
-const CACHE_NAME = 'johns-place-v1';
+const CACHE_NAME = 'jmc-v2';
 const ASSETS_TO_CACHE = [
-  '../',
-  '../index.html',
-  '../artifacts.html',
-  '../presentation.html',
-  '../reflection.html',
-  '../references.html',
-  '../css/styles.css',
-  './main.js',
-  '../manifest.json'
+  './',
+  './index.html',
+  './artifacts.html',
+  './presentation.html',
+  './reflection.html',
+  './references.html',
+  './css/styles.css',
+  './js/main.js',
+  './js/anti-fouc.js',
+  './manifest.json',
+  './favicon.png'
 ];
 
 self.addEventListener('install', (event) => {

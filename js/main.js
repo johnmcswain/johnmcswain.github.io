@@ -4,7 +4,7 @@ import { initFoucProtection } from './anti-fouc.js';
 export function serviceWorkerRegister() {
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('js/sw.js')
+            navigator.serviceWorker.register('sw.js')
                 .then((registration) => {
                     console.log('ServiceWorker registration successful with scope: ', registration.scope);
                 }, (err) => {
