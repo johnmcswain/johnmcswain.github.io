@@ -135,25 +135,17 @@ iframe {
     }
 }
 
-/* Accessibility: Skip to Main Content Link */
-/* Accessibility: Skip to Main Content Link */
 .skip-link {
     position: absolute;
-    /* Relative to sticky-header */
     bottom: 10px;
-    /* 10px from bottom of header */
     left: 20px;
     background: var(--text-color);
-    /* Inverse theme: BG = Text Color */
     color: var(--bg-color);
-    /* Inverse theme: Text = BG Color */
     padding: 8px 15px;
     z-index: 1002;
-    /* Above nav content */
     opacity: 0;
     pointer-events: none;
     transform: translateY(-10px);
-    /* Start slightly up */
     transition: opacity 0.3s ease, transform 0.3s ease;
     text-decoration: none;
     font-family: 'Oswald', sans-serif;
@@ -163,8 +155,6 @@ iframe {
     letter-spacing: 1px;
     border-radius: 4px;
     border: 2px solid var(--bg-color);
-    /* Contrast border */
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }
 
 .skip-link:visited {
@@ -179,15 +169,53 @@ iframe {
     outline-offset: 2px;
 }
 
-/* Accessibility: Improved Focus Styles */
 :focus-visible {
     outline: 2px solid var(--text-color);
     outline-offset: 4px;
 }
 
-/* Ensure toggle button has clear focus */
 #theme-toggle:focus-visible {
     outline: 2px solid var(--text-color);
     outline-offset: 4px;
     border-radius: 4px;
+}
+
+.content a {
+    color: var(--text-color);
+    text-decoration: underline;
+    transition: color 0.3s ease;
+}
+
+.content a:hover {
+    color: var(--nav-link-hover);
+    text-decoration: none;
+}
+
+/* Button Link Style (Inverted Theme Box) */
+/* More specific selector to override .content a transition */
+.content a.btn-link {
+    display: inline-block;
+    background: var(--text-color);
+    color: var(--bg-color) !important;
+    padding: 10px 20px;
+    text-decoration: none !important;
+    font-family: 'Oswald', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-radius: 4px;
+    border: 2px solid var(--bg-color);
+    margin: 10px 0;
+    /* Ensure transform is transitioned */
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+}
+
+.content a.btn-link:hover {
+    transform: translateY(-5px);
+    /* Smooth 5px lift */
+}
+
+.content a.btn-link:active {
+    transform: translateY(0);
 }

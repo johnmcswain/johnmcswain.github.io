@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jmc-v3'
+const CACHE_NAME = 'jmc-v5'
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -10,7 +10,7 @@ const ASSETS_TO_CACHE = [
   './js/main.js',
   './js/anti-fouc.js',
   './manifest.json',
-  './favicon.png',
+  './assets/img/favicon.png',
   './aect-standard-1.html',
   './aect-standard-2.html',
   './aect-standard-3.html',
