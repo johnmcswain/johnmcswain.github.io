@@ -5,11 +5,20 @@
     "type": "module",
     "scripts": {
         "start": "npx http-server -c-1",
-        "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+        "test": "node --no-warnings --experimental-vm-modules node_modules/jest/bin/jest.js",
+        "lint": "npx standard",
+        "lint:fix": "npx standard --fix"
     },
     "jest": {
         "testEnvironment": "jsdom",
         "transform": {}
+    },
+    "standard": {
+        "env": [
+            "jest",
+            "browser",
+            "serviceworker"
+        ]
     },
     "devDependencies": {
         "jest": "^29.7.0",

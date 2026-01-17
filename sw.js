@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jmc-v2';
+const CACHE_NAME = 'jmc-v3'
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -10,18 +10,23 @@ const ASSETS_TO_CACHE = [
   './js/main.js',
   './js/anti-fouc.js',
   './manifest.json',
-  './favicon.png'
-];
+  './favicon.png',
+  './aect-standard-1.html',
+  './aect-standard-2.html',
+  './aect-standard-3.html',
+  './aect-standard-4.html',
+  './aect-standard-5.html'
+]
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Opened cache');
-        return cache.addAll(ASSETS_TO_CACHE);
+        console.log('Opened cache')
+        return cache.addAll(ASSETS_TO_CACHE)
       })
-  );
-});
+  )
+})
 
 self.addEventListener('fetch', (event) => {
   event.respondWith(
@@ -29,24 +34,24 @@ self.addEventListener('fetch', (event) => {
       .then((response) => {
         // Cache hit - return response
         if (response) {
-          return response;
+          return response
         }
-        return fetch(event.request);
+        return fetch(event.request)
       })
-  );
-});
+  )
+})
 
 self.addEventListener('activate', (event) => {
-  const cacheWhitelist = [CACHE_NAME];
+  const cacheWhitelist = [CACHE_NAME]
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheWhitelist.indexOf(cacheName) === -1) {
-            return caches.delete(cacheName);
+            return caches.delete(cacheName)
           }
         })
-      );
+      )
     })
-  );
-});
+  )
+})

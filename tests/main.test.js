@@ -1,64 +1,63 @@
-
-import { jest, describe, test, expect, beforeEach } from '@jest/globals';
-import { initTheme, initApp } from '../js/main.js';
+import { jest, describe, test, expect, beforeEach } from '@jest/globals'
+import { initTheme, initApp } from '../js/main.js'
 
 // Mock anti-fouc to avoid side effects during initApp test
 jest.mock('../js/anti-fouc.js', () => ({
-    initFoucProtection: jest.fn()
-}));
+  initFoucProtection: jest.fn()
+}))
 
 describe('main.js theme logic', () => {
-    let themeToggle;
+  let themeToggle
 
-    beforeEach(() => {
-        // Setup DOM
-        document.body.innerHTML = `
+  beforeEach(() => {
+    // Setup DOM
+    document.body.innerHTML = `
             <button id="theme-toggle"></button>
-        `;
-        themeToggle = document.getElementById('theme-toggle');
-        document.documentElement.removeAttribute('data-theme');
-        localStorage.clear();
+        `
+    themeToggle = document.getElementById('theme-toggle')
+    document.documentElement.removeAttribute('data-theme')
+    localStorage.clear()
 
-        // Mock matchMedia
-        window.matchMedia = jest.fn().mockImplementation(query => ({
-            matches: true, // Default to true (prefers dark) to align with default CSS
-            media: query,
-            onchange: null,
-            addListener: jest.fn(), // deprecated
-            removeListener: jest.fn(), // deprecated
-            addEventListener: jest.fn(),
-            removeEventListener: jest.fn(),
-            dispatchEvent: jest.fn(),
-        }));
-    });
+    // Mock matchMedia
+    window.matchMedia = jest.fn().mockImplementation(query => ({
+      matches: true, // Default to true (prefers dark) to align with default CSS
+      media: query,
+      onchange: null,
+      addListener: jest.fn(), // deprecated
+      removeListener: jest.fn(), // deprecated
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn()
+    }))
+  })
 
-    test('initializes with default theme (dark preferred implies no data-theme="light")', () => {
-        initTheme();
-        expect(document.documentElement.getAttribute('data-theme')).toBeNull();
-    });
+  test('initializes with default theme (dark preferred implies no data-theme="light")', () => {
+    initTheme()
+    expect(document.documentElement.getAttribute('data-theme')).toBeNull()
+  })
 
-    test('initializes with light theme if stored in localStorage', () => {
-        localStorage.setItem('theme', 'light');
-        initTheme();
-        expect(document.documentElement.getAttribute('data-theme')).toBe('light');
-    });
+  test('initializes with light theme if stored in localStorage', () => {
+    localStorage.setItem('theme', 'light')
+    initTheme()
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light')
+  })
 
-    test('toggles theme on button click', () => {
-        initTheme();
+  test('toggles theme on button click', () => {
+    initTheme()
 
-        // Initial state (assuming dark default)
-        expect(document.documentElement.getAttribute('data-theme')).toBeNull();
+    // Initial state (assuming dark default)
+    expect(document.documentElement.getAttribute('data-theme')).toBeNull()
 
-        // Click to toggle to light (logic: if not light, make light? Wait, logic was:
-        // currentTheme === 'light' ? 'dark' : 'light';
-        // If current is null, it's not 'light', so it becomes 'light'.
-        themeToggle.click();
-        expect(document.documentElement.getAttribute('data-theme')).toBe('light');
-        expect(localStorage.getItem('theme')).toBe('light');
+    // Click to toggle to light (logic: if not light, make light? Wait, logic was:
+    // currentTheme === 'light' ? 'dark' : 'light';
+    // If current is null, it's not 'light', so it becomes 'light'.
+    themeToggle.click()
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light')
+    expect(localStorage.getItem('theme')).toBe('light')
 
-        // Click to toggle back to dark
-        themeToggle.click();
-        expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
-        expect(localStorage.getItem('theme')).toBe('dark');
-    });
-});
+    // Click to toggle back to dark
+    themeToggle.click()
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
+    expect(localStorage.getItem('theme')).toBe('dark')
+  })
+})
