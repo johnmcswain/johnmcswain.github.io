@@ -8,17 +8,23 @@ describe('anti-fouc.js', () => {
         // Reset DOM
         document.documentElement.className = 'loading';
         jest.useFakeTimers();
+
+        // Mock readyState to 'loading' to prevent immediate execution
+        Object.defineProperty(document, 'readyState', {
+            get: () => 'loading',
+            configurable: true
+        });
     });
 
     afterEach(() => {
         jest.useRealTimers();
     });
 
-    test('removes loading class on window load', () => {
+    test('removes loading class on DOMContentLoaded', () => {
         initFoucProtection();
 
-        // Simulate window load
-        window.dispatchEvent(new Event('load'));
+        // Simulate DOMContentLoaded
+        window.dispatchEvent(new Event('DOMContentLoaded'));
 
         expect(document.documentElement.classList.contains('loading')).toBe(false);
     });
