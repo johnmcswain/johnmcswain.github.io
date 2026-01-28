@@ -1,5 +1,16 @@
 import { initFoucProtection } from './anti-fouc.js'
 
+const THEMES = ['dark', 'light', 'skiatron', 'telequipment', 'amdek', 'vectrex']
+
+const THEME_LABELS = {
+  dark: 'Dark',
+  light: 'Light',
+  skiatron: 'Skiatron',
+  telequipment: 'Telequipment',
+  amdek: 'Amdek',
+  vectrex: 'Vectrex'
+}
+
 export function serviceWorkerRegister () {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -13,24 +24,71 @@ export function serviceWorkerRegister () {
   }
 }
 
+function getEffectiveTheme () {
+  const stored = localStorage.getItem('theme')
+  if (stored && THEMES.includes(stored)) return stored
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+  return prefersDark ? 'dark' : 'light'
+}
+
+function applyTheme (theme) {
+  // dark uses no data-theme attribute (it's the :root default)
+  if (theme === 'dark') {
+    document.documentElement.removeAttribute('data-theme')
+  } else {
+    document.documentElement.setAttribute('data-theme', theme)
+  }
+  localStorage.setItem('theme', theme)
+
+  const label = document.getElementById('theme-label')
+  if (label) label.textContent = THEME_LABELS[theme]
+}
+
+function createNoisePattern () {
+  const canvas = document.createElement('canvas')
+  canvas.width = 200
+  canvas.height = 200
+  const ctx = canvas.getContext('2d')
+  const imageData = ctx.createImageData(200, 200)
+  const data = imageData.data
+  for (let i = 0; i < data.length; i += 4) {
+    const value = Math.random() * 255
+    data[i] = value
+    data[i + 1] = value
+    data[i + 2] = value
+    data[i + 3] = 255
+  }
+  ctx.putImageData(imageData, 0, 0)
+  return canvas.toDataURL()
+}
+
+function initCrtNoise () {
+  const noiseEl = document.querySelector('.crt-noise')
+  if (!noiseEl) return
+
+  function updateNoise () {
+    noiseEl.style.backgroundImage = `url(${createNoisePattern()})`
+  }
+
+  updateNoise()
+  setInterval(updateNoise, 80)
+}
+
 export function initTheme () {
   const themeToggle = document.getElementById('theme-toggle')
-  const storedTheme = localStorage.getItem('theme')
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-
-  if (storedTheme === 'light' || (!storedTheme && !prefersDark)) {
-    document.documentElement.setAttribute('data-theme', 'light')
-  }
+  const theme = getEffectiveTheme()
+  applyTheme(theme)
 
   if (themeToggle) {
     themeToggle.addEventListener('click', () => {
-      const currentTheme = document.documentElement.getAttribute('data-theme')
-      const newTheme = currentTheme === 'light' ? 'dark' : 'light'
-
-      document.documentElement.setAttribute('data-theme', newTheme)
-      localStorage.setItem('theme', newTheme)
+      const current = localStorage.getItem('theme') || getEffectiveTheme()
+      const idx = THEMES.indexOf(current)
+      const next = THEMES[(idx + 1) % THEMES.length]
+      applyTheme(next)
     })
   }
+
+  initCrtNoise()
 }
 
 export function initApp () {
@@ -40,21 +98,6 @@ export function initApp () {
 }
 
 try {
-  // Only run if not in a test environment (basic check)
-  // Jest runs with NODE_ENV=test usually, or we can check for module.parent if strictly node,
-  // but for browser modules simply checking if it's being imported is harder.
-  // However, since we export the functions, we can just call initApp() here.
-  // Ideally we'd have a condition content here.
-  // For now we will just call it.
-  // Note: In a real test setup, we might want to prevent auto-execution on import.
-  // But for this simple setup, we can let it run or wrap it.
-
-  // Simple way to avoid auto-run during test import if we had a bundler env variable, but we don't.
-  // We'll rely on side-effects for now, as is typical for entry points.
-
-  // To make it testable without side effects, we often check a condition or have a separate entry point.
-  // Since strict "don't run on import" is tricky without a bundler defining ENV, we will stick to just running it.
-  // Tests might need to DOM cleanup.
   initApp()
 } catch (e) {
   console.log(e)

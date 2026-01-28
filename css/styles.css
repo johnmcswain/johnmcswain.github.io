@@ -29,6 +29,50 @@ html.loading {
     --nav-link-hover: #555555;
 }
 
+/* Skiatron - Dark trace tube (dark on light, 1939) */
+[data-theme="skiatron"] {
+    --bg-color: #b8b8b0;
+    --text-color: #2a2a2a;
+    --content-color: #3a3a3a;
+    --nav-bg: rgba(164, 164, 156, 0.95);
+    --header-border: #888888;
+    --nav-link-color: #2a2a2a;
+    --nav-link-hover: #555555;
+}
+
+/* Telequipment D1010 - Green phosphor oscilloscope (1979) */
+[data-theme="telequipment"] {
+    --bg-color: #0a1810;
+    --text-color: #00ff88;
+    --content-color: #00cc6a;
+    --nav-bg: rgba(10, 24, 16, 0.95);
+    --header-border: #00aa55;
+    --nav-link-color: #00ff88;
+    --nav-link-hover: #00cc6a;
+}
+
+/* Amdek - Amber terminal display (1984) */
+[data-theme="amdek"] {
+    --bg-color: #1a0f00;
+    --text-color: #ffaa00;
+    --content-color: #cc8800;
+    --nav-bg: rgba(26, 15, 0, 0.95);
+    --header-border: #cc8800;
+    --nav-link-color: #ffaa00;
+    --nav-link-hover: #cc8800;
+}
+
+/* Vectrex - White phosphor P4 CRT (1982) */
+[data-theme="vectrex"] {
+    --bg-color: #0a0a12;
+    --text-color: #aaddff;
+    --content-color: #88bbdd;
+    --nav-bg: rgba(10, 10, 18, 0.95);
+    --header-border: #6699cc;
+    --nav-link-color: #aaddff;
+    --nav-link-hover: #88bbdd;
+}
+
 body {
     background-color: var(--bg-color);
     color: var(--text-color);
@@ -106,25 +150,45 @@ iframe {
 }
 
 #theme-toggle {
-    background: none;
-    border: none;
+    background: transparent;
+    border: 1px solid var(--nav-link-color);
     cursor: pointer;
-    padding: 0;
+    padding: 6px 12px;
     color: var(--nav-link-color);
-    transition: color 0.3s ease, transform 0.2s ease;
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.3s ease;
     display: flex;
     align-items: center;
+    gap: 6px;
+    white-space: nowrap;
 }
 
 #theme-toggle:hover {
-    color: var(--nav-link-hover);
-    transform: rotate(15deg);
+    background: var(--nav-link-color);
+    color: var(--bg-color);
 }
 
-#theme-toggle svg {
-    width: 24px;
-    height: 24px;
-    fill: currentColor;
+#theme-toggle .theme-arrow {
+    font-size: 0.7rem;
+    transition: transform 0.2s ease;
+}
+
+#theme-toggle:hover .theme-arrow {
+    transform: translateX(2px);
+}
+
+/* MUTHUR theme button styling */
+[data-theme="skiatron"] #theme-toggle,
+[data-theme="telequipment"] #theme-toggle,
+[data-theme="amdek"] #theme-toggle,
+[data-theme="vectrex"] #theme-toggle {
+    font-family: 'VT323', 'Share Tech Mono', monospace;
+    font-size: 1rem;
+    letter-spacing: 2px;
 }
 
 @media (max-width: 600px) {
@@ -258,3 +322,250 @@ iframe {
         margin-bottom: 30px;
     }
 }
+
+/* ═══════════════════════════════════════════════════ */
+/* MU/TH/UR CRT Effects for Skiatron/Telequipment/   */
+/* Amdek/Vectrex themes                              */
+/* ═══════════════════════════════════════════════════ */
+
+/* CRT overlay container - hidden by default */
+.crt-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9999;
+}
+
+/* Show CRT overlay only on MUTHUR themes */
+[data-theme="skiatron"] .crt-overlay,
+[data-theme="telequipment"] .crt-overlay,
+[data-theme="amdek"] .crt-overlay,
+[data-theme="vectrex"] .crt-overlay {
+    display: block;
+}
+
+/* Scanlines */
+.crt-scanlines {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.12) 0px,
+        rgba(0, 0, 0, 0.12) 1px,
+        transparent 1px,
+        transparent 3px
+    );
+}
+
+/* Skiatron uses lighter scanlines on light bg */
+[data-theme="skiatron"] .crt-scanlines {
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(255, 255, 255, 0.08) 0px,
+        rgba(255, 255, 255, 0.08) 1px,
+        transparent 1px,
+        transparent 3px
+    );
+}
+
+/* Screen curvature vignette */
+.crt-vignette {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(
+        ellipse at center,
+        transparent 0%,
+        transparent 65%,
+        rgba(0, 0, 0, 0.35) 100%
+    );
+}
+
+[data-theme="skiatron"] .crt-vignette {
+    background: radial-gradient(
+        ellipse at center,
+        transparent 0%,
+        transparent 65%,
+        rgba(100, 100, 90, 0.3) 100%
+    );
+}
+
+/* Noise grain */
+.crt-noise {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.04;
+    animation: crt-noise-shift 0.2s steps(10) infinite;
+}
+
+@keyframes crt-noise-shift {
+    0%, 100% { background-position: 0 0; }
+    10% { background-position: -5% -10%; }
+    20% { background-position: -15% 5%; }
+    30% { background-position: 7% -25%; }
+    40% { background-position: 20% 25%; }
+    50% { background-position: -25% 10%; }
+    60% { background-position: 15% 5%; }
+    70% { background-position: 0% 15%; }
+    80% { background-position: 25% 35%; }
+    90% { background-position: -10% 10%; }
+}
+
+/* Flicker */
+.crt-flicker {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    animation: crt-flicker 0.15s infinite;
+}
+
+@keyframes crt-flicker {
+    0% { opacity: 0.97; }
+    10% { opacity: 0.98; }
+    20% { opacity: 0.96; }
+    30% { opacity: 0.99; }
+    40% { opacity: 0.95; }
+    50% { opacity: 0.98; }
+    60% { opacity: 0.94; }
+    70% { opacity: 0.97; }
+    80% { opacity: 0.99; }
+    90% { opacity: 0.95; }
+    100% { opacity: 0.97; }
+}
+
+/* Text glow for MUTHUR themes */
+[data-theme="telequipment"] body,
+[data-theme="telequipment"] h1,
+[data-theme="telequipment"] h2,
+[data-theme="telequipment"] h3,
+[data-theme="telequipment"] p,
+[data-theme="telequipment"] li,
+[data-theme="telequipment"] a,
+[data-theme="telequipment"] .nav-list li a {
+    text-shadow: 0 0 8px rgba(0, 255, 136, 0.4);
+}
+
+[data-theme="amdek"] body,
+[data-theme="amdek"] h1,
+[data-theme="amdek"] h2,
+[data-theme="amdek"] h3,
+[data-theme="amdek"] p,
+[data-theme="amdek"] li,
+[data-theme="amdek"] a,
+[data-theme="amdek"] .nav-list li a {
+    text-shadow: 0 0 8px rgba(255, 170, 0, 0.4);
+}
+
+[data-theme="vectrex"] body,
+[data-theme="vectrex"] h1,
+[data-theme="vectrex"] h2,
+[data-theme="vectrex"] h3,
+[data-theme="vectrex"] p,
+[data-theme="vectrex"] li,
+[data-theme="vectrex"] a,
+[data-theme="vectrex"] .nav-list li a {
+    text-shadow: 0 0 8px rgba(170, 221, 255, 0.4);
+}
+
+[data-theme="skiatron"] body,
+[data-theme="skiatron"] h1,
+[data-theme="skiatron"] h2,
+[data-theme="skiatron"] h3,
+[data-theme="skiatron"] p,
+[data-theme="skiatron"] li,
+[data-theme="skiatron"] a,
+[data-theme="skiatron"] .nav-list li a {
+    text-shadow: 0 0 6px rgba(42, 42, 42, 0.2);
+}
+
+/* MUTHUR theme fonts */
+[data-theme="skiatron"] body,
+[data-theme="telequipment"] body,
+[data-theme="amdek"] body,
+[data-theme="vectrex"] body {
+    font-family: 'VT323', 'Share Tech Mono', monospace;
+}
+
+[data-theme="skiatron"] h1,
+[data-theme="skiatron"] h2,
+[data-theme="skiatron"] h3,
+[data-theme="telequipment"] h1,
+[data-theme="telequipment"] h2,
+[data-theme="telequipment"] h3,
+[data-theme="amdek"] h1,
+[data-theme="amdek"] h2,
+[data-theme="amdek"] h3,
+[data-theme="vectrex"] h1,
+[data-theme="vectrex"] h2,
+[data-theme="vectrex"] h3 {
+    font-family: 'VT323', 'Share Tech Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+}
+
+[data-theme="skiatron"] p,
+[data-theme="skiatron"] li,
+[data-theme="skiatron"] .content,
+[data-theme="telequipment"] p,
+[data-theme="telequipment"] li,
+[data-theme="telequipment"] .content,
+[data-theme="amdek"] p,
+[data-theme="amdek"] li,
+[data-theme="amdek"] .content,
+[data-theme="vectrex"] p,
+[data-theme="vectrex"] li,
+[data-theme="vectrex"] .content {
+    font-family: 'VT323', 'Share Tech Mono', monospace;
+    font-size: 1.15rem;
+}
+
+[data-theme="skiatron"] .nav-list li a,
+[data-theme="telequipment"] .nav-list li a,
+[data-theme="amdek"] .nav-list li a,
+[data-theme="vectrex"] .nav-list li a {
+    font-family: 'VT323', 'Share Tech Mono', monospace;
+    letter-spacing: 2px;
+}
+
+/* MUTHUR theme nav glow borders */
+[data-theme="telequipment"] .sticky-header {
+    box-shadow: 0 2px 15px rgba(0, 255, 136, 0.3);
+}
+
+[data-theme="amdek"] .sticky-header {
+    box-shadow: 0 2px 15px rgba(255, 170, 0, 0.3);
+}
+
+[data-theme="vectrex"] .sticky-header {
+    box-shadow: 0 2px 15px rgba(170, 221, 255, 0.3);
+}
+
+[data-theme="skiatron"] .sticky-header {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+/* MUTHUR theme button link adjustments */
+[data-theme="skiatron"] .content a.btn-link,
+[data-theme="telequipment"] .content a.btn-link,
+[data-theme="amdek"] .content a.btn-link,
+[data-theme="vectrex"] .content a.btn-link {
+    font-family: 'VT323', 'Share Tech Mono', monospace;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border-width: 2px;
+}
+

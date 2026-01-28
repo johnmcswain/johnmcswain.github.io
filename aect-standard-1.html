@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=GFS+Didot&family=Lato:ital,wght@0,300;0,400;0,700;1,400&family=Oswald:wght@400;500&family=Raleway:wght@300;400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=GFS+Didot&family=Lato:ital,wght@0,300;0,400;0,700;1,400&family=Oswald:wght@400;500&family=Raleway:wght@300;400;500&family=VT323&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
     <link rel="icon" type="image/png" href="assets/img/favicon.png">
     <link rel="stylesheet" href="css/styles.css">
@@ -30,28 +30,9 @@
                 <li><a href="reflection.html">Reflection</a></li>
                 <li><a href="references.html">References</a></li>
                 <li>
-                    <button id="theme-toggle" aria-label="Toggle Theme">
-                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path
-                                d="M12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16Z"
-                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                            <path d="M12 2V4" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round" />
-                            <path d="M12 20V22" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round" />
-                            <path d="M4.92999 4.92999L6.33999 6.33999" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round" />
-                            <path d="M17.66 17.66L19.07 19.07" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round" />
-                            <path d="M2 12H4" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round" />
-                            <path d="M20 12H22" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round" />
-                            <path d="M4.92999 19.07L6.33999 17.66" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round" />
-                            <path d="M17.66 6.33999L19.07 4.92999" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
+                    <button id="theme-toggle" aria-label="Cycle through themes">
+                        <span id="theme-label">Dark</span>
+                        <span class="theme-arrow">&#9655;</span>
                     </button>
                 </li>
             </ul>
@@ -78,6 +59,13 @@
         <a href="assets/artifact1/index.html" target="_blank" class="btn-link">View Artifact 1</a>
         <a href="#" target="_blank" class="btn-link">View Artifact 2</a>
     </main>
+    <!-- CRT overlay effects for MUTHUR themes -->
+    <div class="crt-overlay" aria-hidden="true">
+        <div class="crt-scanlines"></div>
+        <div class="crt-noise"></div>
+        <div class="crt-vignette"></div>
+        <div class="crt-flicker"></div>
+    </div>
     <script type="module" src="js/main.js"></script>
 </body>
 

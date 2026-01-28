@@ -5,18 +5,561 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; frame-src https://www.youtube.com; script-src 'self'; img-src 'self' data:;">
-    <title>John McSwain</title>
+        content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; frame-src https://www.youtube.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; img-src 'self' data: blob:;">
+    <title>Career Constellation - John McSwain</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=GFS+Didot&family=Lato:ital,wght@0,300;0,400;0,700;1,400&family=Oswald:wght@400;500&family=Raleway:wght@300;400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=GFS+Didot&family=Lato:ital,wght@0,300;0,400;0,700;1,400&family=Oswald:wght@400;500&family=Raleway:wght@300;400;500&family=VT323&family=Share+Tech+Mono&display=swap"
         rel="stylesheet">
     <link rel="icon" type="image/png" href="assets/img/favicon.png">
     <link rel="stylesheet" href="css/styles.css">
     <link rel="manifest" href="manifest.json">
+    <style>
+        /* Constellation-specific styles */
+        #constellation-container {
+            position: relative;
+            width: 100%;
+            height: 70vh;
+            min-height: 500px;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
 
+        #constellation-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
 
+        .node-tooltip {
+            position: absolute;
+            background: var(--nav-bg);
+            border: 1px solid var(--header-border);
+            border-radius: 8px;
+            padding: 15px 20px;
+            max-width: 300px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .node-tooltip.visible {
+            opacity: 1;
+        }
+
+        .node-tooltip h3 {
+            margin: 0 0 8px 0;
+            font-size: 1.1rem;
+            color: var(--text-color);
+        }
+
+        .node-tooltip p {
+            margin: 0;
+            font-size: 0.9rem;
+            color: var(--content-color);
+            line-height: 1.4;
+        }
+
+        .node-tooltip .node-type {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.7;
+            margin-bottom: 4px;
+        }
+
+        /* Connection narrative modal */
+        .narrative-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        .narrative-modal.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .narrative-content {
+            background: var(--bg-color);
+            border: 2px solid var(--header-border);
+            border-radius: 12px;
+            padding: 30px 40px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .narrative-content h2 {
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .narrative-content .connection-nodes {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .narrative-content .narrative-text {
+            line-height: 1.8;
+            margin: 20px 0;
+        }
+
+        .narrative-content .generating {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .generating-dots {
+            display: inline-flex;
+            gap: 4px;
+        }
+
+        .generating-dots span {
+            width: 8px;
+            height: 8px;
+            background: var(--text-color);
+            border-radius: 50%;
+            animation: dotPulse 1.4s infinite ease-in-out;
+        }
+
+        .generating-dots span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .generating-dots span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes dotPulse {
+
+            0%,
+            80%,
+            100% {
+                transform: scale(0.6);
+                opacity: 0.5;
+            }
+
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-color);
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .close-modal:hover {
+            opacity: 1;
+        }
+
+        /* Instructions */
+        .constellation-intro {
+            text-align: center;
+            max-width: 700px;
+            margin: 0 auto 25px auto;
+            line-height: 1.7;
+            font-size: 1.05rem;
+            color: var(--content-color);
+        }
+
+        .constellation-instructions {
+            text-align: center;
+            margin-bottom: 20px;
+            opacity: 0.8;
+            font-size: 0.95rem;
+        }
+
+        .constellation-instructions kbd {
+            background: var(--nav-bg);
+            border: 1px solid var(--header-border);
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: inherit;
+        }
+
+        /* Legend */
+        .constellation-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 20px;
+            padding: 15px;
+            background: var(--nav-bg);
+            border-radius: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .legend-dot.education {
+            background: #4fc3f7;
+        }
+
+        .legend-dot.industry {
+            background: #81c784;
+        }
+
+        .legend-dot.teaching {
+            background: #ffb74d;
+        }
+
+        .legend-dot.research {
+            background: #ba68c8;
+        }
+
+        /* MUTHUR theme adjustments */
+        [data-theme="skiatron"] .narrative-content,
+        [data-theme="telequipment"] .narrative-content,
+        [data-theme="amdek"] .narrative-content,
+        [data-theme="vectrex"] .narrative-content {
+            border-width: 1px;
+        }
+
+        [data-theme="telequipment"] .legend-dot.education {
+            background: #00ff88;
+        }
+
+        [data-theme="telequipment"] .legend-dot.industry {
+            background: #00cc6a;
+        }
+
+        [data-theme="telequipment"] .legend-dot.teaching {
+            background: #88ffcc;
+        }
+
+        [data-theme="telequipment"] .legend-dot.research {
+            background: #00aa55;
+        }
+
+        [data-theme="amdek"] .legend-dot.education {
+            background: #ffaa00;
+        }
+
+        [data-theme="amdek"] .legend-dot.industry {
+            background: #cc8800;
+        }
+
+        [data-theme="amdek"] .legend-dot.teaching {
+            background: #ffcc66;
+        }
+
+        [data-theme="amdek"] .legend-dot.research {
+            background: #996600;
+        }
+
+        [data-theme="vectrex"] .legend-dot.education {
+            background: #aaddff;
+        }
+
+        [data-theme="vectrex"] .legend-dot.industry {
+            background: #88bbdd;
+        }
+
+        [data-theme="vectrex"] .legend-dot.teaching {
+            background: #cceeff;
+        }
+
+        [data-theme="vectrex"] .legend-dot.research {
+            background: #6699cc;
+        }
+
+        [data-theme="skiatron"] .legend-dot.education {
+            background: #2a2a2a;
+        }
+
+        [data-theme="skiatron"] .legend-dot.industry {
+            background: #4a4a4a;
+        }
+
+        [data-theme="skiatron"] .legend-dot.teaching {
+            background: #3a3a3a;
+        }
+
+        [data-theme="skiatron"] .legend-dot.research {
+            background: #5a5a5a;
+        }
+
+        /* Enhanced CRT effects for MUTHUR themes */
+
+        /* Phosphor glow effect - creates bloom around bright elements */
+        [data-theme="telequipment"] #constellation-container,
+        [data-theme="amdek"] #constellation-container,
+        [data-theme="vectrex"] #constellation-container,
+        [data-theme="skiatron"] #constellation-container {
+            position: relative;
+        }
+
+        [data-theme="telequipment"] #constellation-container::before,
+        [data-theme="amdek"] #constellation-container::before,
+        [data-theme="vectrex"] #constellation-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 10;
+            mix-blend-mode: screen;
+            background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.3) 100%);
+        }
+
+        /* Pixel grid overlay - simulates CRT phosphor dots */
+        [data-theme="telequipment"] #constellation-canvas,
+        [data-theme="amdek"] #constellation-canvas,
+        [data-theme="vectrex"] #constellation-canvas,
+        [data-theme="skiatron"] #constellation-canvas {
+            image-rendering: pixelated;
+        }
+
+        .crt-pixel-grid {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 15;
+            opacity: 0.08;
+            background-image:
+                linear-gradient(transparent 50%, rgba(0, 0, 0, 0.5) 50%),
+                linear-gradient(90deg, transparent 50%, rgba(0, 0, 0, 0.5) 50%);
+            background-size: 4px 4px;
+        }
+
+        [data-theme="telequipment"] .crt-pixel-grid,
+        [data-theme="amdek"] .crt-pixel-grid,
+        [data-theme="vectrex"] .crt-pixel-grid,
+        [data-theme="skiatron"] .crt-pixel-grid {
+            display: block;
+        }
+
+        /* Color bleeding / chromatic aberration effect */
+        .crt-color-bleed {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        [data-theme="telequipment"] .crt-color-bleed,
+        [data-theme="amdek"] .crt-color-bleed,
+        [data-theme="vectrex"] .crt-color-bleed {
+            display: block;
+            box-shadow:
+                inset 2px 0 4px rgba(255, 0, 0, 0.05),
+                inset -2px 0 4px rgba(0, 255, 255, 0.05);
+        }
+
+        /* Screen curvature effect */
+        .crt-curvature {
+            display: none;
+            position: absolute;
+            top: -5%;
+            left: -5%;
+            right: -5%;
+            bottom: -5%;
+            pointer-events: none;
+            z-index: 20;
+            border-radius: 50% / 10%;
+            box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.5);
+        }
+
+        [data-theme="telequipment"] .crt-curvature,
+        [data-theme="amdek"] .crt-curvature,
+        [data-theme="vectrex"] .crt-curvature,
+        [data-theme="skiatron"] .crt-curvature {
+            display: block;
+        }
+
+        /* Phosphor persistence / ghosting effect */
+        [data-theme="telequipment"] #constellation-canvas {
+            filter: blur(0.3px) brightness(1.1);
+        }
+
+        [data-theme="amdek"] #constellation-canvas {
+            filter: blur(0.3px) brightness(1.15) sepia(0.1);
+        }
+
+        [data-theme="vectrex"] #constellation-canvas {
+            filter: blur(0.4px) brightness(1.05) contrast(1.1);
+        }
+
+        [data-theme="skiatron"] #constellation-canvas {
+            filter: blur(0.2px) contrast(1.2);
+        }
+
+        /* Interlaced scanline effect - more pronounced */
+        [data-theme="telequipment"] .crt-scanlines,
+        [data-theme="amdek"] .crt-scanlines,
+        [data-theme="vectrex"] .crt-scanlines,
+        [data-theme="skiatron"] .crt-scanlines {
+            background: repeating-linear-gradient(0deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(0, 0, 0, 0.15) 2px,
+                    rgba(0, 0, 0, 0.15) 4px);
+        }
+
+        /* Horizontal sync wobble animation for authenticity */
+        @keyframes crt-hsync {
+
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+
+            10% {
+                transform: translateX(-0.5px);
+            }
+
+            20% {
+                transform: translateX(0.5px);
+            }
+
+            30% {
+                transform: translateX(0);
+            }
+
+            50% {
+                transform: translateX(0.3px);
+            }
+
+            70% {
+                transform: translateX(-0.3px);
+            }
+        }
+
+        [data-theme="telequipment"] #constellation-container,
+        [data-theme="amdek"] #constellation-container {
+            animation: crt-hsync 0.15s infinite;
+        }
+
+        /* Phosphor burn-in corners */
+        .crt-burn-in {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 8;
+            background: radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.2) 100%);
+        }
+
+        [data-theme="telequipment"] .crt-burn-in,
+        [data-theme="amdek"] .crt-burn-in,
+        [data-theme="vectrex"] .crt-burn-in {
+            display: block;
+        }
+
+        /* Theme-specific glow colors */
+        [data-theme="telequipment"] #constellation-container {
+            box-shadow:
+                inset 0 0 60px rgba(0, 255, 136, 0.1),
+                0 0 30px rgba(0, 255, 136, 0.1);
+        }
+
+        [data-theme="amdek"] #constellation-container {
+            box-shadow:
+                inset 0 0 60px rgba(255, 170, 0, 0.1),
+                0 0 30px rgba(255, 170, 0, 0.1);
+        }
+
+        [data-theme="vectrex"] #constellation-container {
+            box-shadow:
+                inset 0 0 60px rgba(170, 221, 255, 0.08),
+                0 0 30px rgba(170, 221, 255, 0.08);
+        }
+
+        [data-theme="skiatron"] #constellation-container {
+            box-shadow:
+                inset 0 0 60px rgba(100, 100, 100, 0.1),
+                0 0 20px rgba(50, 50, 50, 0.2);
+        }
+
+        /* Vertical roll interference lines */
+        @keyframes crt-roll {
+            0% {
+                transform: translateY(-100%);
+            }
+
+            100% {
+                transform: translateY(100%);
+            }
+        }
+
+        .crt-roll-line {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            pointer-events: none;
+            z-index: 25;
+            opacity: 0.03;
+        }
+
+        [data-theme="telequipment"] .crt-roll-line {
+            display: block;
+            background: linear-gradient(transparent, rgba(0, 255, 136, 0.5), transparent);
+            animation: crt-roll 8s linear infinite;
+        }
+
+        [data-theme="amdek"] .crt-roll-line {
+            display: block;
+            background: linear-gradient(transparent, rgba(255, 170, 0, 0.5), transparent);
+            animation: crt-roll 10s linear infinite;
+        }
+    </style>
 </head>
 
 <body>
@@ -31,110 +574,948 @@
                 <li><a href="reflection.html">Reflection</a></li>
                 <li><a href="references.html">References</a></li>
                 <li>
-                    <button id="theme-toggle" aria-label="Toggle Theme">
-                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path
-                                d="M12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16Z"
-                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                            <path d="M12 2V4" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round" />
-                            <path d="M12 20V22" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round" />
-                            <path d="M4.92999 4.92999L6.33999 6.33999" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round" />
-                            <path d="M17.66 17.66L19.07 19.07" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round" />
-                            <path d="M2 12H4" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round" />
-                            <path d="M20 12H22" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round" />
-                            <path d="M4.92999 19.07L6.33999 17.66" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round" />
-                            <path d="M17.66 6.33999L19.07 4.92999" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
+                    <button id="theme-toggle" aria-label="Cycle through themes">
+                        <span id="theme-label">Dark</span>
+                        <span class="theme-arrow">&#9655;</span>
                     </button>
                 </li>
             </ul>
         </nav>
     </header>
     <main class="content" id="main-content">
-        <h1>JOHN I. MCSWAIN, III</h1>
-        <div class="intro-container">
-            <div class="bio-media">
-                <img src="assets/img/mcswain_headshot.jpg" alt="John McSwain">
-                <a href="assets/files/mcswain_cv.pdf" target="_blank" class="btn-link">Download CV</a>
+        <h1>JOHN I. MCSWAIN, III Career Constellation</h1>
+
+        <p class="constellation-intro">
+            Five master's degrees. Computer Science, Human-Computer Interaction, Business Administration,
+            Entrepreneurship, and Learning Design. Each discipline offers its own lens for understanding
+            how people learn, how technology evolves, and how organizations change. Rather than a linear
+            career path, these fields form a constellation—distinct points of expertise that connect
+            in unexpected ways. Explore the visualization below to discover how these experiences
+            intersect and inform one another.
+        </p>
+
+        <p class="constellation-instructions">
+            <kbd>Hover</kbd> over nodes to see details. <kbd>Click</kbd> two nodes to discover how they connect.
+            <kbd>Drag</kbd> to rotate. <kbd>Scroll</kbd> to zoom.
+        </p>
+
+        <div id="constellation-container">
+            <canvas id="constellation-canvas"></canvas>
+            <div class="node-tooltip" id="node-tooltip">
+                <div class="node-type"></div>
+                <h3></h3>
+                <p></p>
             </div>
-            <div class="intro-text">
-                <h2>Statement of Professional Goals</h2>
-                <p>My professional path has been shaped by a conviction that emerging technologies achieve their
-                    greatest impact
-                    when guided by principled instructional design and grounded in learning science. Across two decades
-                    working
-                    at the intersection of technology development and education, as a software architect, applied
-                    researcher,
-                    curriculum developer, and university instructor, I have pursued several interrelated goals in
-                    Learning
-                    Design and Technologies.</p>
+            <!-- Enhanced CRT overlay effects for MUTHUR themes -->
+            <div class="crt-color-bleed" aria-hidden="true"></div>
+            <div class="crt-burn-in" aria-hidden="true"></div>
+            <div class="crt-pixel-grid" aria-hidden="true"></div>
+            <div class="crt-curvature" aria-hidden="true"></div>
+            <div class="crt-roll-line" aria-hidden="true"></div>
+        </div>
+
+        <div class="constellation-legend">
+            <div class="legend-item">
+                <div class="legend-dot education"></div>
+                <span>Education</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot industry"></div>
+                <span>Industry</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot teaching"></div>
+                <span>Teaching</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot research"></div>
+                <span>Research</span>
             </div>
         </div>
-        <h3>Continuous Learning and Mastery of Emerging Technologies</h3>
-        <p>I engage with emerging technologies as a lifelong learner, focused not just on how systems work, but on how
-            they reshape learning and work environments. My graduate studies across technical and human-centered fields
-            reflect a purposeful effort to see technology from multiple perspectives. Pursuing an <a
-                href="https://sc.edu/study/majors_and_degrees/learning-design-and-technologies-med.php">M.Ed. in
-                Learning
-                Design
-                and Technologies</a> at the <a href="https://sc.edu/">University of South Carolina</a> has deepened my
-            understanding that true expertise means
-            connecting technical skill with a solid foundation in adult learning theory and instructional design.</p>
-        <p>In my
-            current role as a solutions architect, I focus on enterprise AI systems that are transforming how
-            organizations
-            learn and grow. Supporting clients in both industry and academia, I care deeply about not just implementing
-            new technologies, but understanding how they impact adult learning and expertise. My central questions are:
-        <ul>
-            <li>How do AI-powered environments change the way people build knowledge?</li>
-            <li>What supports help learners understand both the possibilities and limits of AI?</li>
-            <li>How can we design learning that builds critical thinking as well as technical skill?</li>
-        </ul>
-        These questions guide my work at the intersection of technology and education.</p>
 
-        <h3>Designing and Delivering Effective Instruction</h3>
-        <p>I believe thoughtful instructional design can changes lives. Since 2017, I've taught hundreds of students at
-            <a href="https://pe.gatech.edu/instructors/john-mcswain">Georgia Tech's College of Lifelong Learning</a> and
-            <a href="https://www.scheller.gatech.edu/directory/faculty/mcswain/index.html">Scheller College of
-                Business</a>, using evidence-based methods to improve learning. When students struggled with key
-            concepts, I redesigned my course using cognitive load theory and worked examples, leading to higher grades
-            and greater satisfaction. This experience confirmed for me that systematic design makes a real difference.
-            My commitment to evidence-based teaching reaches beyond the classroom. At <a
-                href="https://aws.amazon.com/training/">AWS Training and Certification</a>, I created content for
-            existing and aspiring
-            Cloud Developers, including the ML
-            Essentials lab series for over 10,000 learners, building pathways from basics to advanced skills. At <a
-                href="https://2u.com/">2U</a> (formerly known as Trilogy Education
-            Services), I used learning analytics to identify at-risk students and personalize support, which improved
-            engagement and completion across 15 universities. These experiences have fueled my passion for advancing the
-            scholarship of teaching and learning, especially as technology blurs the lines between tool and tutor. I
-            hope
-            to contribute new insights about instructional design in these evolving contexts.
-        </p>
-
-        <h3>Mentoring Learners Through Reasoning and Motivation</h3>
-        <p>Mentorship matters as much as instruction. The most meaningful teaching moments often happen in one-on-one
-            conversations, helping students navigate career shifts or supporting professionals in new technical fields.
-            I believe mentorship answers questions content alone can't:
-        <ul>
-            <li>How and why pursue this path more often than not?</li>
-            <li>What makes learning genuinely meaningful?</li>
-        </ul> I draw on research in motivation and my own
-        unconventional academic journey, five graduate degrees and a range of career transitions, to guide learners
-        whose paths aren't traditional. Whether advising students from underrepresented backgrounds or those
-        changing
-        careers, I aim to provide practical guidance and encouragement when the way forward feels unclear.
-        </p>
-
+        <!-- Narrative Modal -->
+        <div class="narrative-modal" id="narrative-modal">
+            <div class="narrative-content">
+                <button class="close-modal" aria-label="Close">&times;</button>
+                <h2>
+                    <span class="connection-title">Connection Discovered</span>
+                </h2>
+                <p class="connection-nodes"></p>
+                <div class="narrative-text"></div>
+            </div>
+        </div>
     </main>
+    <!-- CRT overlay effects for MUTHUR themes -->
+    <div class="crt-overlay" aria-hidden="true">
+        <div class="crt-scanlines"></div>
+        <div class="crt-noise"></div>
+        <div class="crt-vignette"></div>
+        <div class="crt-flicker"></div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        (function () {
+            'use strict';
+
+            // Career data nodes
+            const careerNodes = [
+                // Education
+                {
+                    id: 'usc',
+                    name: 'University of South Carolina',
+                    type: 'education',
+                    description: 'M.Ed. in Learning Design & Technologies. Focus on instructional systems design and adult learning theory.',
+                    year: '2024-2026'
+                },
+                {
+                    id: 'gatech-cs',
+                    name: 'Georgia Tech - Computer Science',
+                    type: 'education',
+                    description: 'M.S. in Computer Science: Interactive Intelligence. Focus on AI Ethics, HCI, Health Informatics, Cognitive Science.',
+                    year: '2019-2022'
+                },
+                {
+                    id: 'gatech-mba',
+                    name: 'Georgia Tech - MBA',
+                    type: 'education',
+                    description: 'M.B.A. in Strategic Innovation. Focus on technology strategy, product development, innovation management.',
+                    year: '2017-2019'
+                },
+                {
+                    id: 'iowa-state',
+                    name: 'Iowa State University',
+                    type: 'education',
+                    description: 'M.S. in Human-Computer Interaction. Focus on user-centered design and cognitive engineering.',
+                    year: '2008-2010'
+                },
+                {
+                    id: 'uf',
+                    name: 'University of Florida',
+                    type: 'education',
+                    description: 'M.S. in Entrepreneurship. Focus on technology commercialization and venture creation.',
+                    year: '2012-2014'
+                },
+                // Industry
+                {
+                    id: 'aws',
+                    name: 'AWS Training & Certification',
+                    type: 'industry',
+                    description: 'Created ML Essentials lab series reaching 10,000+ learners, building pathways from basics to advanced cloud skills.',
+                    year: '2020-2022'
+                },
+                {
+                    id: '2u',
+                    name: '2U / Trilogy Education',
+                    type: 'industry',
+                    description: 'Used learning analytics to identify at-risk students and personalize support across 15 universities.',
+                    year: '2018-2020'
+                },
+                {
+                    id: 'solutions-architect',
+                    name: 'Solutions Architect',
+                    type: 'industry',
+                    description: 'Enterprise AI systems transforming how organizations learn and grow. Supporting clients in industry and academia.',
+                    year: 'Present'
+                },
+                // Teaching
+                {
+                    id: 'gatech-teaching',
+                    name: 'Georgia Tech Instructor',
+                    type: 'teaching',
+                    description: 'Teaching at College of Lifelong Learning and Scheller College of Business since 2017. Evidence-based methods improving learning outcomes.',
+                    year: '2017-Present'
+                },
+                // Research
+                {
+                    id: 'ai-learning',
+                    name: 'AI & Learning Research',
+                    type: 'research',
+                    description: 'Investigating how AI-powered environments change knowledge building, and designing learning that builds critical thinking alongside technical skill.',
+                    year: 'Ongoing'
+                }
+            ];
+
+            // Pre-defined connection narratives (simulated GenAI responses)
+            const connectionNarratives = {
+                'usc|gatech-cs': {
+                    title: 'From Code to Curriculum',
+                    narrative: 'The journey from Georgia Tech\'s Computer Science program to USC\'s Learning Design program represents a profound shift in perspective. At Georgia Tech, I learned to build intelligent systems—algorithms that could process, learn, and adapt. At USC, I\'m learning to build intelligent learning experiences for humans. The AI ethics and cognitive science foundations from GT now inform how I think about designing instruction that respects learner autonomy while leveraging technology\'s power. This combination positions me to bridge the gap between what AI can do and what learners actually need.'
+                },
+                'usc|gatech-mba': {
+                    title: 'Strategy Meets Pedagogy',
+                    narrative: 'The MBA\'s focus on strategic innovation prepared me to think about learning design as a product—something that needs market fit, scalable delivery, and measurable outcomes. Now at USC, I\'m applying those business frameworks to educational challenges. How do we "scale" personalized learning? What\'s the "MVP" for a new training program? This business-education synthesis helps me speak both languages: the ROI metrics executives need and the learning outcomes educators pursue.'
+                },
+                'usc|iowa-state': {
+                    title: 'User-Centered Learning Design',
+                    narrative: 'Iowa State\'s HCI program taught me that good design starts with understanding users—their mental models, their frustrations, their contexts. At USC, this translates directly into learner-centered design. The cognitive engineering principles I studied—reducing cognitive load, supporting task performance, designing for error recovery—are precisely what instructional designers need. My HCI background means I don\'t just ask "what should learners know?" but "how do learners actually think and learn?"'
+                },
+                'usc|uf': {
+                    title: 'Entrepreneurial Education',
+                    narrative: 'The entrepreneurship training at UF taught me to spot opportunities and build ventures. Education is ripe for innovation—the gap between traditional instruction and what technology enables represents an enormous opportunity. My USC studies give me the pedagogical rigor to build solutions that actually work, while my entrepreneurial training pushes me to think about impact, scale, and sustainability. Together, they\'re preparing me to create educational innovations that can thrive beyond the classroom.'
+                },
+                'gatech-cs|gatech-mba': {
+                    title: 'The Technical Business Leader',
+                    narrative: 'Having both degrees from Georgia Tech creates a unique advantage: I can dive deep into technical architectures in morning meetings and pivot to strategic planning in the afternoon. The CS program taught me what\'s technically possible; the MBA taught me what\'s strategically viable. This combination is essential for AI product leadership, where you need to understand both the transformer architecture details and the go-to-market strategy.'
+                },
+                'gatech-cs|iowa-state': {
+                    title: 'Intelligence Meets Interaction',
+                    narrative: 'Iowa State\'s HCI program established my foundation in how humans and computers should work together. Georgia Tech\'s Interactive Intelligence track built on this, exploring how AI can be a partner in that interaction rather than just a tool. The progression from designing interfaces to designing intelligent agents represents the evolution of the field itself—from HCI to Human-AI Collaboration.'
+                },
+                'gatech-cs|uf': {
+                    title: 'Technical Founder Mindset',
+                    narrative: 'The combination of deep technical knowledge from GT\'s CS program with entrepreneurial skills from UF creates the technical founder archetype. I can prototype AI solutions myself, understand their limitations, and simultaneously evaluate market potential. This matters in AI especially—too many ventures fail because founders don\'t understand the technology, or technologists don\'t understand the market.'
+                },
+                'gatech-mba|iowa-state': {
+                    title: 'Design-Driven Strategy',
+                    narrative: 'Iowa State taught me to start with user needs; Georgia Tech\'s MBA taught me to align those needs with business strategy. This combination produces design-driven business thinking: strategies that don\'t just chase profits but create genuine value through superior experiences. In a world where customer experience increasingly differentiates products, this synthesis is a competitive advantage.'
+                },
+                'gatech-mba|uf': {
+                    title: 'Innovation Ecosystem Fluency',
+                    narrative: 'Both programs emphasized innovation, but from different angles. UF focused on creating new ventures from scratch—the entrepreneurial journey. Georgia Tech\'s MBA focused on driving innovation within large organizations—intrapreneurship and strategic transformation. Together, they provide a complete view of how innovation happens, whether you\'re a startup founder or a corporate innovation leader.'
+                },
+                'iowa-state|uf': {
+                    title: 'Design-Driven Ventures',
+                    narrative: 'UF taught me to launch ventures; Iowa State taught me to design products people actually want to use. This sequence matters—many startups fail not because of bad business models but because of poor product design. My HCI training ensures that any venture I pursue starts with deep user understanding and builds products that fit naturally into people\'s lives and workflows.'
+                },
+                'aws|2u': {
+                    title: 'Scaling Learning Excellence',
+                    narrative: 'Both AWS and 2U operate at massive scale—thousands of learners, complex logistics, high stakes. At 2U, I learned to use analytics to personalize support; at AWS, I applied those insights to build self-paced learning that scales infinitely. The progression taught me that scale and quality aren\'t opposites—with the right design, you can achieve both.'
+                },
+                'aws|gatech-teaching': {
+                    title: 'Industry Informs Academy',
+                    narrative: 'Teaching at Georgia Tech while creating content at AWS creates a powerful feedback loop. Industry experience brings real-world relevance to academic instruction; academic rigor improves industry training quality. Students benefit from current, practical examples; AWS content benefits from evidence-based pedagogical approaches. This bridge role—connecting industry and academia—is increasingly vital in fast-moving technical fields.'
+                },
+                'aws|solutions-architect': {
+                    title: 'From Creator to Consultant',
+                    narrative: 'Building training at AWS gave me deep expertise in cloud and AI technologies. As a Solutions Architect, I apply that knowledge to help organizations implement these technologies effectively. The training development experience also helps me understand how organizations can build internal capability—not just implement technology, but develop the human skills to leverage it.'
+                },
+                'gatech-teaching|ai-learning': {
+                    title: 'Research-Informed Practice',
+                    narrative: 'Teaching at Georgia Tech provides a living laboratory for my research interests in AI and learning. Every semester brings new observations about how students interact with AI tools, what helps and what hinders their learning. This grounds my research in real educational contexts while making my teaching more reflective and evidence-based. The combination pushes both the scholarship and the practice forward.'
+                },
+                'ai-learning|gatech-cs': {
+                    title: 'Building What I Study',
+                    narrative: 'The Computer Science program gave me the technical skills to build AI systems; my research focus examines how those systems affect learning. This means I can both construct AI-powered learning tools and critically analyze their impact. It\'s one thing to study AI in education; it\'s another to deeply understand the technology\'s capabilities and limitations from the inside.'
+                },
+                'solutions-architect|usc': {
+                    title: 'Designing Learning Systems',
+                    narrative: 'As a Solutions Architect, I help organizations implement complex technical systems. At USC, I\'m learning to design complex learning systems. The parallels are striking: both require understanding requirements, managing stakeholders, and building solutions that actually get adopted. The technical architecture skills translate directly to instructional architecture—mapping content, sequencing experiences, and designing for scale.'
+                },
+                '2u|gatech-teaching': {
+                    title: 'Analytics-Enhanced Instruction',
+                    narrative: '2U taught me to use data to identify struggling students before they failed. At Georgia Tech, I apply those same principles—using early warning signals to intervene, analyzing patterns to improve course design. The combination of edtech analytics expertise with direct teaching experience creates a feedback-rich practice where data informs every instructional decision.'
+                },
+                'aws|ai-learning': {
+                    title: 'Cloud-Powered Learning Research',
+                    narrative: 'AWS provided not just a workplace but a platform. The cloud infrastructure that powers enterprise AI can also power learning research at scale. My time at AWS taught me to think about learning technology as infrastructure—scalable, reliable, and capable of supporting complex adaptive systems. This technical fluency accelerates my ability to prototype and test AI-powered learning interventions.'
+                },
+                'solutions-architect|gatech-cs': {
+                    title: 'Theory to Production',
+                    narrative: 'Georgia Tech\'s CS program provided the theoretical foundations: algorithms, machine learning, system design. The Solutions Architect role applies those foundations at enterprise scale. The program taught me how AI works; the role teaches me how to make AI work in real organizations with real constraints. It\'s the difference between knowing the algorithms and deploying systems that survive contact with production.'
+                },
+                'solutions-architect|gatech-mba': {
+                    title: 'Strategic Technical Advisory',
+                    narrative: 'The MBA\'s strategic frameworks combine with the Solutions Architect role to create a trusted advisor position. I don\'t just recommend technical solutions; I connect them to business outcomes. Executives need someone who can translate between technical possibilities and strategic priorities—that\'s precisely what this combination enables. Technology decisions become business decisions, properly scoped and justified.'
+                }
+            };
+
+            // Color schemes for different themes
+            function getThemeColors() {
+                const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+                const schemes = {
+                    dark: {
+                        education: 0x4fc3f7,
+                        industry: 0x81c784,
+                        teaching: 0xffb74d,
+                        research: 0xba68c8,
+                        line: 0x666666,
+                        background: 0x151716,
+                        particle: 0xffffff
+                    },
+                    light: {
+                        education: 0x0288d1,
+                        industry: 0x388e3c,
+                        teaching: 0xf57c00,
+                        research: 0x7b1fa2,
+                        line: 0xcccccc,
+                        background: 0xf9f9f9,
+                        particle: 0x333333
+                    },
+                    skiatron: {
+                        education: 0x2a2a2a,
+                        industry: 0x4a4a4a,
+                        teaching: 0x3a3a3a,
+                        research: 0x5a5a5a,
+                        line: 0x888888,
+                        background: 0xb8b8b0,
+                        particle: 0x2a2a2a
+                    },
+                    telequipment: {
+                        education: 0x00ff88,
+                        industry: 0x00cc6a,
+                        teaching: 0x88ffcc,
+                        research: 0x00aa55,
+                        line: 0x006633,
+                        background: 0x0a1810,
+                        particle: 0x00ff88
+                    },
+                    amdek: {
+                        education: 0xffaa00,
+                        industry: 0xcc8800,
+                        teaching: 0xffcc66,
+                        research: 0x996600,
+                        line: 0x664400,
+                        background: 0x1a0f00,
+                        particle: 0xffaa00
+                    },
+                    vectrex: {
+                        education: 0xaaddff,
+                        industry: 0x88bbdd,
+                        teaching: 0xcceeff,
+                        research: 0x6699cc,
+                        line: 0x446688,
+                        background: 0x0a0a12,
+                        particle: 0xaaddff
+                    }
+                };
+                return schemes[theme] || schemes.dark;
+            }
+
+            // Three.js setup
+            let scene, camera, renderer, raycaster, mouse;
+            let nodeMeshes = [];
+            let particleSystems = [];
+            let connectionLines = [];
+            let selectedNodes = [];
+            let hoveredNode = null;
+            let animationId;
+            let rotationX = 0;
+            let rotationY = 0;
+
+            const container = document.getElementById('constellation-container');
+            const canvas = document.getElementById('constellation-canvas');
+            const tooltip = document.getElementById('node-tooltip');
+            const modal = document.getElementById('narrative-modal');
+
+            function init() {
+                const colors = getThemeColors();
+
+                // Scene
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(colors.background);
+
+                // Camera
+                const aspect = container.clientWidth / container.clientHeight;
+                camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
+                camera.position.z = 15;
+
+                // Renderer
+                renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+                renderer.setSize(container.clientWidth, container.clientHeight);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+                // Raycaster for mouse interaction
+                raycaster = new THREE.Raycaster();
+                mouse = new THREE.Vector2();
+
+                // Create nodes
+                createNodes();
+
+                // Create connection lines
+                createConnections();
+
+                // Create background particles
+                createBackgroundParticles();
+
+                // Create pixelated cityscape
+                createPixelatedCity();
+
+                // Event listeners
+                canvas.addEventListener('mousemove', onMouseMove);
+                canvas.addEventListener('click', onClick);
+                window.addEventListener('resize', onResize);
+
+                // Add orbit-like controls (full 3-axis)
+                let isDragging = false;
+                let previousMouseX = 0;
+                let previousMouseY = 0;
+
+                canvas.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    previousMouseX = e.clientX;
+                    previousMouseY = e.clientY;
+                    canvas.style.cursor = 'grabbing';
+                });
+
+                canvas.addEventListener('mouseup', () => {
+                    isDragging = false;
+                    canvas.style.cursor = hoveredNode ? 'pointer' : 'grab';
+                });
+
+                canvas.addEventListener('mouseleave', () => {
+                    isDragging = false;
+                });
+
+                canvas.addEventListener('mousemove', (e) => {
+                    if (isDragging) {
+                        const deltaX = e.clientX - previousMouseX;
+                        const deltaY = e.clientY - previousMouseY;
+                        rotationY += deltaX * 0.005;
+                        rotationX += deltaY * 0.005;
+                        // Clamp vertical rotation to prevent flipping
+                        rotationX = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, rotationX));
+                        previousMouseX = e.clientX;
+                        previousMouseY = e.clientY;
+                    }
+                });
+
+                canvas.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    camera.position.z += e.deltaY * 0.01;
+                    camera.position.z = Math.max(8, Math.min(25, camera.position.z));
+                });
+
+                // Start animation
+                animate();
+            }
+
+            function createNodes() {
+                const colors = getThemeColors();
+                nodeMeshes = [];
+
+                // Position nodes in a 3D constellation pattern
+                const positions = generateConstellationPositions(careerNodes.length);
+
+                careerNodes.forEach((node, index) => {
+                    const geometry = new THREE.SphereGeometry(0.3, 32, 32);
+                    const material = new THREE.MeshBasicMaterial({
+                        color: colors[node.type],
+                        transparent: true,
+                        opacity: 0.9
+                    });
+
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.position.copy(positions[index]);
+                    mesh.userData = { ...node, basePosition: positions[index].clone(), index: index };
+
+                    // Add glow effect
+                    const glowGeometry = new THREE.SphereGeometry(0.45, 32, 32);
+                    const glowMaterial = new THREE.MeshBasicMaterial({
+                        color: colors[node.type],
+                        transparent: true,
+                        opacity: 0.3
+                    });
+                    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+                    mesh.add(glow);
+
+                    // Add pulsing particle ring
+                    const ringGeometry = new THREE.RingGeometry(0.5, 0.55, 32);
+                    const ringMaterial = new THREE.MeshBasicMaterial({
+                        color: colors[node.type],
+                        transparent: true,
+                        opacity: 0.5,
+                        side: THREE.DoubleSide
+                    });
+                    const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+                    ring.userData.phase = Math.random() * Math.PI * 2;
+                    mesh.add(ring);
+
+                    scene.add(mesh);
+                    nodeMeshes.push(mesh);
+                });
+            }
+
+            function generateConstellationPositions(count) {
+                const positions = [];
+                const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+
+                for (let i = 0; i < count; i++) {
+                    const y = 1 - (i / (count - 1)) * 2;
+                    const radius = Math.sqrt(1 - y * y);
+                    const theta = goldenAngle * i;
+
+                    positions.push(new THREE.Vector3(
+                        Math.cos(theta) * radius * 6,
+                        y * 4,
+                        Math.sin(theta) * radius * 6
+                    ));
+                }
+
+                return positions;
+            }
+
+            function createConnections() {
+                const colors = getThemeColors();
+                connectionLines = [];
+
+                // Create lines between related nodes
+                const connections = [
+                    [0, 1], [0, 2], [1, 2], [1, 3], [2, 4],
+                    [5, 6], [5, 7], [6, 8], [7, 9],
+                    [0, 9], [1, 9], [8, 9], [3, 8]
+                ];
+
+                connections.forEach(([i, j]) => {
+                    if (nodeMeshes[i] && nodeMeshes[j]) {
+                        const points = [
+                            nodeMeshes[i].position.clone(),
+                            nodeMeshes[j].position.clone()
+                        ];
+                        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                        const material = new THREE.LineBasicMaterial({
+                            color: colors.line,
+                            transparent: true,
+                            opacity: 0.3
+                        });
+                        const line = new THREE.Line(geometry, material);
+                        line.userData = { start: i, end: j };
+                        scene.add(line);
+                        connectionLines.push(line);
+                    }
+                });
+            }
+
+            function createBackgroundParticles() {
+                const colors = getThemeColors();
+                const particleCount = 500;
+                const geometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(particleCount * 3);
+                const sizes = new Float32Array(particleCount);
+
+                for (let i = 0; i < particleCount; i++) {
+                    positions[i * 3] = (Math.random() - 0.5) * 40;
+                    positions[i * 3 + 1] = (Math.random() - 0.5) * 40;
+                    positions[i * 3 + 2] = (Math.random() - 0.5) * 40;
+                    sizes[i] = Math.random() * 0.05 + 0.02;
+                }
+
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+                const material = new THREE.PointsMaterial({
+                    color: colors.particle,
+                    size: 0.05,
+                    transparent: true,
+                    opacity: 0.6,
+                    sizeAttenuation: true
+                });
+
+                const particles = new THREE.Points(geometry, material);
+                scene.add(particles);
+                particleSystems.push(particles);
+            }
+
+            // Pixelated cityscape variables
+            let cityGroup;
+            let cityBuildings = [];
+
+            function createPixelatedCity() {
+                const colors = getThemeColors();
+                const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+
+                // City color scheme based on theme
+                const cityColors = {
+                    dark: { building: 0x1a1a2e, glow: 0x4fc3f7, window: 0xffcc00 },
+                    light: { building: 0x2d3436, glow: 0x0984e3, window: 0xfdcb6e },
+                    skiatron: { building: 0x1a1a1a, glow: 0x888888, window: 0xaaaaaa },
+                    telequipment: { building: 0x001a0d, glow: 0x00ff88, window: 0x00ff88 },
+                    amdek: { building: 0x1a0f00, glow: 0xffaa00, window: 0xffaa00 },
+                    vectrex: { building: 0x0a0a15, glow: 0xaaddff, window: 0xaaddff }
+                };
+
+                const cColors = cityColors[theme] || cityColors.dark;
+
+                // Remove old city if exists
+                if (cityGroup) {
+                    scene.remove(cityGroup);
+                }
+
+                cityGroup = new THREE.Group();
+                cityBuildings = [];
+
+                // City parameters
+                const cityWidth = 40;
+                const cityDepth = 20;
+                const buildingCount = 60;
+                const baseY = -8; // Position below the constellation
+
+                // Create buildings with pixelated/blocky appearance
+                for (let i = 0; i < buildingCount; i++) {
+                    // Randomize building dimensions (pixelated look with integer-like sizes)
+                    const width = Math.floor(Math.random() * 3 + 1) * 0.4;
+                    const depth = Math.floor(Math.random() * 3 + 1) * 0.4;
+                    const height = Math.floor(Math.random() * 8 + 2) * 0.5;
+
+                    // Position along the bottom edge
+                    const x = (Math.random() - 0.5) * cityWidth;
+                    const z = Math.random() * cityDepth - 5;
+
+                    // Main building geometry
+                    const buildingGeom = new THREE.BoxGeometry(width, height, depth);
+                    const buildingMat = new THREE.MeshBasicMaterial({
+                        color: cColors.building,
+                        transparent: true,
+                        opacity: 0.9
+                    });
+
+                    const building = new THREE.Mesh(buildingGeom, buildingMat);
+                    building.position.set(x, baseY + height / 2, z);
+
+                    // Add glowing edge lines for that CRT look
+                    const edges = new THREE.EdgesGeometry(buildingGeom);
+                    const edgeMat = new THREE.LineBasicMaterial({
+                        color: cColors.glow,
+                        transparent: true,
+                        opacity: 0.6
+                    });
+                    const edgeLines = new THREE.LineSegments(edges, edgeMat);
+                    building.add(edgeLines);
+
+                    // Add window lights (pixelated dots)
+                    const windowRows = Math.floor(height / 0.6);
+                    const windowCols = Math.floor(width / 0.3);
+
+                    for (let row = 0; row < windowRows; row++) {
+                        for (let col = 0; col < windowCols; col++) {
+                            if (Math.random() > 0.5) { // 50% chance of lit window
+                                const windowGeom = new THREE.PlaneGeometry(0.1, 0.1);
+                                const windowMat = new THREE.MeshBasicMaterial({
+                                    color: cColors.window,
+                                    transparent: true,
+                                    opacity: 0.7 + Math.random() * 0.3,
+                                    side: THREE.DoubleSide
+                                });
+                                const windowMesh = new THREE.Mesh(windowGeom, windowMat);
+
+                                // Position on front face
+                                windowMesh.position.set(
+                                    (col - windowCols / 2) * 0.25,
+                                    (row - windowRows / 2) * 0.5,
+                                    depth / 2 + 0.01
+                                );
+                                windowMesh.userData.flickerPhase = Math.random() * Math.PI * 2;
+                                windowMesh.userData.flickerSpeed = 0.5 + Math.random() * 2;
+                                building.add(windowMesh);
+                            }
+                        }
+                    }
+
+                    cityGroup.add(building);
+                    cityBuildings.push(building);
+                }
+
+                // Add ground plane with grid lines
+                const groundGeom = new THREE.PlaneGeometry(cityWidth, cityDepth, 20, 10);
+                const groundMat = new THREE.MeshBasicMaterial({
+                    color: cColors.building,
+                    transparent: true,
+                    opacity: 0.5,
+                    side: THREE.DoubleSide
+                });
+                const ground = new THREE.Mesh(groundGeom, groundMat);
+                ground.rotation.x = -Math.PI / 2;
+                ground.position.set(0, baseY, cityDepth / 2 - 5);
+
+                // Add grid lines on ground
+                const gridHelper = new THREE.GridHelper(cityWidth, 40, cColors.glow, cColors.glow);
+                gridHelper.position.set(0, baseY + 0.01, cityDepth / 2 - 5);
+                gridHelper.material.transparent = true;
+                gridHelper.material.opacity = 0.2;
+
+                cityGroup.add(ground);
+                cityGroup.add(gridHelper);
+
+                // Add atmospheric glow at horizon
+                const horizonGeom = new THREE.PlaneGeometry(cityWidth * 1.5, 4);
+                const horizonMat = new THREE.MeshBasicMaterial({
+                    color: cColors.glow,
+                    transparent: true,
+                    opacity: 0.15,
+                    side: THREE.DoubleSide
+                });
+                const horizon = new THREE.Mesh(horizonGeom, horizonMat);
+                horizon.position.set(0, baseY + 2, cityDepth - 5);
+
+                cityGroup.add(horizon);
+
+                scene.add(cityGroup);
+            }
+
+            function updateCityColors() {
+                createPixelatedCity(); // Recreate city with new colors
+            }
+
+            function onMouseMove(event) {
+                const rect = canvas.getBoundingClientRect();
+                mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(nodeMeshes);
+
+                if (intersects.length > 0) {
+                    const node = intersects[0].object;
+                    if (hoveredNode !== node) {
+                        if (hoveredNode) {
+                            hoveredNode.scale.setScalar(1);
+                        }
+                        hoveredNode = node;
+                        showTooltip(event, node.userData);
+                        canvas.style.cursor = 'pointer';
+
+                        // Highlight node
+                        node.scale.setScalar(1.3);
+                    }
+                    updateTooltipPosition(event);
+                } else {
+                    if (hoveredNode) {
+                        hoveredNode.scale.setScalar(1);
+                        hoveredNode = null;
+                    }
+                    hideTooltip();
+                    canvas.style.cursor = 'grab';
+                }
+            }
+
+            function onClick(event) {
+                if (!hoveredNode) return;
+
+                const nodeData = hoveredNode.userData;
+
+                // Check if already selected
+                const existingIndex = selectedNodes.findIndex(n => n.id === nodeData.id);
+
+                if (existingIndex !== -1) {
+                    // Deselect
+                    selectedNodes.splice(existingIndex, 1);
+                    hoveredNode.children[0].material.opacity = 0.3;
+                } else {
+                    // Select
+                    selectedNodes.push({ id: nodeData.id, mesh: hoveredNode });
+                    hoveredNode.children[0].material.opacity = 0.8;
+
+                    // If two nodes selected, show narrative
+                    if (selectedNodes.length === 2) {
+                        showNarrative(selectedNodes[0].id, selectedNodes[1].id);
+
+                        // Reset selection after showing narrative
+                        setTimeout(() => {
+                            selectedNodes.forEach(n => {
+                                if (n.mesh && n.mesh.children[0]) {
+                                    n.mesh.children[0].material.opacity = 0.3;
+                                }
+                            });
+                            selectedNodes = [];
+                        }, 500);
+                    }
+                }
+            }
+
+            function showTooltip(event, data) {
+                tooltip.querySelector('.node-type').textContent = data.type;
+                tooltip.querySelector('h3').textContent = data.name;
+                tooltip.querySelector('p').textContent = `${data.year} — ${data.description}`;
+                tooltip.classList.add('visible');
+                updateTooltipPosition(event);
+            }
+
+            function updateTooltipPosition(event) {
+                const rect = container.getBoundingClientRect();
+                let x = event.clientX - rect.left + 15;
+                let y = event.clientY - rect.top + 15;
+
+                // Keep tooltip within container
+                const tooltipRect = tooltip.getBoundingClientRect();
+                if (x + tooltipRect.width > rect.width) {
+                    x = event.clientX - rect.left - tooltipRect.width - 15;
+                }
+                if (y + tooltipRect.height > rect.height) {
+                    y = event.clientY - rect.top - tooltipRect.height - 15;
+                }
+
+                tooltip.style.left = x + 'px';
+                tooltip.style.top = y + 'px';
+            }
+
+            function hideTooltip() {
+                tooltip.classList.remove('visible');
+            }
+
+            function showNarrative(id1, id2) {
+                const key = [id1, id2].sort().join('|');
+                const narrative = connectionNarratives[key];
+
+                const modalContent = modal.querySelector('.narrative-content');
+                const titleEl = modalContent.querySelector('.connection-title');
+                const nodesEl = modalContent.querySelector('.connection-nodes');
+                const textEl = modalContent.querySelector('.narrative-text');
+
+                // Find node names
+                const node1 = careerNodes.find(n => n.id === id1);
+                const node2 = careerNodes.find(n => n.id === id2);
+
+                nodesEl.textContent = `${node1.name} ↔ ${node2.name}`;
+
+                if (narrative) {
+                    titleEl.textContent = narrative.title;
+
+                    // Simulate typing effect
+                    textEl.innerHTML = '<div class="generating"><span>Generating insight</span><div class="generating-dots"><span></span><span></span><span></span></div></div>';
+                    modal.classList.add('visible');
+
+                    setTimeout(() => {
+                        textEl.innerHTML = `<p>${narrative.narrative}</p>`;
+                    }, 1500);
+                } else {
+                    titleEl.textContent = 'Connection Discovered';
+                    textEl.innerHTML = '<div class="generating"><span>Generating insight</span><div class="generating-dots"><span></span><span></span><span></span></div></div>';
+                    modal.classList.add('visible');
+
+                    setTimeout(() => {
+                        textEl.innerHTML = `<p>These two experiences—${node1.name} and ${node2.name}—represent different facets of a journey toward understanding how technology and learning intersect. Each brought unique insights that continue to inform current work and future directions.</p>`;
+                    }, 1500);
+                }
+            }
+
+            // Close modal
+            modal.querySelector('.close-modal').addEventListener('click', () => {
+                modal.classList.remove('visible');
+            });
+
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.remove('visible');
+                }
+            });
+
+            function onResize() {
+                const width = container.clientWidth;
+                const height = container.clientHeight;
+
+                camera.aspect = width / height;
+                camera.updateProjectionMatrix();
+                renderer.setSize(width, height);
+            }
+
+            function animate() {
+                animationId = requestAnimationFrame(animate);
+
+                const time = Date.now() * 0.001;
+
+                // Animate nodes
+                nodeMeshes.forEach((mesh, index) => {
+                    const basePos = mesh.userData.basePosition;
+
+                    // Apply Y rotation (horizontal)
+                    let x = basePos.x * Math.cos(rotationY) - basePos.z * Math.sin(rotationY);
+                    let z = basePos.x * Math.sin(rotationY) + basePos.z * Math.cos(rotationY);
+                    let y = basePos.y;
+
+                    // Apply X rotation (vertical)
+                    const newY = y * Math.cos(rotationX) - z * Math.sin(rotationX);
+                    const newZ = y * Math.sin(rotationX) + z * Math.cos(rotationX);
+
+                    mesh.position.x = x;
+                    mesh.position.z = newZ;
+                    // Gentle floating motion added to rotated Y
+                    mesh.position.y = newY + Math.sin(time + index) * 0.1;
+
+                    // Animate ring
+                    if (mesh.children[1]) {
+                        mesh.children[1].rotation.z = time + mesh.children[1].userData.phase;
+                        mesh.children[1].scale.setScalar(1 + Math.sin(time * 2 + mesh.children[1].userData.phase) * 0.1);
+                    }
+                });
+
+                // Update connection lines
+                connectionLines.forEach(line => {
+                    const positions = line.geometry.attributes.position.array;
+                    const start = nodeMeshes[line.userData.start].position;
+                    const end = nodeMeshes[line.userData.end].position;
+                    positions[0] = start.x;
+                    positions[1] = start.y;
+                    positions[2] = start.z;
+                    positions[3] = end.x;
+                    positions[4] = end.y;
+                    positions[5] = end.z;
+                    line.geometry.attributes.position.needsUpdate = true;
+                });
+
+                // Animate background particles
+                particleSystems.forEach(system => {
+                    system.rotation.y = time * 0.02;
+                });
+
+                // Animate city window flickering
+                if (cityBuildings) {
+                    cityBuildings.forEach(building => {
+                        building.children.forEach(child => {
+                            if (child.userData && child.userData.flickerPhase !== undefined) {
+                                const flicker = Math.sin(time * child.userData.flickerSpeed + child.userData.flickerPhase);
+                                child.material.opacity = 0.5 + flicker * 0.3;
+                            }
+                        });
+                    });
+                }
+
+                renderer.render(scene, camera);
+            }
+
+            // Theme change handling
+            function updateColors() {
+                // Guard: don't update if scene not initialized yet
+                if (!scene) return;
+
+                const colors = getThemeColors();
+
+                scene.background = new THREE.Color(colors.background);
+
+                nodeMeshes.forEach(mesh => {
+                    const type = mesh.userData.type;
+                    mesh.material.color.setHex(colors[type]);
+                    mesh.children.forEach(child => {
+                        if (child.material) {
+                            child.material.color.setHex(colors[type]);
+                        }
+                    });
+                });
+
+                connectionLines.forEach(line => {
+                    line.material.color.setHex(colors.line);
+                });
+
+                particleSystems.forEach(system => {
+                    system.material.color.setHex(colors.particle);
+                });
+
+                // Update city colors
+                updateCityColors();
+            }
+
+            // Watch for theme changes
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    if (mutation.attributeName === 'data-theme') {
+                        updateColors();
+                    }
+                });
+            });
+            observer.observe(document.documentElement, { attributes: true });
+
+            // Initialize when DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', init);
+            } else {
+                init();
+            }
+
+            // Cleanup on page unload
+            window.addEventListener('beforeunload', () => {
+                cancelAnimationFrame(animationId);
+                observer.disconnect();
+            });
+        })();
+    </script>
     <script type="module" src="js/main.js"></script>
 </body>
 
