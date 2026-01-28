@@ -48,16 +48,14 @@ describe('main.js theme logic', () => {
     // Initial state (assuming dark default)
     expect(document.documentElement.getAttribute('data-theme')).toBeNull()
 
-    // Click to toggle to light (logic: if not light, make light? Wait, logic was:
-    // currentTheme === 'light' ? 'dark' : 'light';
-    // If current is null, it's not 'light', so it becomes 'light'.
+    // Click to toggle to light
     themeToggle.click()
     expect(document.documentElement.getAttribute('data-theme')).toBe('light')
     expect(localStorage.getItem('theme')).toBe('light')
 
-    // Click to toggle back to dark
+    // Click again: in the new implementation, themes cycle: dark -> light -> skiatron -> ...
     themeToggle.click()
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
-    expect(localStorage.getItem('theme')).toBe('dark')
+    expect(document.documentElement.getAttribute('data-theme')).toBe('skiatron')
+    expect(localStorage.getItem('theme')).toBe('skiatron')
   })
 })
