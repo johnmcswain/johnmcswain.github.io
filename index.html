@@ -596,7 +596,7 @@
 
         <p class="constellation-instructions">
             <kbd>Hover</kbd> over nodes to see details. <kbd>Click</kbd> two nodes to discover how they connect.
-            <kbd>Drag</kbd> to rotate. <kbd>Scroll</kbd> to zoom.
+            <kbd>Drag</kbd> a node to move it. <kbd>Drag</kbd> empty space to rotate. <kbd>Scroll</kbd> to zoom.
         </p>
 
         <div id="constellation-container">
@@ -842,43 +842,69 @@
                         particle: 0x333333
                     },
                     skiatron: {
-                        education: 0x2a2a2a,
-                        industry: 0x4a4a4a,
-                        teaching: 0x3a3a3a,
-                        research: 0x5a5a5a,
-                        line: 0x888888,
+                        // High contrast dark tones against light background
+                        education: 0x1a1a1a,
+                        industry: 0x3d3d3d,
+                        teaching: 0x2a2a2a,
+                        research: 0x4f4f4f,
+                        line: 0x606060,
                         background: 0xb8b8b0,
-                        particle: 0x2a2a2a
+                        particle: 0x1a1a1a
                     },
                     telequipment: {
+                        // Bright phosphor greens with more variation
                         education: 0x00ff88,
-                        industry: 0x00cc6a,
-                        teaching: 0x88ffcc,
-                        research: 0x00aa55,
-                        line: 0x006633,
+                        industry: 0x00dd66,
+                        teaching: 0x66ffbb,
+                        research: 0x00bb55,
+                        line: 0x004422,
                         background: 0x0a1810,
                         particle: 0x00ff88
                     },
                     amdek: {
-                        education: 0xffaa00,
-                        industry: 0xcc8800,
-                        teaching: 0xffcc66,
-                        research: 0x996600,
-                        line: 0x664400,
+                        // Bright amber/orange phosphor with more variation
+                        education: 0xffbb00,
+                        industry: 0xdd9900,
+                        teaching: 0xffdd55,
+                        research: 0xbb7700,
+                        line: 0x553300,
                         background: 0x1a0f00,
-                        particle: 0xffaa00
+                        particle: 0xffbb00
                     },
                     vectrex: {
-                        education: 0xaaddff,
-                        industry: 0x88bbdd,
-                        teaching: 0xcceeff,
-                        research: 0x6699cc,
-                        line: 0x446688,
+                        // Bright blue-white phosphor with more variation
+                        education: 0xbbddff,
+                        industry: 0x99ccff,
+                        teaching: 0xddeeff,
+                        research: 0x77aadd,
+                        line: 0x335577,
                         background: 0x0a0a12,
-                        particle: 0xaaddff
+                        particle: 0xbbddff
                     }
                 };
                 return schemes[theme] || schemes.dark;
+            }
+
+            // Check if current theme is a CRT/MUTHUR theme
+            function isCRTTheme() {
+                const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+                return ['skiatron', 'telequipment', 'amdek', 'vectrex'].includes(theme);
+            }
+
+            // Get enhanced opacity values for CRT themes
+            function getNodeOpacities() {
+                if (isCRTTheme()) {
+                    return {
+                        core: 1.0,      // Full opacity for node core
+                        glow: 0.7,      // Much brighter glow
+                        ring: 0.8       // Brighter ring
+                    };
+                }
+                return {
+                    core: 0.9,
+                    glow: 0.3,
+                    ring: 0.5
+                };
             }
 
             // Three.js setup
@@ -892,6 +918,21 @@
             let rotationX = 0;
             let rotationY = 0;
 
+            // Physics: rotation inertia
+            let rotationVelocityX = 0;
+            let rotationVelocityY = 0;
+            const rotationDamping = 0.95; // How quickly rotation slows down
+            const rotationSensitivity = 0.008;
+
+            // Physics: node properties
+            let nodePhysics = []; // Stores velocity and forces for each node
+
+            // Drag state (needs to be accessible in animate)
+            let isDragging = false;
+            let isDraggingNode = false;
+            let draggedNode = null;
+            let draggedNodeIndex = -1;
+
             const container = document.getElementById('constellation-container');
             const canvas = document.getElementById('constellation-canvas');
             const tooltip = document.getElementById('node-tooltip');
@@ -904,10 +945,10 @@
                 scene = new THREE.Scene();
                 scene.background = new THREE.Color(colors.background);
 
-                // Camera
+                // Camera (positioned further back for larger node spread)
                 const aspect = container.clientWidth / container.clientHeight;
                 camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
-                camera.position.z = 15;
+                camera.position.z = 20;
 
                 // Renderer
                 renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
@@ -935,44 +976,135 @@
                 canvas.addEventListener('click', onClick);
                 window.addEventListener('resize', onResize);
 
-                // Add orbit-like controls (full 3-axis)
-                let isDragging = false;
+                // Add orbit-like controls (full 3-axis with inertia)
                 let previousMouseX = 0;
                 let previousMouseY = 0;
+                let lastDragTime = 0;
 
                 canvas.addEventListener('mousedown', (e) => {
-                    isDragging = true;
                     previousMouseX = e.clientX;
                     previousMouseY = e.clientY;
-                    canvas.style.cursor = 'grabbing';
+                    lastDragTime = Date.now();
+
+                    // Check if clicking on a node
+                    const rect = canvas.getBoundingClientRect();
+                    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+                    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+                    raycaster.setFromCamera(mouse, camera);
+                    const intersects = raycaster.intersectObjects(nodeMeshes);
+
+                    if (intersects.length > 0) {
+                        // Dragging a node
+                        isDraggingNode = true;
+                        isDragging = false;
+                        draggedNode = intersects[0].object;
+                        draggedNodeIndex = draggedNode.userData.index;
+                        canvas.style.cursor = 'move';
+                    } else {
+                        // Dragging the scene (rotation)
+                        isDragging = true;
+                        isDraggingNode = false;
+                        draggedNode = null;
+                        draggedNodeIndex = -1;
+                        // Stop current inertia when grabbing
+                        rotationVelocityX *= 0.5;
+                        rotationVelocityY *= 0.5;
+                        canvas.style.cursor = 'grabbing';
+                    }
                 });
 
                 canvas.addEventListener('mouseup', () => {
+                    if (isDraggingNode && draggedNodeIndex >= 0 && nodePhysics[draggedNodeIndex]) {
+                        // Give the node some velocity based on recent movement for a "throw" effect
+                        const physics = nodePhysics[draggedNodeIndex];
+                        physics.velocityX *= 1.5;
+                        physics.velocityY *= 1.5;
+                        physics.velocityZ *= 1.5;
+                    }
                     isDragging = false;
+                    isDraggingNode = false;
+                    draggedNode = null;
+                    draggedNodeIndex = -1;
                     canvas.style.cursor = hoveredNode ? 'pointer' : 'grab';
                 });
 
                 canvas.addEventListener('mouseleave', () => {
                     isDragging = false;
+                    isDraggingNode = false;
+                    draggedNode = null;
+                    draggedNodeIndex = -1;
                 });
 
                 canvas.addEventListener('mousemove', (e) => {
-                    if (isDragging) {
-                        const deltaX = e.clientX - previousMouseX;
-                        const deltaY = e.clientY - previousMouseY;
-                        rotationY += deltaX * 0.005;
-                        rotationX += deltaY * 0.005;
+                    const deltaX = e.clientX - previousMouseX;
+                    const deltaY = e.clientY - previousMouseY;
+                    const now = Date.now();
+                    const dt = Math.max(now - lastDragTime, 1) / 16.67; // Normalize to ~60fps
+
+                    if (isDraggingNode && draggedNodeIndex >= 0 && nodePhysics[draggedNodeIndex]) {
+                        // Move the individual node
+                        const physics = nodePhysics[draggedNodeIndex];
+
+                        // Convert screen movement to 3D offset
+                        // Scale factor based on camera distance
+                        const scaleFactor = camera.position.z * 0.003;
+
+                        // Calculate movement in camera-relative coordinates
+                        // then transform based on current rotation
+                        const moveX = deltaX * scaleFactor;
+                        const moveY = -deltaY * scaleFactor;
+
+                        // Apply inverse rotation to get movement in local space
+                        const cosY = Math.cos(-rotationY);
+                        const sinY = Math.sin(-rotationY);
+                        const cosX = Math.cos(-rotationX);
+                        const sinX = Math.sin(-rotationX);
+
+                        // Transform screen X movement (affects local X and Z)
+                        const localX = moveX * cosY;
+                        const localZ = moveX * sinY;
+
+                        // Transform screen Y movement (affects local Y and Z based on X rotation)
+                        const localY = moveY * cosX;
+                        const localZFromY = moveY * sinX;
+
+                        // Apply to physics offset
+                        physics.offsetX += localX;
+                        physics.offsetY += localY;
+                        physics.offsetZ += localZ + localZFromY;
+
+                        // Also set velocity for smooth continuation
+                        physics.velocityX = localX * 0.5;
+                        physics.velocityY = localY * 0.5;
+                        physics.velocityZ = (localZ + localZFromY) * 0.5;
+
+                        // Expand max offset when dragging to allow more movement
+                        const maxDragOffset = 3.0;
+                        physics.offsetX = Math.max(-maxDragOffset, Math.min(maxDragOffset, physics.offsetX));
+                        physics.offsetY = Math.max(-maxDragOffset, Math.min(maxDragOffset, physics.offsetY));
+                        physics.offsetZ = Math.max(-maxDragOffset, Math.min(maxDragOffset, physics.offsetZ));
+
+                    } else if (isDragging) {
+                        // Rotate the scene
+                        // Apply rotation with velocity tracking for inertia
+                        rotationVelocityY = deltaX * rotationSensitivity / dt;
+                        rotationVelocityX = deltaY * rotationSensitivity / dt;
+
+                        rotationY += deltaX * rotationSensitivity;
+                        rotationX += deltaY * rotationSensitivity;
                         // Clamp vertical rotation to prevent flipping
                         rotationX = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, rotationX));
-                        previousMouseX = e.clientX;
-                        previousMouseY = e.clientY;
                     }
+
+                    previousMouseX = e.clientX;
+                    previousMouseY = e.clientY;
+                    lastDragTime = now;
                 });
 
                 canvas.addEventListener('wheel', (e) => {
                     e.preventDefault();
-                    camera.position.z += e.deltaY * 0.01;
-                    camera.position.z = Math.max(8, Math.min(25, camera.position.z));
+                    camera.position.z += e.deltaY * 0.015;
+                    camera.position.z = Math.max(10, Math.min(35, camera.position.z));
                 });
 
                 // Start animation
@@ -981,39 +1113,61 @@
 
             function createNodes() {
                 const colors = getThemeColors();
+                const opacities = getNodeOpacities();
+                const crtMode = isCRTTheme();
                 nodeMeshes = [];
 
                 // Position nodes in a 3D constellation pattern
                 const positions = generateConstellationPositions(careerNodes.length);
 
+                // Initialize physics for each node
+                initializeNodePhysics(careerNodes.length);
+
                 careerNodes.forEach((node, index) => {
-                    const geometry = new THREE.SphereGeometry(0.3, 32, 32);
+                    // Larger nodes for CRT themes for better visibility
+                    const nodeSize = crtMode ? 0.4 : 0.3;
+                    const geometry = new THREE.SphereGeometry(nodeSize, 32, 32);
                     const material = new THREE.MeshBasicMaterial({
                         color: colors[node.type],
                         transparent: true,
-                        opacity: 0.9
+                        opacity: opacities.core
                     });
 
                     const mesh = new THREE.Mesh(geometry, material);
                     mesh.position.copy(positions[index]);
                     mesh.userData = { ...node, basePosition: positions[index].clone(), index: index };
 
-                    // Add glow effect
-                    const glowGeometry = new THREE.SphereGeometry(0.45, 32, 32);
+                    // Add glow effect - larger and brighter for CRT themes
+                    const glowSize = crtMode ? 0.65 : 0.45;
+                    const glowGeometry = new THREE.SphereGeometry(glowSize, 32, 32);
                     const glowMaterial = new THREE.MeshBasicMaterial({
                         color: colors[node.type],
                         transparent: true,
-                        opacity: 0.3
+                        opacity: opacities.glow
                     });
                     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
                     mesh.add(glow);
 
-                    // Add pulsing particle ring
-                    const ringGeometry = new THREE.RingGeometry(0.5, 0.55, 32);
+                    // Add outer bloom for CRT themes (phosphor glow effect)
+                    if (crtMode) {
+                        const bloomGeometry = new THREE.SphereGeometry(0.9, 32, 32);
+                        const bloomMaterial = new THREE.MeshBasicMaterial({
+                            color: colors[node.type],
+                            transparent: true,
+                            opacity: 0.25
+                        });
+                        const bloom = new THREE.Mesh(bloomGeometry, bloomMaterial);
+                        mesh.add(bloom);
+                    }
+
+                    // Add pulsing particle ring - larger and brighter for CRT
+                    const ringInner = crtMode ? 0.7 : 0.5;
+                    const ringOuter = crtMode ? 0.78 : 0.55;
+                    const ringGeometry = new THREE.RingGeometry(ringInner, ringOuter, 32);
                     const ringMaterial = new THREE.MeshBasicMaterial({
                         color: colors[node.type],
                         transparent: true,
-                        opacity: 0.5,
+                        opacity: opacities.ring,
                         side: THREE.DoubleSide
                     });
                     const ring = new THREE.Mesh(ringGeometry, ringMaterial);
@@ -1029,19 +1183,44 @@
                 const positions = [];
                 const goldenAngle = Math.PI * (3 - Math.sqrt(5));
 
+                // Increased spread: radius 6->9, height 4->6
                 for (let i = 0; i < count; i++) {
                     const y = 1 - (i / (count - 1)) * 2;
                     const radius = Math.sqrt(1 - y * y);
                     const theta = goldenAngle * i;
 
                     positions.push(new THREE.Vector3(
-                        Math.cos(theta) * radius * 6,
-                        y * 4,
-                        Math.sin(theta) * radius * 6
+                        Math.cos(theta) * radius * 9,
+                        y * 6,
+                        Math.sin(theta) * radius * 9
                     ));
                 }
 
                 return positions;
+            }
+
+            function initializeNodePhysics(count) {
+                nodePhysics = [];
+                for (let i = 0; i < count; i++) {
+                    nodePhysics.push({
+                        // Current offset from base position
+                        offsetX: 0,
+                        offsetY: 0,
+                        offsetZ: 0,
+                        // Velocity
+                        velocityX: 0,
+                        velocityY: 0,
+                        velocityZ: 0,
+                        // Physics properties (slight variation per node)
+                        mass: 0.8 + Math.random() * 0.4,
+                        springStrength: 0.02 + Math.random() * 0.01,
+                        damping: 0.92 + Math.random() * 0.05,
+                        // Orbital wobble parameters
+                        wobblePhase: Math.random() * Math.PI * 2,
+                        wobbleSpeed: 0.3 + Math.random() * 0.4,
+                        wobbleAmplitude: 0.15 + Math.random() * 0.1
+                    });
+                }
             }
 
             function createConnections() {
@@ -1402,14 +1581,87 @@
 
                 const time = Date.now() * 0.001;
 
-                // Animate nodes
+                // Apply rotation inertia when not dragging
+                if (!isDragging) {
+                    rotationY += rotationVelocityY;
+                    rotationX += rotationVelocityX;
+                    // Clamp vertical rotation
+                    rotationX = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, rotationX));
+                    // Apply damping
+                    rotationVelocityX *= rotationDamping;
+                    rotationVelocityY *= rotationDamping;
+                    // Stop tiny movements
+                    if (Math.abs(rotationVelocityX) < 0.0001) rotationVelocityX = 0;
+                    if (Math.abs(rotationVelocityY) < 0.0001) rotationVelocityY = 0;
+                }
+
+                // Calculate rotation change for physics perturbation
+                const rotationSpeed = Math.abs(rotationVelocityX) + Math.abs(rotationVelocityY);
+
+                // Animate nodes with physics
                 nodeMeshes.forEach((mesh, index) => {
                     const basePos = mesh.userData.basePosition;
+                    const physics = nodePhysics[index];
+
+                    if (physics) {
+                        // Check if this node is currently being dragged
+                        const isBeingDragged = isDraggingNode && draggedNodeIndex === index;
+
+                        if (!isBeingDragged) {
+                            // Add gentle wobble force (ambient motion)
+                            const wobbleForceX = Math.sin(time * physics.wobbleSpeed + physics.wobblePhase) * physics.wobbleAmplitude * 0.01;
+                            const wobbleForceY = Math.cos(time * physics.wobbleSpeed * 0.7 + physics.wobblePhase) * physics.wobbleAmplitude * 0.01;
+                            const wobbleForceZ = Math.sin(time * physics.wobbleSpeed * 0.5 + physics.wobblePhase + 1) * physics.wobbleAmplitude * 0.01;
+
+                            // Add perturbation from rotation (nodes react to spinning)
+                            const perturbX = rotationSpeed * (Math.random() - 0.5) * 0.5;
+                            const perturbY = rotationSpeed * (Math.random() - 0.5) * 0.3;
+                            const perturbZ = rotationSpeed * (Math.random() - 0.5) * 0.5;
+
+                            // Spring force pulling back to origin (stronger when far from origin)
+                            const distance = Math.sqrt(physics.offsetX ** 2 + physics.offsetY ** 2 + physics.offsetZ ** 2);
+                            const springMultiplier = 1 + distance * 0.5; // Stronger spring when stretched further
+                            const springForceX = -physics.offsetX * physics.springStrength * springMultiplier;
+                            const springForceY = -physics.offsetY * physics.springStrength * springMultiplier;
+                            const springForceZ = -physics.offsetZ * physics.springStrength * springMultiplier;
+
+                            // Apply forces to velocity (F = ma, simplified)
+                            physics.velocityX += (wobbleForceX + springForceX + perturbX) / physics.mass;
+                            physics.velocityY += (wobbleForceY + springForceY + perturbY) / physics.mass;
+                            physics.velocityZ += (wobbleForceZ + springForceZ + perturbZ) / physics.mass;
+
+                            // Apply damping
+                            physics.velocityX *= physics.damping;
+                            physics.velocityY *= physics.damping;
+                            physics.velocityZ *= physics.damping;
+
+                            // Update offset
+                            physics.offsetX += physics.velocityX;
+                            physics.offsetY += physics.velocityY;
+                            physics.offsetZ += physics.velocityZ;
+                        }
+
+                        // Clamp offset - larger range allowed for spring-back effect
+                        const maxOffset = isBeingDragged ? 5.0 : 3.0;
+                        physics.offsetX = Math.max(-maxOffset, Math.min(maxOffset, physics.offsetX));
+                        physics.offsetY = Math.max(-maxOffset, Math.min(maxOffset, physics.offsetY));
+                        physics.offsetZ = Math.max(-maxOffset, Math.min(maxOffset, physics.offsetZ));
+                    }
+
+                    // Get physics offset (or zero if not initialized)
+                    const offsetX = physics ? physics.offsetX : 0;
+                    const offsetY = physics ? physics.offsetY : 0;
+                    const offsetZ = physics ? physics.offsetZ : 0;
+
+                    // Apply physics offset to base position
+                    const physicsX = basePos.x + offsetX;
+                    const physicsY = basePos.y + offsetY;
+                    const physicsZ = basePos.z + offsetZ;
 
                     // Apply Y rotation (horizontal)
-                    let x = basePos.x * Math.cos(rotationY) - basePos.z * Math.sin(rotationY);
-                    let z = basePos.x * Math.sin(rotationY) + basePos.z * Math.cos(rotationY);
-                    let y = basePos.y;
+                    let x = physicsX * Math.cos(rotationY) - physicsZ * Math.sin(rotationY);
+                    let z = physicsX * Math.sin(rotationY) + physicsZ * Math.cos(rotationY);
+                    let y = physicsY;
 
                     // Apply X rotation (vertical)
                     const newY = y * Math.cos(rotationX) - z * Math.sin(rotationX);
@@ -1417,8 +1669,7 @@
 
                     mesh.position.x = x;
                     mesh.position.z = newZ;
-                    // Gentle floating motion added to rotated Y
-                    mesh.position.y = newY + Math.sin(time + index) * 0.1;
+                    mesh.position.y = newY;
 
                     // Animate ring
                     if (mesh.children[1]) {
@@ -1441,10 +1692,17 @@
                     line.geometry.attributes.position.needsUpdate = true;
                 });
 
-                // Animate background particles
+                // Animate background particles - follow constellation rotation
                 particleSystems.forEach(system => {
-                    system.rotation.y = time * 0.02;
+                    system.rotation.y = rotationY + time * 0.02;
+                    system.rotation.x = rotationX;
                 });
+
+                // Animate city - follow constellation rotation
+                if (cityGroup) {
+                    cityGroup.rotation.y = rotationY;
+                    cityGroup.rotation.x = rotationX;
+                }
 
                 // Animate city window flickering
                 if (cityBuildings) {
@@ -1470,20 +1728,23 @@
 
                 scene.background = new THREE.Color(colors.background);
 
+                // Remove old nodes (CRT themes have different geometry/sizes)
                 nodeMeshes.forEach(mesh => {
-                    const type = mesh.userData.type;
-                    mesh.material.color.setHex(colors[type]);
-                    mesh.children.forEach(child => {
-                        if (child.material) {
-                            child.material.color.setHex(colors[type]);
-                        }
-                    });
+                    scene.remove(mesh);
                 });
 
+                // Remove old connection lines
                 connectionLines.forEach(line => {
-                    line.material.color.setHex(colors.line);
+                    scene.remove(line);
                 });
 
+                // Recreate nodes with proper sizes/opacities for current theme
+                createNodes();
+
+                // Recreate connections
+                createConnections();
+
+                // Update particle colors
                 particleSystems.forEach(system => {
                     system.material.color.setHex(colors.particle);
                 });
