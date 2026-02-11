@@ -1,0 +1,534 @@
+/* Constellation-specific styles */
+#constellation-container {
+    position: relative;
+    width: 100%;
+    height: 70vh;
+    min-height: 500px;
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 20px 0;
+}
+
+#constellation-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.node-tooltip {
+    position: absolute;
+    background: var(--nav-bg);
+    border: 1px solid var(--header-border);
+    border-radius: 8px;
+    padding: 15px 20px;
+    max-width: 300px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.node-tooltip.visible {
+    opacity: 1;
+}
+
+.node-tooltip h3 {
+    margin: 0 0 8px 0;
+    font-size: 1.1rem;
+    color: var(--text-color);
+}
+
+.node-tooltip p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--content-color);
+    line-height: 1.4;
+}
+
+.node-tooltip .node-type {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.7;
+    margin-bottom: 4px;
+}
+
+/* Connection narrative modal */
+.narrative-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.narrative-modal.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.narrative-content {
+    background: var(--bg-color);
+    border: 2px solid var(--header-border);
+    border-radius: 12px;
+    padding: 30px 40px;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.narrative-content h2 {
+    margin-top: 0;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.narrative-content .connection-nodes {
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+.narrative-content .narrative-text {
+    line-height: 1.8;
+    margin: 20px 0;
+}
+
+.narrative-content .generating {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.generating-dots {
+    display: inline-flex;
+    gap: 4px;
+}
+
+.generating-dots span {
+    width: 8px;
+    height: 8px;
+    background: var(--text-color);
+    border-radius: 50%;
+    animation: dotPulse 1.4s infinite ease-in-out;
+}
+
+.generating-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.generating-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes dotPulse {
+    0%,
+    80%,
+    100% {
+        transform: scale(0.6);
+        opacity: 0.5;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.close-modal {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-color);
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.close-modal:hover {
+    opacity: 1;
+}
+
+/* Instructions */
+.constellation-intro {
+    text-align: center;
+    max-width: 700px;
+    margin: 0 auto 25px auto;
+    line-height: 1.7;
+    font-size: 1.05rem;
+    color: var(--content-color);
+}
+
+.constellation-instructions {
+    text-align: center;
+    margin-bottom: 20px;
+    opacity: 0.8;
+    font-size: 0.95rem;
+}
+
+.constellation-instructions kbd {
+    background: var(--nav-bg);
+    border: 1px solid var(--header-border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: inherit;
+}
+
+/* Legend */
+.constellation-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+    margin-top: 20px;
+    padding: 15px;
+    background: var(--nav-bg);
+    border-radius: 8px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.legend-dot.education {
+    background: #4fc3f7;
+}
+
+.legend-dot.industry {
+    background: #81c784;
+}
+
+.legend-dot.teaching {
+    background: #ffb74d;
+}
+
+.legend-dot.research {
+    background: #ba68c8;
+}
+
+/* MUTHUR theme adjustments */
+[data-theme="skiatron"] .narrative-content,
+[data-theme="telequipment"] .narrative-content,
+[data-theme="amdek"] .narrative-content,
+[data-theme="vectrex"] .narrative-content {
+    border-width: 1px;
+}
+
+[data-theme="telequipment"] .legend-dot.education {
+    background: #00ff88;
+}
+
+[data-theme="telequipment"] .legend-dot.industry {
+    background: #00cc6a;
+}
+
+[data-theme="telequipment"] .legend-dot.teaching {
+    background: #88ffcc;
+}
+
+[data-theme="telequipment"] .legend-dot.research {
+    background: #00aa55;
+}
+
+[data-theme="amdek"] .legend-dot.education {
+    background: #ffaa00;
+}
+
+[data-theme="amdek"] .legend-dot.industry {
+    background: #cc8800;
+}
+
+[data-theme="amdek"] .legend-dot.teaching {
+    background: #ffcc66;
+}
+
+[data-theme="amdek"] .legend-dot.research {
+    background: #996600;
+}
+
+[data-theme="vectrex"] .legend-dot.education {
+    background: #aaddff;
+}
+
+[data-theme="vectrex"] .legend-dot.industry {
+    background: #88bbdd;
+}
+
+[data-theme="vectrex"] .legend-dot.teaching {
+    background: #cceeff;
+}
+
+[data-theme="vectrex"] .legend-dot.research {
+    background: #6699cc;
+}
+
+[data-theme="skiatron"] .legend-dot.education {
+    background: #2a2a2a;
+}
+
+[data-theme="skiatron"] .legend-dot.industry {
+    background: #4a4a4a;
+}
+
+[data-theme="skiatron"] .legend-dot.teaching {
+    background: #3a3a3a;
+}
+
+[data-theme="skiatron"] .legend-dot.research {
+    background: #5a5a5a;
+}
+
+/* Enhanced CRT effects for MUTHUR themes */
+
+/* Phosphor glow effect - creates bloom around bright elements */
+[data-theme="telequipment"] #constellation-container,
+[data-theme="amdek"] #constellation-container,
+[data-theme="vectrex"] #constellation-container,
+[data-theme="skiatron"] #constellation-container {
+    position: relative;
+}
+
+[data-theme="telequipment"] #constellation-container::before,
+[data-theme="amdek"] #constellation-container::before,
+[data-theme="vectrex"] #constellation-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 10;
+    mix-blend-mode: screen;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.3) 100%);
+}
+
+/* Pixel grid overlay - simulates CRT phosphor dots */
+[data-theme="telequipment"] #constellation-canvas,
+[data-theme="amdek"] #constellation-canvas,
+[data-theme="vectrex"] #constellation-canvas,
+[data-theme="skiatron"] #constellation-canvas {
+    image-rendering: pixelated;
+}
+
+.crt-pixel-grid {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 15;
+    opacity: 0.08;
+    background-image:
+        linear-gradient(transparent 50%, rgba(0, 0, 0, 0.5) 50%),
+        linear-gradient(90deg, transparent 50%, rgba(0, 0, 0, 0.5) 50%);
+    background-size: 4px 4px;
+}
+
+[data-theme="telequipment"] .crt-pixel-grid,
+[data-theme="amdek"] .crt-pixel-grid,
+[data-theme="vectrex"] .crt-pixel-grid,
+[data-theme="skiatron"] .crt-pixel-grid {
+    display: block;
+}
+
+/* Color bleeding / chromatic aberration effect */
+.crt-color-bleed {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 5;
+}
+
+[data-theme="telequipment"] .crt-color-bleed,
+[data-theme="amdek"] .crt-color-bleed,
+[data-theme="vectrex"] .crt-color-bleed {
+    display: block;
+    box-shadow:
+        inset 2px 0 4px rgba(255, 0, 0, 0.05),
+        inset -2px 0 4px rgba(0, 255, 255, 0.05);
+}
+
+/* Screen curvature effect */
+.crt-curvature {
+    display: none;
+    position: absolute;
+    top: -5%;
+    left: -5%;
+    right: -5%;
+    bottom: -5%;
+    pointer-events: none;
+    z-index: 20;
+    border-radius: 50% / 10%;
+    box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="telequipment"] .crt-curvature,
+[data-theme="amdek"] .crt-curvature,
+[data-theme="vectrex"] .crt-curvature,
+[data-theme="skiatron"] .crt-curvature {
+    display: block;
+}
+
+/* Phosphor persistence / ghosting effect */
+[data-theme="telequipment"] #constellation-canvas {
+    filter: blur(0.3px) brightness(1.1);
+}
+
+[data-theme="amdek"] #constellation-canvas {
+    filter: blur(0.3px) brightness(1.15) sepia(0.1);
+}
+
+[data-theme="vectrex"] #constellation-canvas {
+    filter: blur(0.4px) brightness(1.05) contrast(1.1);
+}
+
+[data-theme="skiatron"] #constellation-canvas {
+    filter: blur(0.2px) contrast(1.2);
+}
+
+/* Interlaced scanline effect - more pronounced */
+[data-theme="telequipment"] .crt-scanlines,
+[data-theme="amdek"] .crt-scanlines,
+[data-theme="vectrex"] .crt-scanlines,
+[data-theme="skiatron"] .crt-scanlines {
+    background: repeating-linear-gradient(0deg,
+            transparent,
+            transparent 2px,
+            rgba(0, 0, 0, 0.15) 2px,
+            rgba(0, 0, 0, 0.15) 4px);
+}
+
+/* Horizontal sync wobble animation for authenticity */
+@keyframes crt-hsync {
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+    10% {
+        transform: translateX(-0.5px);
+    }
+    20% {
+        transform: translateX(0.5px);
+    }
+    30% {
+        transform: translateX(0);
+    }
+    50% {
+        transform: translateX(0.3px);
+    }
+    70% {
+        transform: translateX(-0.3px);
+    }
+}
+
+[data-theme="telequipment"] #constellation-container,
+[data-theme="amdek"] #constellation-container {
+    animation: crt-hsync 0.15s infinite;
+}
+
+/* Phosphor burn-in corners */
+.crt-burn-in {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 8;
+    background: radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.2) 100%);
+}
+
+[data-theme="telequipment"] .crt-burn-in,
+[data-theme="amdek"] .crt-burn-in,
+[data-theme="vectrex"] .crt-burn-in {
+    display: block;
+}
+
+/* Theme-specific glow colors */
+[data-theme="telequipment"] #constellation-container {
+    box-shadow:
+        inset 0 0 60px rgba(0, 255, 136, 0.1),
+        0 0 30px rgba(0, 255, 136, 0.1);
+}
+
+[data-theme="amdek"] #constellation-container {
+    box-shadow:
+        inset 0 0 60px rgba(255, 170, 0, 0.1),
+        0 0 30px rgba(255, 170, 0, 0.1);
+}
+
+[data-theme="vectrex"] #constellation-container {
+    box-shadow:
+        inset 0 0 60px rgba(170, 221, 255, 0.08),
+        0 0 30px rgba(170, 221, 255, 0.08);
+}
+
+[data-theme="skiatron"] #constellation-container {
+    box-shadow:
+        inset 0 0 60px rgba(100, 100, 100, 0.1),
+        0 0 20px rgba(50, 50, 50, 0.2);
+}
+
+/* Vertical roll interference lines */
+@keyframes crt-roll {
+    0% {
+        transform: translateY(-100%);
+    }
+    100% {
+        transform: translateY(100%);
+    }
+}
+
+.crt-roll-line {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    pointer-events: none;
+    z-index: 25;
+    opacity: 0.03;
+}
+
+[data-theme="telequipment"] .crt-roll-line {
+    display: block;
+    background: linear-gradient(transparent, rgba(0, 255, 136, 0.5), transparent);
+    animation: crt-roll 8s linear infinite;
+}
+
+[data-theme="amdek"] .crt-roll-line {
+    display: block;
+    background: linear-gradient(transparent, rgba(255, 170, 0, 0.5), transparent);
+    animation: crt-roll 10s linear infinite;
+}

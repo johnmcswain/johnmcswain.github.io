@@ -1,0 +1,95 @@
+/* Local font definitions for better performance */
+
+/* VT323 - CRT terminal font */
+@font-face {
+    font-family: 'VT323';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/VT323-Regular.ttf') format('truetype');
+}
+
+/* Share Tech Mono - Secondary CRT font */
+@font-face {
+    font-family: 'Share Tech Mono';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/ShareTechMono-Regular.ttf') format('truetype');
+}
+
+/* Lato - Primary body font */
+@font-face {
+    font-family: 'Lato';
+    font-style: normal;
+    font-weight: 300;
+    font-display: swap;
+    src: url('../fonts/Lato-Light.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Lato';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/Lato-Regular.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Lato';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('../fonts/Lato-Bold.ttf') format('truetype');
+}
+
+/* Raleway - Header/navigation font */
+@font-face {
+    font-family: 'Raleway';
+    font-style: normal;
+    font-weight: 300;
+    font-display: swap;
+    src: url('../fonts/Raleway-Light.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Raleway';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/Raleway-Regular.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Raleway';
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url('../fonts/Raleway-Medium.ttf') format('truetype');
+}
+
+/* Oswald - Headings font */
+@font-face {
+    font-family: 'Oswald';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/Oswald-Regular.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Oswald';
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url('../fonts/Oswald-Medium.ttf') format('truetype');
+}
+
+/* GFS Didot - Accent/decorative font */
+@font-face {
+    font-family: 'GFS Didot';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/GFSDidot-Regular.ttf') format('truetype');
+}

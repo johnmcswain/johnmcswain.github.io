@@ -1,16 +1,39 @@
-const CACHE_NAME = 'jmc-v5'
-const ASSETS_TO_CACHE = [
+const CACHE_NAME = 'jmc-v10'
+
+// Critical assets loaded immediately
+const CRITICAL_ASSETS = [
   './',
   './index.html',
+  './css/styles.css',
+  './css/fonts.css',
+  './js/main.js',
+  './js/loader.js',
+  './manifest.json',
+  './assets/img/favicon.png'
+]
+
+// Non-critical assets loaded lazily
+const LAZY_ASSETS = [
+  './about.html',
   './artifacts.html',
   './presentation.html',
   './reflection.html',
   './references.html',
-  './css/styles.css',
-  './js/main.js',
+  './css/constellation.css',
   './js/anti-fouc.js',
-  './manifest.json',
-  './assets/img/favicon.png',
+  './js/three.min.js',
+  './js/constellation.js',
+  './fonts/VT323-Regular.ttf',
+  './fonts/ShareTechMono-Regular.ttf',
+  './fonts/Lato-Regular.ttf',
+  './fonts/Lato-Light.ttf',
+  './fonts/Lato-Bold.ttf',
+  './fonts/Raleway-Light.ttf',
+  './fonts/Raleway-Regular.ttf',
+  './fonts/Raleway-Medium.ttf',
+  './fonts/Oswald-Regular.ttf',
+  './fonts/Oswald-Medium.ttf',
+  './fonts/GFSDidot-Regular.ttf',
   './aect-standard-1.html',
   './aect-standard-2.html',
   './aect-standard-3.html',
@@ -22,21 +45,35 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Opened cache')
-        return cache.addAll(ASSETS_TO_CACHE)
+        console.log('Caching critical assets')
+        // Cache critical assets first, then lazy assets
+        return cache.addAll(CRITICAL_ASSETS)
+          .then(() => cache.addAll(LAZY_ASSETS))
       })
   )
+  // Activate immediately
+  self.skipWaiting()
 })
 
 self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
-        // Cache hit - return response
         if (response) {
+          // Return cached response immediately
           return response
         }
-        return fetch(event.request)
+        // Network request with caching
+        return fetch(event.request).then((networkResponse) => {
+          // Cache successful responses for future use
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone()
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseClone)
+            })
+          }
+          return networkResponse
+        })
       })
   )
 })
