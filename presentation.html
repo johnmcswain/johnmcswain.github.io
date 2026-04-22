@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; frame-src 'self' https://www.youtube.com; script-src 'self'; img-src 'self' data:; connect-src 'self' ws://127.0.0.1:*;">
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; frame-src 'self' https://www.youtube.com; media-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self' ws://127.0.0.1:*;">
     <title>Presentation - John McSwain</title>
     <link rel="icon" type="image/png" href="assets/img/favicon.png">
     <link rel="stylesheet" href="css/fonts.css">
@@ -36,7 +36,10 @@
     </header>
     <main class="content" id="main-content">
         <h1>Presentation</h1>
-        <iframe src="assets/presentation/Portfolio_Defense.pdf" width="100%" height="800" style="border: none;" title="Portfolio Defense Presentation"></iframe>
+        <video width="100%" autoplay muted controls title="Portfolio Defense Presentation">
+            <source src="assets/presentation/Portfolio_Defense.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
     </main>
     <!-- CRT overlay effects for MUTHUR themes -->
     <div class="crt-overlay" aria-hidden="true">
