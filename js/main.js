@@ -11,15 +11,13 @@ const THEME_LABELS = {
   vectrex: 'Vectrex'
 }
 
-export function serviceWorkerRegister () {
+export function serviceWorkerUnregister () {
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js')
-        .then((registration) => {
-          console.log('ServiceWorker registration successful with scope: ', registration.scope)
-        }, (err) => {
-          console.log('ServiceWorker registration failed: ', err)
-        })
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      registrations.forEach((registration) => registration.unregister())
+    })
+    caches.keys().then((names) => {
+      names.forEach((name) => caches.delete(name))
     })
   }
 }
@@ -94,7 +92,7 @@ export function initTheme () {
 export function initApp () {
   initFoucProtection()
   initTheme()
-  serviceWorkerRegister()
+  serviceWorkerUnregister()
 }
 
 try {
