@@ -36,11 +36,27 @@
     </header>
     <main class="content" id="main-content">
         <h1>Presentation</h1>
-        <!-- <video width="100%" autoplay muted controls title="Portfolio Defense Presentation">
-            <source src="assets/presentation/Portfolio_Defense.mp4" type="video/mp4">
+        <p>The two recordings document a live, instructor-led onboarding series delivered to a customer AI engineering team working with the Dell Pro Max with GB10 — Dell's OEM configuration of the NVIDIA Grace Blackwell DGX Spark reference platform. The GB10 Superchip pairs a 20-core Grace ARM CPU with a Blackwell GPU in a desktop form factor, delivering approximately one petaflop of AI compute at FP4 precision with 128 GB of unified memory and 4 TB of local storage — workstation-class infrastructure for local AI development, fine-tuning, and inference of models up to ~200 billion parameters.
+The training covers five interlocking components of the platform's developer experience:
+<ul>
+<li>The Dell Pro Max with GB10 hardware itself — chassis orientation, 200 GbE ConnectX-7 networking, thermal behavior, and the differences between Dell's OEM design and the NVIDIA Founders Edition DGX Spark. Context is provided on where this class of machine fits between cloud-hosted development and datacenter-class DGX systems.</li>
+<li>NVIDIA DGX OS — the Ubuntu-based Linux distribution that ships with the device, pre-configured with NVIDIA drivers, CUDA libraries, and the Unified Memory Architecture that lets CPU and GPU share the same memory pool without explicit transfers.</li>
+<li>NVIDIA Sync — the desktop utility for Windows, macOS, and Ubuntu that automates SSH key provisioning and gives developers one-click access to VS Code, Cursor, and AI Workbench running on their Spark device over the local network, with integrated Tailscale support for remote access.</li>
+<li>NVIDIA DGX Spark Playbooks — NVIDIA's growing public library of 40+ validated, step-by-step deployment recipes for inference engines, fine-tuning frameworks, and end-to-end AI applications on the Blackwell platform, hosted at github.com/NVIDIA/dgx-spark-playbooks.</li>
+<li>NVIDIA AI Workbench — the containerized development environment for building RAG systems and multi-agent applications on the Spark, which the session demonstrates in the context of the RAG AI Workbench playbook.</li>
+<li>NVIDIA Brev — the cloud developer platform that now supports registering local compute (including the Spark), enabling hybrid deployments where sensitive workloads run locally on the GB10 and general reasoning routes to frontier models in the cloud.</li>
+</ul>
+The instructional design centers on moving the customer's engineers from unboxing to productive development as directly as possible, using NVIDIA's own playbooks as the worked-example backbone of the sessions.</p>
+        <video width="100%" muted controls title="GB10 Training Part 1">
+            <source src="./assets/presentation/gb10/part1.mp4" type="video/mp4">
             Your browser does not support the video tag.
-        </video> -->
-        <iframe src="assets/presentation/Portfolio_Defense.pdf" width="100%" height="800" style="border: none;" title="Portfolio Defense Slides"></iframe>
+        </video>
+        <video width="100%" muted controls title="GB10 Training Part 2">
+            <source src="./assets/presentation/gb10/part2.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        
+        
     </main>
     <!-- CRT overlay effects for MUTHUR themes -->
     <div class="crt-overlay" aria-hidden="true">
