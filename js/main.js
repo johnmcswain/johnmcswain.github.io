@@ -1,10 +1,11 @@
 import { initFoucProtection } from './anti-fouc.js'
 
-const THEMES = ['dark', 'light', 'skiatron', 'telequipment', 'amdek', 'vectrex']
+const THEMES = ['dark', 'light', 'uofsc', 'skiatron', 'telequipment', 'amdek', 'vectrex']
 
 const THEME_LABELS = {
   dark: 'Dark',
   light: 'Light',
+  uofsc: 'UofSC',
   skiatron: 'Skiatron',
   telequipment: 'Telequipment',
   amdek: 'Amdek',
@@ -89,10 +90,19 @@ export function initTheme () {
   initCrtNoise()
 }
 
+function bustCache () {
+  const v = Date.now()
+  document.querySelectorAll('link[rel="stylesheet"]').forEach((link) => {
+    const url = link.href.split('?')[0]
+    link.href = url + '?v=' + v
+  })
+}
+
 export function initApp () {
   initFoucProtection()
   initTheme()
   serviceWorkerUnregister()
+  bustCache()
 }
 
 try {

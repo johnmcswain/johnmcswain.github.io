@@ -29,6 +29,17 @@ html.loading {
     --nav-link-hover: #555555;
 }
 
+/* UofSC - University of South Carolina brand theme */
+[data-theme="uofsc"] {
+    --bg-color: #ffffff;
+    --text-color: #73000a;
+    --content-color: #363636;
+    --nav-bg: rgba(0, 0, 0, 0.97);
+    --header-border: #000000;
+    --nav-link-color: #ffffff;
+    --nav-link-hover: #C7C7C7;
+}
+
 /* Skiatron - Dark trace tube (dark on light, 1939) */
 [data-theme="skiatron"] {
     --bg-color: #b8b8b0;
@@ -567,5 +578,106 @@ iframe {
     letter-spacing: 2px;
     text-transform: uppercase;
     border-width: 2px;
+}
+
+/* ═══════════════════════════════════════════════════ */
+/* UofSC Theme - University of South Carolina Brand   */
+/* ═══════════════════════════════════════════════════ */
+
+/* Fonts: Impact (display), Arial (sans-serif), Georgia (serif) */
+[data-theme="uofsc"] body {
+    font-family: Arial, Helvetica, sans-serif;
+    background-color: #ffffff;
+}
+
+[data-theme="uofsc"] h1 {
+    font-family: 'Berlingske Sans XCn', Impact, 'Arial Black', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-size: 2.2rem;
+    border-bottom: 3px solid #73000a;
+    padding-bottom: 10px;
+}
+
+[data-theme="uofsc"] h2 {
+    font-family: 'Berlingske Sans XCn', Impact, 'Arial Black', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 1.6rem;
+}
+
+[data-theme="uofsc"] h3 {
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: 700;
+    color: #570008;
+}
+
+[data-theme="uofsc"] p,
+[data-theme="uofsc"] li,
+[data-theme="uofsc"] .content {
+    font-family: Georgia, 'Times New Roman', serif;
+    color: #363636;
+    line-height: 1.7;
+}
+
+[data-theme="uofsc"] .content a {
+    color: #73000a;
+}
+
+[data-theme="uofsc"] .content a:hover {
+    color: #CC2640;
+}
+
+/* Nav bar: solid black background */
+[data-theme="uofsc"] .sticky-header {
+    background: #000000;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.5);
+    border-bottom: none;
+}
+
+[data-theme="uofsc"] .nav-list li a {
+    font-family: 'Berlingske Sans XCn', Impact, 'Arial Black', sans-serif;
+    font-weight: 800;
+    letter-spacing: 2px;
+    font-size: 1rem;
+}
+
+[data-theme="uofsc"] #theme-toggle {
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: 700;
+    border-color: #ffffff;
+    color: #ffffff;
+}
+
+[data-theme="uofsc"] #theme-toggle:hover {
+    background: #ffffff;
+    color: #73000a;
+}
+
+/* Buttons: garnet background, white text */
+[data-theme="uofsc"] .content a.btn-link {
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    background: #73000a;
+    color: #ffffff !important;
+    border: 2px solid #570008;
+    border-radius: 2px;
+}
+
+[data-theme="uofsc"] .content a.btn-link:hover {
+    background: #570008;
+    box-shadow: 0 4px 12px rgba(115, 0, 10, 0.3);
+}
+
+/* Skip link */
+[data-theme="uofsc"] .skip-link {
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Focus outline in garnet */
+[data-theme="uofsc"] :focus-visible {
+    outline-color: #73000a;
 }
 

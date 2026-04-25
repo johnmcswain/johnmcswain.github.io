@@ -85,6 +85,15 @@
     src: url('../fonts/Oswald-Medium.ttf') format('truetype');
 }
 
+/* Berlingske Sans Extra-Condensed Extra-Bold - UofSC display font */
+@font-face {
+    font-family: 'Berlingske Sans XCn';
+    font-style: normal;
+    font-weight: 800;
+    font-display: swap;
+    src: url('https://sc.edu/_global_resources/fonts/BerlingskeSansXCn-XBd.woff2') format('woff2');
+}
+
 /* GFS Didot - Accent/decorative font */
 @font-face {
     font-family: 'GFS Didot';

@@ -532,3 +532,16 @@
     background: linear-gradient(transparent, rgba(255, 170, 0, 0.5), transparent);
     animation: crt-roll 10s linear infinite;
 }
+
+/* UofSC theme - white text on garnet backgrounds */
+[data-theme="uofsc"] .constellation-instructions kbd {
+    color: #ffffff;
+}
+
+[data-theme="uofsc"] .constellation-legend {
+    color: #ffffff;
+}
+
+[data-theme="uofsc"] .legend-item {
+    color: #ffffff;
+}
