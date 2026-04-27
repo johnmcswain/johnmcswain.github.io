@@ -64,13 +64,7 @@ function createNoisePattern () {
 function initCrtNoise () {
   const noiseEl = document.querySelector('.crt-noise')
   if (!noiseEl) return
-
-  function updateNoise () {
-    noiseEl.style.backgroundImage = `url(${createNoisePattern()})`
-  }
-
-  updateNoise()
-  setInterval(updateNoise, 80)
+  noiseEl.style.backgroundImage = `url(${createNoisePattern()})`
 }
 
 export function initTheme () {
