@@ -53,7 +53,11 @@ describe('main.js theme logic', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('light')
     expect(localStorage.getItem('theme')).toBe('light')
 
-    // Click again: in the new implementation, themes cycle: dark -> light -> skiatron -> ...
+    // Click again: themes cycle dark -> light -> uofsc -> skiatron -> ...
+    themeToggle.click()
+    expect(document.documentElement.getAttribute('data-theme')).toBe('uofsc')
+    expect(localStorage.getItem('theme')).toBe('uofsc')
+
     themeToggle.click()
     expect(document.documentElement.getAttribute('data-theme')).toBe('skiatron')
     expect(localStorage.getItem('theme')).toBe('skiatron')
