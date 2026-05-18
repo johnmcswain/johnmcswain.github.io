@@ -365,6 +365,8 @@ nemo-fal          CHF 1,800/yr (defined in catalogue but not yet wired)
 
 ---
 
+---
+
 ## 6.2 THE 3D LAYERED SCHEMATIC
 
 The featured product section's hero diagram is rendered as a **2.5D parallactic exploded blueprint**, not a 3D rendered model. The patent-illustration register is non-negotiable; the depth effect must read as *an isometric blueprint coming apart in mid-air*, not as a product render.
@@ -405,6 +407,59 @@ The entire schematic flattens under `prefers-reduced-motion: reduce`:
 .layer { transform: translateZ(0) !important; }
 ```
 The static composition is complete — all six layers visible, stacked, with the patent diagram fully assembled. Users who can't perceive the motion see the canonical schematic.
+
+---
+
+## 6.3 PHOTOGRAPHIC PLATES
+
+The page architecture supports **numbered photographic plates** between major sections — full-bleed editorial photographs presented as catalogue plates with hairline corner frames, plate number, eyebrow label, title, byline, and metadata block. The first plate (between hero and catalogue) is the **Stuttgart Manufacturing Facility**.
+
+### Image specifications
+
+| Property | Value |
+|---|---|
+| **Filename** | `plate-01-stuttgart.jpg` (placeholder, easy to iterate as `-v2`, `-v3`, etc.) |
+| **Dimensions** | 2880 × 1800 px (16:10 aspect) |
+| **Native generation** | 1536 × 960 (SDXL) or 1344 × 832 (Flux), upscaled 2× |
+| **Format** | Progressive JPEG, quality 82, target 600KB–1.2MB |
+| **Vertical safe zone** | Central 70% — top 15% and bottom 15% may be cropped during parallax |
+| **Colour grade** | Match site palette: cool ink-navy shadows, oxidised copper accents, bone-cream warm tones, no oversaturation |
+
+### Layout behaviour
+
+- **Full-bleed.** 100vw width, 88vh height (min 560px, max 900px). Border-top and border-bottom hairlines tie the plate into the editorial flow.
+- **Parallax.** The image drifts vertically at `calc(--rel * 80px)` — slower than the foreground caption text which drifts at `calc(--rel * -24px)`. The opposing motion creates depth without distraction.
+- **Image headroom.** The `.plate-image` element extends `-10%` above and below the visible plate (`inset: -10% 0 -10% 0; height: 120%`), giving the parallax movement room to operate without revealing edges.
+- **CSS overlay.** A subtle radial vignette + top/bottom gradient locks the image into the palette regardless of raw source variation. In dark mode the vignette deepens to compensate for the deeper page background.
+
+### Frame elements
+
+```
+plate-label     top-left      "Plate — I, Catalogue 2026"
+plate-ref       top-right     "Photographed Spring 1987 · archive · TW · 1987.03.114"
+plate-frame     four corners  Hairline corner brackets (24×24px, 1px border, 0.6 opacity)
+plate-caption   bottom-left   Eyebrow + display title + body byline + meta block
+```
+
+The caption uses the same typographic register as the rest of the site: mono eyebrow with leading hairline rule, heavy condensed display title with optional italic serif emphasis (`<em>` styled as body-serif italic), body-serif byline at 15px italic, mono metadata block right-aligned with hairline rule above.
+
+### Fallback pattern
+
+When the image hasn't loaded (or hasn't been generated yet), a subtle 40×40px hairline grid pattern over the deep ink background keeps the plate looking intentional. This means the page never appears broken during image iteration — only progressively more refined as new versions land.
+
+### Image generation
+
+A standalone document, `comfyui_prompt.md`, contains the full positive prompt, negative prompt, and six-version iteration strategy for generating the Stuttgart facility plate via ComfyUI. Recommended models: Flux.1 Dev or SDXL with Juggernaut XL v9 / RealVisXL v4. The prompt is tuned to produce a brutalist concrete manufacturing facility with period-accurate (1987) human figures at scale, in the site's exact palette.
+
+### Future plates
+
+The same plate architecture supports additional photographic essays as the site grows:
+
+- **Plate II** — Zürich design office, Bahnhofstrasse 47 interior
+- **Plate III** — Glarus heritage workshop, hand-assembly benches
+- **Plate IV** — 1971 archival portrait of Dr. Klaus Reichenbach
+
+Each future plate slots into the existing section template — only the image file, plate number, caption, and metadata change. The frame, parallax, typography, and overlay system remain identical.
 
 ---
 

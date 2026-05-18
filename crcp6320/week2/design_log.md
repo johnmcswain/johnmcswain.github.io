@@ -5,18 +5,10 @@
 **Client:** John I. McSwain III — Cold Mist Labs / OCTIQ
 **Designer (in role):** European graphics designer, 1960s sensibility
 **Log opened:** 18 May 2026, ~14:00 UTC
-**Log closed:** 18 May 2026, ~15:30 UTC
-**Duration:** ~90 minutes, single working session
-**Deliverables:** `SPEC.md`, `index.html`, `design_log.md`
+**Log closed:** 18 May 2026, ~15:45 UTC
+**Duration:** ~105 minutes, single working session
+**Deliverables:** `SPEC.md`, `index.html`, `design_log.md`, `comfyui_prompt.md`
 
----
-## Prelude
-
-Found the works of [Erik Nitsche](https://en.wikipedia.org/wiki/Erik_Nitsche) and his poster work for [General Dynamics](https://www.galerie123.com/en/selections/4/general-dynamics/) to be fascinating for this project, mainly because of the use of unique colors and creative non-linear style describing a company that specializes in precision and predictable outcomes. #paradoxical
-
-<img src="https://g123-media.sos-ch-gva-2.exoscale-cdn.com/filer_public_thumbnails/filer_public/c5/06/c506caa5-743c-4c3a-b2e0-09b404d8f04d/general-dynamics-solar-dynamics-el-atomo-para-la-paz-36790-atoms-for-peace-vintage-poster.jpg__960x0_q85_subsampling-2_upscale.jpg" width="300">
-
-<img src="https://g123-media.sos-ch-gva-2.exoscale-cdn.com/filer_public_thumbnails/filer_public/ee/0f/ee0fad10-8be7-4fc7-89f5-c0a2de3f5d9b/m0431-general-dynamics-industrial-gases-liquid-carbonic-36817-atomique-affiche-ancienne.jpg__960x0_q85_subsampling-2_upscale.jpg" width="300">
 ---
 
 ## SESSION TIMELINE
@@ -39,7 +31,7 @@ Asked: which direction? what product category?
 
 ### 14:08 — Reference established
 **Input (user):**
-Uploaded reference image: a 24×36 art print titled [`Special Relativity`](https://2046printshop.com/products/special-relativity) (2046 Print Shop aesthetic). Stated preference for brutalism, monochromatic schemes with one or two accent colours, and the modern minimalist style of 2046printshop.com.<img src="https://2046printshop.com/cdn/shop/products/Theory-of-Special-Relativity_1_3414462a-bfed-43e0-94a2-3475920e6761.jpg?v=1664999150" width="500">
+Uploaded reference image: a 24×36 art print titled *Special Relativity* (2046 Print Shop aesthetic). Stated preference for brutalism, monochromatic schemes with one or two accent colours, and the modern minimalist style of 2046printshop.com.
 
 **Output (designer):**
 Named what was actually working in the reference rather than imitating it:
@@ -362,13 +354,68 @@ The result: when the section is centred in viewport, the unit assembles into a c
 
 ---
 
+### 15:40 — Photographic plate & ComfyUI prompt
+**Input (user):**
+Update the layout to include a high-resolution background image that serves as realism, matches the colour scheme and design style, incorporates into the parallax. Provide ideal image dimensions and an easy placeholder filename so iteration is simple. Also: a ComfyUI prompt for generating a realistic brutalist building image where Trugschluss-Werke might conduct business, with a small number of people standing in front of it marveling at the structure. Should evoke awe and inspiration.
+
+**Output (designer):**
+
+*Architectural decision: it's a plate, not a wallpaper.*
+
+Most design-fiction sites collapse when they reach for stock photography — the illusion dissolves. The instinct is to wallpaper the hero or fade an image behind text. The right move here is to give the photograph its own real estate: a **numbered editorial plate** between the hero and the catalogue, treated exactly the way a printed annual report or catalogue would treat a centrefold photograph. Numbered. Captioned. Dated. Sitting between sections of text the way a printed plate sits between gathered signatures.
+
+This is more honest to the conceit (it *is* a catalogue, and catalogues have plates) and more useful compositionally — the existing hero is already doing precise diagrammatic work, and putting a photo behind it would muddy both.
+
+*The plate section.*
+
+- Full-bleed 100vw × 88vh, between hero and catalogue, presented as **Plate I**
+- Hairline rules top and bottom, four hairline corner brackets at 60% opacity
+- Top-left plate label (*Plate — I, Catalogue 2026*) in heavy condensed
+- Top-right reference data (*Photographed Spring 1987 · archive · TW · 1987.03.114*) in mono
+- Bottom-left caption: mono eyebrow with leading hairline rule → heavy condensed display title (*Reichenbachstrasse 12* with italic serif emphasis on the number) → body-serif italic byline → mono metadata grid (Opened / Architect / Staff / Output per annum)
+- CSS overlay: radial vignette + subtle top/bottom gradients lock any source image into the palette regardless of raw variation
+- Parallax: image drifts at `calc(--rel * 80px)` while caption drifts at `calc(--rel * -24px)` — opposing motion creates depth
+- Image element extends `-10%` above/below visible plate (`height: 120%`) so parallax never reveals edges
+- Fallback: 40×40px hairline grid pattern over deep ink background appears when no image loaded — page never looks broken during iteration
+
+*Image specifications.*
+
+- **Filename:** `plate-01-stuttgart.jpg` (intentionally minimal placeholder; iterate as `-v2`, `-v3`)
+- **Dimensions:** **2880 × 1800 px** (16:10 aspect)
+- **Native generation:** 1536 × 960 (SDXL) or 1344 × 832 (Flux), upscaled 2× via SDXL-ESRGAN or SUPIR
+- **Format:** Progressive JPEG quality 82, target 600KB–1.2MB
+- **Safe zone:** Central 70% vertical — top/bottom 15% may crop during parallax
+
+*The ComfyUI prompt document (`comfyui_prompt.md`).*
+
+A complete prompt package: positive prompt, negative prompt, recommended models (Flux.1 Dev or SDXL with Juggernaut XL v9 / RealVisXL v4), sampler settings, and a **six-version iteration strategy**.
+
+The positive prompt produces:
+- A monumental brutalist concrete manufacturing facility — board-formed concrete with visible wood grain, cantilevered upper floor, deep recessed vertical window slots, oxidised copper ventilation stacks and gutters
+- A single bronze sign on the facade reading **TRUGSCHLUSS-WERKE** in heavy condensed sans-serif
+- Four people in 1987-period overcoats standing in the foreground, dwarfed by the structure, captured mid-gesture of awe, occupying only the lower fifth of the frame
+- Low-angle architectural photograph, late afternoon golden hour, long raking shadows
+- A black 1987 Mercedes W126 parked at the side for period accuracy
+- Medium-format film aesthetic — Hasselblad 500CM, 50mm Distagon, Kodak Portra 400 pushed one stop
+- The exact palette: cool ink-navy shadows, oxidised copper highlights, warm bone-cream concrete tones
+- Reference architects: Paul Rudolph meets the AEG turbine hall meets Erno Goldfinger
+
+The negative prompt forbids the entire vocabulary that would shatter the illusion: glass curtain walls, postmodern/deconstructivist forms, modern cars or clothing, oversaturation, lens flare, HDR look, visible faces, branded clothing, watermarks, illustration/cartoon aesthetics.
+
+The six-version iteration strategy adds specific lines to push palette, composition, emotional emphasis, atmospheric haze, or alternate framing — so the customer iterates by appending, not rewriting.
+
+The architecture also supports future plates (II — Zürich design office interior, III — Glarus workshop, IV — 1971 archival Reichenbach portrait), each slotting into the same section template.
+
+---
+
 ## ARTIFACTS PRODUCED
 
-| File | Size | Purpose |
+| File | Approx lines | Purpose |
 |---|---|---|
-| `SPEC.md` | ~540 lines | Canonical world bible + design system + dossier system + 3D schematic spec |
-| `index.html` | ~3,570 lines | Self-contained homepage: SVG diagrams, full CSS, parallax JS, theme toggle, dossier system, detail and checkout overlays, 3D layered schematic |
-| `design_log.md` | this file | Process record |
+| `SPEC.md` | ~580 | Canonical world bible + design system + dossier system + 3D schematic + photographic plates |
+| `index.html` | ~3,820 | Self-contained homepage: SVG diagrams, full CSS, parallax JS, theme toggle, dossier system, detail and checkout overlays, 3D layered schematic, photographic plate section |
+| `design_log.md` | this file | Process record across the full session |
+| `comfyui_prompt.md` | ~140 | Positive/negative prompts, model recommendations, six-version iteration strategy for the Stuttgart facility image |
 
 ---
 
