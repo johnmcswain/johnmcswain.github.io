@@ -11,29 +11,11 @@
 
 ## CONCEPT NOTES
 
-The scene depicts a **delegation of armoured fictional characters** standing in awe at the Stuttgart manufacturing facility, while **ordinary 1987 office workers walk past indifferently**, going about their normal Tuesday afternoon. The juxtaposition is the entire joke: science-fictional warriors and cosmic tyrants stand in reverent contemplation of a brutalist concrete building, while clerks and engineers with briefcases pass through the scene as though impossible visitors were the most ordinary thing in the world. The deadpan absorbs everything.
+A brutalist concrete manufacturing facility in Stuttgart, photographed in 1987 for the company's annual catalogue. The building is the subject. Period-accurate office workers and visitors provide human scale and atmospheric life — they are scale anchors, not the focus.
 
-The composition holds three scale tiers:
+The composition should evoke **awe through architectural mass** rather than through reactive human gesture. The building does the emotional work. The figures are simply going about their Tuesday afternoon at a place of serious industrial dignity, the way office workers in a 1987 corporate report would be photographed.
 
-**Tier 1 — Towering (25–30 ft):** Trigon, in his classic crimson four-eyed demon form, partially obscured by perspective, occupying the upper-right quadrant of the foreground, looming behind the smaller figures. He is the *real* scale shock.
-
-**Tier 2 — Heroic (6–7 ft):** Master Chief, Darkseid, Magneto, the Cylon Centurion. These four stand in a loose staggered line at human-architectural scale, dwarfed by both the building above and Trigon behind.
-
-**Tier 3 — Diminutive (5 ft):** Two Mega Man Robot Masters, providing silhouette variety at the lower edge of the heroic tier.
-
-**Tier 4 — Human extras (5.5–6 ft):** Three to four ordinary 1987 Stuttgart office workers (diverse ages, body types, gender presentations) walking through the plaza with briefcases and folios, completely uninterested in the impossible delegation, captured mid-stride, doing routine office things — checking a wristwatch, talking to a colleague, carrying paperwork.
-
-The human extras are the punchline. They re-anchor the scene to real human scale, and their absolute indifference to the cosmic warriors in their lobby is what makes the entire composition land emotionally.
-
-**The full ensemble:**
-- **Trigon** (DC Comics) — crimson skin, four glowing yellow eyes, towering 25–30 ft, partially cropped at top of frame, hands at sides
-- **Master Chief** (Halo) — green Mjolnir armour, gold visor, BR55 rifle slung across back, 7-foot heroic silhouette
-- **Darkseid** (DC Comics) — grey stone-textured skin, blue and gold Apokolips armour, low brow, hands clasped in front, 7-foot regal stance
-- **Magneto** (Marvel comic classic costume) — red and purple costume, full M-helmet, flowing purple cape, hands clasped behind back, levitating an inch above the plaza
-- **A red-armoured Mega Man Robot Master** with scissor-blades on the head (Cut Man silhouette) — 5-foot height, hand raised pointing at a high architectural detail
-- **A blue-and-silver Robot Master with circular saw-blades** mounted on shoulders (Metal Man silhouette) — 5-foot height, neutral observation
-- **A Cylon Centurion** (classic 1978 Battlestar Galactica) — brushed silver chrome armour, red oscillating eye-band, blaster rifle held at low ready, 6-foot height
-- **Three to four 1987 office workers** — diverse ages, body types, and presentations; varied period-accurate professional attire (overcoats, suits, secretarial dress, mechanic's uniform); walking through the mid-ground with briefcases, folios, and rolled architectural drawings; completely oblivious to the delegation
+The casting brief for the human figures: **deliberately diverse** (varied ages, body types, gender presentations, ethnic backgrounds), **deliberately ordinary** (clerks, engineers, a delivery person, perhaps a small group of architecture students at the edge of the plaza who *do* pause to look up), and **deliberately period-accurate** (1987 Stuttgart business attire, no contemporary elements).
 
 ---
 
@@ -42,65 +24,32 @@ The human extras are the punchline. They re-anchor the scene to real human scale
 ```
 A monumental brutalist concrete manufacturing facility photographed
 in Stuttgart, West Germany, spring 1987, late afternoon golden hour
-with long raking shadows. The building is a massive horizontal mass
-of board-formed concrete with deep recessed vertical window slots,
-cantilevered upper floor projecting outward, oxidised copper
-ventilation stacks rising from the roofline. A single illuminated
-sign reading "TRUGSCHLUSS-WERKE" in heavy condensed sans-serif
-letters mounted on the facade in patinated bronze. Industrial
-modernism meets brutalism: think Paul Rudolph meets the AEG turbine
-hall meets Erno Goldfinger.
+with long raking shadows. The building is the subject and the
+hero of the composition.
 
-In the foreground, an extraordinary scene unfolds. A delegation of
-armoured science-fictional characters stands in reverent
-contemplation of the building, while ordinary 1987 office workers
-walk past indifferently going about their workday.
+The structure is a massive horizontal mass of board-formed concrete
+with visible wood grain texture, deep recessed vertical window
+slots running floor to ceiling, a cantilevered upper floor
+projecting outward over the ground level, oxidised copper
+ventilation stacks rising from the roofline, hairline expansion
+joints, geometric precision throughout, no ornamentation. A single
+illuminated sign reading "TRUGSCHLUSS-WERKE" in heavy condensed
+sans-serif letters mounted on the facade in patinated bronze.
+A hairline-thin canopy hovers over the entrance.
 
-THE DELEGATION (foreground, dwarfed by the building, silhouetted
-from behind and three-quarter back, faces not visible):
+Industrial modernism meets brutalism: think Paul Rudolph meets
+the AEG turbine hall meets Erno Goldfinger. The building should
+evoke awe through sheer mass, proportion, and confidence of
+material — the kind of facility you would build if you were
+certain your products would last fifty years.
 
-  — TRIGON, the cosmic demon from DC Comics, towering 25 to 30 feet
-    tall, his crimson red skin and four glowing yellow eyes visible
-    above the smaller figures, partially cropped by the upper edge
-    of the foreground tier, his massive horned head turned slightly
-    upward in regard of the facility, occupying the upper right
-    quadrant of the figural composition
-
-  — Master Chief from Halo standing at heroic seven-foot height,
-    full green Mjolnir power armour with the gold mirrored visor,
-    BR55 rifle slung across the back, helmet tilted slightly
-    upward in contemplation
-
-  — Darkseid from DC Comics, grey craggy stone-textured skin, blue
-    and gold Apokolips armour with high collar, low heavy brow,
-    seven-foot regal stance with hands clasped before him, omega
-    symbol detail on the chest plate
-
-  — Magneto in his classic comic-book costume, red bodysuit with
-    purple shoulder armour and the iconic M-helmet, flowing purple
-    cape, hands clasped behind his back in contemplative posture,
-    levitating one inch above the concrete plaza
-
-  — A red and white humanoid robot with two large scissor-blades
-    mounted on the head like a stylised helmet, five-foot height,
-    1980s industrial-anime design aesthetic, hand raised as if
-    pointing out an architectural detail high on the facade
-
-  — A blue and silver humanoid robot with two large circular
-    saw-blade discs mounted on the shoulders, geometric chest plate,
-    five-foot height, standing in neutral observation
-
-  — A classic 1978 Cylon Centurion from Battlestar Galactica,
-    brushed silver chrome armour, the iconic red horizontal
-    oscillating eye-band visor, blaster rifle held at low ready,
-    flowing white tabard at the waist, six-foot height
-
-THE OFFICE WORKERS (mid-ground, captured mid-stride, completely
-uninterested in the delegation):
+In the foreground, a vast concrete plaza with hairline expansion
+joints leads the eye toward the entrance. Going about an ordinary
+Tuesday afternoon, scattered across the plaza:
 
   — A middle-aged office worker in a tan trench coat over a grey
     business suit, carrying a leather briefcase, walking briskly
-    toward the building entrance, checking a wristwatch
+    toward the entrance, checking a wristwatch
   — A woman in a navy 1980s skirt suit with shoulder pads, carrying
     a stack of folios and a rolled architectural drawing tube,
     walking in conversation with a colleague
@@ -108,44 +57,46 @@ uninterested in the delegation):
     pleated trousers, holding a pen and notebook, gesturing
     mid-conversation
   — A delivery person in a brown utility coverall, pushing a small
-    handcart with parcels, crossing the plaza in the opposite
-    direction
+    handcart with parcels, crossing the plaza
+  — A small group of three architecture students with cameras and
+    sketchpads standing at the edge of the plaza looking up at the
+    facade, dwarfed by its mass, the only figures actually paying
+    attention to the building
 
-The office workers are completely unaware of the cosmic delegation
-beside them, going about their ordinary Tuesday afternoon, treating
-the impossible visitors as though they were not there at all. This
-indifference is the defining mood of the scene.
+The human figures are a diverse cross-section of 1987 Stuttgart
+office staff and visitors — varied ages, body types, gender
+presentations, and ethnic backgrounds. They are scale anchors,
+not the focus. Most pay no particular attention to the building
+they work in every day; only the architecture students stop to
+look up.
+
+A black 1987 Mercedes-Benz W126 sedan and a beige Volkswagen
+Passat parked at the side, scaled small. A few 1987-era bicycles
+leaning against a low concrete bollard.
 
 The composition is a low-angle architectural photograph, the
 building filling the upper three-quarters of the frame, sky a
-muted dove grey with the faintest warm horizon glow. Foreground
-is a vast concrete plaza with hairline expansion joints, leading
-the eye toward the entrance. A black 1987 Mercedes W126 sedan and
-a beige Volkswagen Passat parked at the side, scaled small. A few
-1987-era bicycles leaning against a low concrete bollard.
+muted dove grey with the faintest warm horizon glow. The
+foreground human activity occupies only the lower fifth of the
+frame.
 
 Photographic style: medium-format film photography, Hasselblad
 500CM with 50mm Distagon lens, Kodak Portra 400 pushed one stop,
 cool neutral colour palette with deep ink-navy shadows, oxidised
 copper highlights, warm bone-cream concrete tones, no oversaturation.
 Subtle film grain. The atmosphere of a corporate annual report
-photograph: dignified, monumental, slightly austere — but with
-the surreal incongruity of the cosmic delegation standing among
-ordinary office workers who pay them no mind.
+photograph: dignified, monumental, slightly austere, the kind of
+image that would have been printed full-bleed in a 1987 catalogue.
 
 Architectural details: board-formed concrete with visible wood
 grain texture, deep horizontal shadow bands from cantilevered
 floors, vertical window slots with bronze frames, oxidised copper
-gutters and downspouts, a single hairline-thin canopy over the
-entrance, geometric precision throughout, no ornamentation.
-Captured with maximum sharpness on the building, the figures
-slightly soft to convey atmosphere.
+gutters and downspouts, geometric precision throughout. Captured
+with maximum sharpness on the building, the figures slightly soft
+to convey atmosphere and motion.
 
-Mood: awe and reverence from the delegation, complete ordinary
-indifference from the office workers, the building serene and
-permanent above both. Mid-century industrial confidence, European
-post-war optimism. The kind of building you would design if you
-were certain your products would last fifty years.
+Mood: awe, reverence, mid-century industrial confidence, European
+post-war optimism. A serious building doing serious work.
 
 Editorial photography, architectural plate, professional medium
 format, archival quality, 1987 corporate publication aesthetic.
@@ -164,67 +115,26 @@ graffiti, dirt, decay, ruins, abandoned, brutalist parody,
 cartoon, illustration, painting, render, CGI, 3D model, unrealistic,
 oversaturated, warm orange sunset, dramatic clouds, lens flare,
 bokeh, blur except where specified, fisheye, wide angle distortion,
-overly crowded scene, faces clearly visible, frontal hero poses,
-action poses, combat stances, weapons raised, weapons firing,
-hostile postures, characters interacting with office workers,
-office workers reacting to the delegation, office workers staring,
+overly crowded scene, faces clearly visible in close detail,
+fictional characters, science fiction, fantasy, armoured warriors,
+robots, superheroes, costumes, helmets, capes, weapons,
 modern military gear, tactical vests, present-day soldiers,
+contemporary fashion, athleisure, sneakers, denim, hoodies,
+backpacks, laptop bags, smartphones in hands, modern cars,
 lowres, low quality, jpeg artefacts, watermark, text overlay,
 caption, frame, border, signature, oversharp, hdr look,
 instagram filter, vibrant, saturated, neon, fluorescent,
-cosplay, costume seams visible, foam armour, plastic-looking armour,
-deformed armour, asymmetric helmets, broken visors, mangled robots,
-extra limbs, missing limbs, character merging, character overlap,
 duplicate characters, identical office workers, all-male crowd,
 all-white crowd, homogeneous crowd, stereotype caricature
 ```
 
 ---
 
-## STAGING DIAGRAM
+## STAGING NOTES
 
-```
-   ┌─────────────────────────────────────────────────────────────┐
-   │                                                             │
-   │              [ BUILDING FILLS UPPER 3/4 OF FRAME ]          │
-   │                                                             │
-   │                                                             │
-   │                                                             │
-   ├─────────────────────────────────────────────────────────────┤
-   │                                                             │
-   │                                          ┌─TRIGON 25–30ft─┐ │
-   │                                          │  (cropped top) │ │
-   │   [office workers walking, mid-ground]   │                │ │
-   │                                          │                │ │
-   │  M.Chief 7ft  Darkseid 7ft   Magneto 6ft │  Cylon 6ft     │ │
-   │      │            │              │       │     │          │ │
-   │     RM1 5ft     RM2 5ft       (levitating)│    │          │ │
-   │                                          │                │ │
-   └─────────────────────────────────────────────────────────────┘
-       ← lower 1/5 of frame ─────────────────────────────────→
-```
+The building must be the visual hero. The human figures occupy only the **lower fifth of the frame** — they are small, atmospheric, scale-giving. The eye should read: massive concrete mass → cantilevered upper floor → vertical window slots → the bronze TRUGSCHLUSS-WERKE sign → down to the plaza → out across the scattered human activity.
 
-The delegation is staggered left to right along the lower fifth of the frame. Trigon occupies the right portion, towering above the others. Office workers walk through the mid-ground at various depths, captured in motion. The eye reads: building → Trigon's silhouette → cascading down through the smaller figures → out into the indifferent humans walking past.
-
----
-
-## CHARACTER FIDELITY NOTES
-
-**Trigon.** SDXL/Flux know him from the Teen Titans cartoon and the comics. The classic comic depiction is what you want: massive crimson red demon with four glowing yellow eyes (two normal-placed, two on the forehead), large curved horns, bare-chested with simple loincloth or armoured belt. If the model defaults to the cartoon version (more stylised), add: `comic book Trigon, classic DC Comics Trigon the Terrible, photorealistic interpretation, towering demonic figure`. Avoid: the modern New 52 redesign with armour, which is less iconic.
-
-**Darkseid.** Universally recognised. The classic Jack Kirby design with the grey craggy stone skin, low heavy brow, and blue-and-gold Apokolips armour with the omega symbol on the chest. If the model produces the Justice League animated version (more stylised), add: `Jack Kirby Darkseid, classic DC Comics Darkseid, photorealistic interpretation, ruler of Apokolips`.
-
-**Master Chief.** Universally recognised. The Mjolnir Mark VI from Halo 3 is the iconic visual. Add `John-117 Master Chief Halo` if fidelity wavers.
-
-**Magneto.** Force the comic version (not the McKellen film version) by adding: `Marvel Comics classic Magneto, X-Men 1990s costume, full helmet with M-shape opening, flowing purple cape, red bodysuit, comic book accuracy`.
-
-**The Robot Masters.** Described by silhouette (scissor-blades on head = Cut Man, saw blades on shoulders = Metal Man). If they render as generic robots, that's acceptable — the silhouettes do the work.
-
-**Cylon Centurion.** Specify "classic 1978" or "original Battlestar Galactica" to get the chrome cyclops design, not the 2004 reboot skeletal version.
-
-**The office workers.** Diversity is part of the brief — varied ages (mid-20s through 50s), varied body types, varied gender presentations, varied ethnic backgrounds. The workers should feel like a realistic 1987 cross-section of Stuttgart office staff, not a casting choice. Period clothing details matter: shoulder pads on the women's suits, wide ties on the men, briefcases (not laptop bags), wristwatches (not smartphones), pleated trousers.
-
-**The scale relationships are critical.** Trigon must clearly tower over the heroic-tier figures. The heroic tier must clearly tower over the 5-foot Robot Masters. The office workers must read as ordinary human scale (5'4" to 6'2" range). If the model collapses these scale tiers, push them in v2 with explicit height callouts.
+The architecture students at the edge of the plaza are the one group looking up. This single moment of attention does enormous work — it gives the viewer a model for how to look at the building, and quietly establishes that the building *is* worth looking up at. Everyone else is going about their day, which makes the building's awe-inducing quality feel earned rather than performed.
 
 ---
 
@@ -233,35 +143,45 @@ The delegation is staggered left to right along the lower fifth of the frame. Tr
 Save each generation as `plate-01-stuttgart-v{N}.jpg` and update the filename in `index.html` to test.
 
 ### v1 — baseline (above prompt)
-Run as-is. Evaluate: Is Trigon clearly towering? Are the office workers visibly indifferent? Is each delegation character recognisable? Is the building still the hero?
+Run as-is. Evaluate: Is the building monumental enough? Is the palette landing? Are the human figures the right scale (small, atmospheric)? Do the architecture students read as a focal point at the edge?
 
-### v2 — scale tier emphasis
-Add to positive: `clear height hierarchy: Trigon massive at 25 feet, the heroic delegation at 6 to 7 feet, the Robot Masters at 5 feet, the office workers at ordinary human scale, the building dwarfing all of them, strict scale discipline throughout`.
+### v2 — building emphasis
+Add to positive: `the building dominates the frame, monumental scale, massive horizontal mass, cantilevered upper floor casting deep shadow across the entrance, vertical window slots in strict rhythm, the bronze TRUGSCHLUSS-WERKE sign clearly legible on the facade, board-formed concrete with strong wood grain texture visible in raking light`.
 
-### v3 — indifference push
-Add: `the office workers are absolutely uninterested in the cosmic delegation, looking at their watches, reading paperwork while walking, in conversation with each other, eyes anywhere except on the impossible visitors, demonstrating complete ordinary indifference to the surreal`.
+### v3 — palette tightening
+Add: `cool ink-navy shadows on the concrete, oxidised teal-copper accents on copper gutters and ventilation stacks, bone-cream concrete walls warmed by late afternoon light, deeply desaturated overall, the figures rendered in muted period colours, no oversaturation anywhere in the frame`.
 
-### v4 — palette tightening
-Add: `cool ink-navy shadows on the concrete, oxidised teal-copper accents on copper gutters, bone-cream concrete walls warmed by late afternoon light, deeply desaturated except for the copper highlights and Trigon's crimson skin, the figures rendered in their canonical colours without oversaturation`.
+### v4 — atmospheric
+Add: `faint atmospheric haze in the distance behind the building, soft dust motes visible in the raking afternoon light, the concrete reading slightly cooler in shadow and slightly warm in direct light, period-accurate Stuttgart industrial district setting, no contemporary elements visible anywhere in the frame`.
 
-### v5 — atmospheric
-Add: `faint atmospheric haze in the distance, the concrete reading slightly cooler in shadow and slightly warm in direct light, period-accurate Stuttgart industrial district setting, dust motes visible in the raking afternoon light, no contemporary elements visible anywhere in the frame`.
+### v5 — composition tighter
+Add: `low camera angle from across the plaza, the building looming, vanishing point in the upper third of the frame, vertical window slots leading the eye upward, the human figures small and scattered across the lower fifth of the frame, the architecture students providing a focal point at the lower right edge`.
 
 ### v6 — alternate framing
-Switch the angle: `slightly elevated three-quarter view from across the plaza, the building reading at a slight angle, more of the horizontal mass visible, Trigon shifted to the left of frame to balance the composition, copper roofline catching the last light`.
+Switch the angle: `slightly elevated three-quarter view from across the plaza, the building reading at a slight angle, more of the horizontal mass visible, copper roofline catching the last light, the entire facade visible end to end`.
 
-### v7 — character swap (if a specific character fails to render)
-- Replace Trigon with: a colossal stone golem 30 feet tall, or Galactus from Marvel
-- Replace Darkseid with: Thanos in classic comic armour, or Apocalypse from X-Men
-- Replace Master Chief with: a Warhammer 40k Space Marine in Ultramarine blue armour
-- Replace Magneto with: Doctor Doom in his classic green cloak and iron mask
-- Replace any Robot Master with: a generic 5-foot retro-anime humanoid robot
-- Replace the Cylon with: a stormtrooper from Star Wars (1977 original)
+### v7 — emotional emphasis
+Add: `the architecture students stand in quiet awe, one with hand raised slightly as if pointing out a structural detail to the others, body language of contemplation and discovery, the building's permanence and dignity rendering them small and human against fifty-year-old concrete`.
 
-All substitutes share the compositional language: armoured, helmeted, instantly recognisable silhouettes, no exposed skin.
+### v8 — black and white archival variant
+For an alternate plate that reads as historical document: `black and white photograph, silver gelatin print, archival quality, late 1980s German industrial photography, the formal dignity of a corporate annual report black-and-white plate, deep blacks and bright whites with rich mid-grey concrete tones`.
 
-### v8 — humans-only variant (for the public-deployment-safe version)
-If you want a version with no copyrighted characters at all, remove the delegation entirely and use only the office workers, but increase their number to 8–12 and add: `a small group of architecture students with cameras and sketchpads standing at the edge of the plaza, looking up at the building, the office workers walking past them indifferently, a mix of awe and ordinary professional indifference in the same frame`. This preserves the awe-and-indifference juxtaposition with zero IP exposure.
+---
+
+## CHARACTER / HUMAN FIDELITY NOTES
+
+**Diversity is part of the brief** — explicitly call for varied ages (mid-20s through 50s), varied body types, varied gender presentations, varied ethnic backgrounds. The workers and visitors should feel like a realistic 1987 cross-section of Stuttgart office staff and architecture students, not a casting choice.
+
+**Period clothing details matter.** Push period accuracy:
+- Women's suits: shoulder pads, knee-length skirts, modest blouses
+- Men's suits: notch lapels, wider ties than contemporary, pleated trousers
+- Briefcases (not laptop bags), wristwatches (not smartphones)
+- Architecture students: corduroy jackets, jeans, canvas bags, 1980s SLR cameras (Nikon F3, Canon AE-1) hanging from neck straps
+- No sneakers on adults, no contemporary athleisure, no hoodies, no logos
+
+**Faces should not be the focus.** The figures are atmospheric — captured from middle distance, faces soft or in three-quarter view, the building always the sharpest element in the frame.
+
+**The scale relationship is critical.** Figures must read as small relative to the building. If the model renders them too large, push them smaller in v2 with: `the human figures are deliberately small and atmospheric, occupying only the lower fifth of the frame, dwarfed by the architectural mass above them, the building dominating 75% of the frame vertically`.
 
 ---
 
@@ -269,7 +189,7 @@ If you want a version with no copyrighted characters at all, remove the delegati
 
 **Resolution.** Generate at **1536 × 960** (16:10) for SDXL native quality, or **1344 × 832** for Flux. Then upscale 2× via 4x-UltraSharp ESRGAN or SUPIR (best for architectural detail).
 
-**Crop discipline.** The final image displays full-bleed at 88vh × 100vw, with **15% vertical headroom** absorbed by parallax movement. Important content — the building, Trigon's head, the delegation, the office workers — should sit in the **central 70% vertically**. The top 15% and bottom 15% may scroll out of view during parallax.
+**Crop discipline.** The final image displays full-bleed at 88vh × 100vw, with **15% vertical headroom** absorbed by parallax movement. Important content — the building, the sign, the plaza, the figures — should sit in the **central 70% vertically**. The top 15% and bottom 15% may scroll out of view during parallax.
 
 **Tonal range.** The image sits behind a CSS overlay that adds a radial vignette and slight top/bottom darkening. So the raw image should be **slightly brighter and slightly more contrasty than ideal** — the overlay will pull it back into the page palette.
 
@@ -284,35 +204,16 @@ If you want a version with no copyrighted characters at all, remove the delegati
 
 ---
 
-## A NOTE ON USE
-
-The character designs are copyrighted by:
-- **Trigon, Darkseid** — DC Comics / Warner Bros.
-- **Master Chief** — Microsoft / 343 Industries
-- **Magneto** — Marvel / Disney
-- **Mega Man Robot Masters** — Capcom
-- **Cylon Centurion** — NBCUniversal
-
-Generated images are appropriate for **personal use, iteration, design-fiction artifacts, and private portfolio work**. For public deployment (live domain, broad sharing, commercial use), either:
-
-- Treat the use as obvious fair-use commentary and satire — the brutalist-tour-of-a-fictional-fallacy-factory framing is genuinely transformative, and the office-workers-indifferent juxtaposition is clearly artistic commentary on the absurdity of the everyday
-- Or use the **v8 humans-only variant** above for zero IP exposure
-- Or commission original character homages that read as the characters without being them (a crimson four-eyed demon, a grey-skinned cosmic tyrant, a green power-armoured figure, a caped figure with helmet, scissor-headed and saw-shouldered robots, a chrome cyclops android), keeping the same compositional language
-
-The site itself remains design fiction. The delegation is part of the joke. The office workers walking past, completely uninterested, are the joke landing.
-
----
-
 ## ALTERNATE SUBJECTS (for future plates)
 
 The page architecture supports additional plates as a series. Future prompts could generate:
 
-- **Plate II** — The Zürich design office on Bahnhofstrasse, interior shot of Dr. Vogel's calibration bench preserved as it stood in 1962 (no character ensemble — pure heritage interior)
-- **Plate III** — The Glarus heritage workshop, three Robot Masters hand-assembling Heritage-line apparatus at hand-assembly benches alongside three master craftsmen, the humans and robots working side by side as colleagues
-- **Plate IV** — A 1971 portrait of Dr. Klaus Reichenbach standing beside the first MFPU prototype, accompanied by a single Cylon Centurion in observational capacity, black-and-white, slightly grainy, reading like an archival document
-- **Plate V** — A boardroom photograph: Trigon seated at a Trugschluss conference table reviewing quarterly fallacy production figures with the supervisory board, perfectly composed corporate photography aesthetic
+- **Plate II** — The Zürich design office on Bahnhofstrasse 47, interior shot of Dr. Vogel's calibration bench preserved as it stood in 1962. No exterior — pure heritage interior, single raking light from a tall window.
+- **Plate III** — The Glarus heritage workshop, three master craftsmen at hand-assembly benches working on Heritage-line apparatus. Brass and walnut catching warm light. The atmosphere of a small Swiss watchmaker's atelier.
+- **Plate IV** — A 1971 archival portrait of Dr. Klaus Reichenbach standing beside the first MFPU prototype on the day the Stuttgart facility opened. Black-and-white, slightly grainy, reading like a press photograph from the official inauguration.
+- **Plate V** — The Stuttgart facility at night, illuminated from within, the vertical window slots glowing warm against the ink-navy sky, a small number of evening-shift workers visible through the windows. The building working through the night.
 
-Each maintains the same architectural and compositional language. The recurring presence of the same characters across plates is itself part of the world-building — they are *regular customers* of Trugschluss-Werke. They are on the mailing list. They receive the catalogue.
+Each maintains the same architectural and compositional language. The Stuttgart facility appears in multiple plates (day and night), reinforcing its role as the company's industrial heart.
 
 ---
 
