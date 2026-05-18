@@ -418,10 +418,10 @@ The page architecture supports **numbered photographic plates** between major se
 
 | Property | Value |
 |---|---|
-| **Filename** | `plate-01-stuttgart.jpg` (placeholder, easy to iterate as `-v2`, `-v3`, etc.) |
+| **Filename** | `plate-01-stuttgart.png` (placeholder, easy to iterate as `-v2`, `-v3`, etc.) |
 | **Dimensions** | 2880 × 1800 px (16:10 aspect) |
 | **Native generation** | 1536 × 960 (SDXL) or 1344 × 832 (Flux), upscaled 2× |
-| **Format** | Progressive JPEG, quality 82, target 600KB–1.2MB |
+| **Format** | PNG (lossless, photographic). Expect 6–12 MB at full resolution. For production deployment, consider exporting an additional optimised JPEG fallback or webp variant — but the canonical asset is PNG. |
 | **Vertical safe zone** | Central 70% — top 15% and bottom 15% may be cropped during parallax |
 | **Colour grade** | Match site palette: cool ink-navy shadows, oxidised copper accents, bone-cream warm tones, no oversaturation |
 

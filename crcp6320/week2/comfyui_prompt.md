@@ -1,7 +1,7 @@
 # COMFYUI PROMPT
 ## Plate I — The Stuttgart Manufacturing Facility
 
-**Target asset:** `plate-01-stuttgart.jpg`
+**Target asset:** `plate-01-stuttgart.png`
 **Final dimensions:** 2880 × 1800 px (16:10) — generate at 1536 × 960 then upscale 2× via SDXL-ESRGAN
 **Use:** Full-bleed photographic plate, section between hero and catalogue on the Trugschluss-Werke homepage
 **Recommended models:** Flux.1 Dev / SDXL with Juggernaut XL v9 / RealVisXL v4
@@ -140,7 +140,7 @@ The architecture students at the edge of the plaza are the one group looking up.
 
 ## ITERATION STRATEGY
 
-Save each generation as `plate-01-stuttgart-v{N}.jpg` and update the filename in `index.html` to test.
+Save each generation as `plate-01-stuttgart-v{N}.png` and update the filename in `index.html` to test.
 
 ### v1 — baseline (above prompt)
 Run as-is. Evaluate: Is the building monumental enough? Is the palette landing? Are the human figures the right scale (small, atmospheric)? Do the architecture students read as a focal point at the edge?
@@ -198,9 +198,16 @@ For an alternate plate that reads as historical document: `black and white photo
 - Pull highlights toward `--bone: #ebe5d6` rather than pure white
 - Add 5–8% warm tone to mid-tones to match the cream paper feel
 - Sharpen the building, not the figures (keep them slightly soft)
-- Export JPEG quality 82, progressive, target 600KB–1.2MB
+- Export as **PNG (lossless)**. Expect 6–12 MB at 2880 × 1800. ComfyUI's default save node outputs PNG natively, so no conversion is required from the generation pipeline.
 
-**Hosting.** Place at `plate-01-stuttgart.jpg` in the same directory as `index.html`.
+**File size considerations.** PNG at this resolution will be substantial (6–12 MB) versus a comparable JPEG (~600KB–1.2 MB). For local iteration and design-fiction use, this is fine. For production deployment with bandwidth concerns, consider one of:
+- Export an additional optimised JPEG fallback (`plate-01-stuttgart.jpg`) and use the HTML `<picture>` element to serve either format
+- Convert to WebP for ~70% size reduction with comparable quality
+- Use a lower-resolution PNG (1920 × 1200) which will be ~3–5 MB
+
+The current `index.html` references `plate-01-stuttgart.png` directly. If you produce a JPEG fallback, update the CSS `background-image` declaration or convert to a `<picture>` element accordingly.
+
+**Hosting.** Place at `plate-01-stuttgart.png` in the same directory as `index.html`.
 
 ---
 
