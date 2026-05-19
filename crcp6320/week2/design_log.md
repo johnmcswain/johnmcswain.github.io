@@ -2,13 +2,23 @@
 ## Trugschluss-Werke AG — Site Identity & Homepage
 
 **Project:** Fictional industrial e-commerce brand (design fiction artifact)
-**Client:** John I. McSwain III — Cold Mist Labs / OCTIQ
-**Designer (in role):** European graphics designer, 1960s sensibility
+**Designer:** John I. McSwain III (jimcswain@smu.edu)
+**AI Role:** European graphics designer, 1960s sensibility
 **Log opened:** 18 May 2026, ~14:00 UTC
-**Log closed:** 18 May 2026, ~16:25 UTC
-**Duration:** ~145 minutes, single working session
-**Deliverables:** `SPEC.md`, `index.html`, `design_log.md`, `comfyui_prompt.md`, plus assets `plate-01-stuttgart.png` and `calm_wonder.mp3`
+**Log closed:** 18 May 2026, ~17:00 UTC
+**Duration:** ~180 minutes, single working session
+**Deliverables:** `SPEC.md`, `index.html`, `design_log.md`, `comfyui_prompt.md`, plus assets `plate-01-stuttgart.png` (via Z-Image-Turbo) and `calm_wonder.mp3` (via ElevenLabs Music)
 
+---
+
+---
+## Prelude
+
+Found the works of [Erik Nitsche](https://en.wikipedia.org/wiki/Erik_Nitsche) and his poster work for [General Dynamics](https://www.galerie123.com/en/selections/4/general-dynamics/) to be fascinating for this project, mainly because of the use of unique colors and creative non-linear style describing a company that specializes in precision and predictable outcomes. #paradoxical
+
+<img src="https://g123-media.sos-ch-gva-2.exoscale-cdn.com/filer_public_thumbnails/filer_public/c5/06/c506caa5-743c-4c3a-b2e0-09b404d8f04d/general-dynamics-solar-dynamics-el-atomo-para-la-paz-36790-atoms-for-peace-vintage-poster.jpg__960x0_q85_subsampling-2_upscale.jpg" width="300">
+
+<img src="https://g123-media.sos-ch-gva-2.exoscale-cdn.com/filer_public_thumbnails/filer_public/ee/0f/ee0fad10-8be7-4fc7-89f5-c0a2de3f5d9b/m0431-general-dynamics-industrial-gases-liquid-carbonic-36817-atomique-affiche-ancienne.jpg__960x0_q85_subsampling-2_upscale.jpg" width="300">
 ---
 
 ## SESSION TIMELINE
@@ -382,13 +392,13 @@ This is more honest to the conceit (it *is* a catalogue, and catalogues have pla
 
 - **Filename:** `plate-01-stuttgart.png` (intentionally minimal placeholder; iterate as `-v2`, `-v3`)
 - **Dimensions:** **2880 × 1800 px** (16:10 aspect)
-- **Native generation:** 1536 × 960 (SDXL) or 1344 × 832 (Flux), upscaled 2× via SDXL-ESRGAN or SUPIR
+- **Native generation:** Z-Image-Turbo (verified working — current asset produced with this) at official Text-to-Image workflow defaults. Fallbacks: SDXL at 1536 × 960, Flux at 1344 × 832, upscaled 2× via 4x-UltraSharp ESRGAN or SUPIR
 - **Format:** PNG (lossless). Expect 6–12 MB at full resolution.
 - **Safe zone:** Central 70% vertical — top/bottom 15% may crop during parallax
 
 *The ComfyUI prompt document (`comfyui_prompt.md`).*
 
-A complete prompt package: positive prompt, negative prompt, recommended models (Flux.1 Dev or SDXL with Juggernaut XL v9 / RealVisXL v4), sampler settings, and a **six-version iteration strategy**.
+A complete prompt package: positive prompt, negative prompt, recommended models (Z-Image-Turbo verified working; Flux.1 Dev and SDXL with Juggernaut XL v9 / RealVisXL v4 as fallbacks), sampler settings, and an **eight-version iteration strategy**.
 
 The positive prompt produces:
 - A monumental brutalist concrete manufacturing facility — board-formed concrete with visible wood grain, cantilevered upper floor, deep recessed vertical window slots, oxidised copper ventilation stacks and gutters
@@ -476,15 +486,63 @@ The audio system is a clean three-key constellation: theme, commerce, sound. Eac
 
 ---
 
+### 16:40 — Image generation provenance recorded
+**Input (user):**
+Update the documentation to reflect that the current `plate-01-stuttgart.png` asset was generated using the Z-Image-Turbo Text-to-Image workflow in ComfyUI, with the specific model files (Qwen-3-4B text encoder, Z-Image-Turbo bf16 diffusion model, AE VAE).
+
+**Output (designer):**
+
+Provenance is the kind of documentation that pays compound interest. Six months from now, when iterating on v2 or extending the plate series to II/III/IV, knowing exactly which model and encoder produced the current asset means the visual character can be preserved. Different models produce different *handwriting* — even with identical prompts. The Qwen-3-4B text encoder in particular handles dense compound architectural prompts more faithfully than standard CLIP, which means swapping to a CLIP-based model for future plates would produce subtly different results even if the prompt text were identical.
+
+Updates threaded through three files:
+
+**`comfyui_prompt.md` — restructured the model recommendation header.** Z-Image-Turbo is now the verified primary model rather than one option among many. Added the model file tree (`text_encoders/qwen_3_4b.safetensors`, `diffusion_models/z_image_turbo_bf16.safetensors`, `vae/ae.safetensors`) and a paragraph explaining *why* Z-Image-Turbo for this plate — its Qwen-3-4B text encoder handles long descriptive prompts better than standard CLIP, it renders architectural photography with strong period accuracy, and it runs fast enough for rapid iteration (under 15 seconds at 1024×640 on consumer hardware). Flux and SDXL retained as fallbacks for situations where Z-Image-Turbo is unavailable. Updated the Technical Notes resolution guidance to reflect Z-Image-Turbo's workflow-driven defaults rather than the previous SDXL/Flux fixed-resolution guidance.
+
+**`SPEC.md` §6.3 image generation note** — updated to lead with Z-Image-Turbo as the verified production model, listed the three required model files explicitly, and retained Flux/SDXL as documented fallbacks. The "eight-version iteration strategy" wording corrected (was previously "six-version" — drift from earlier edits).
+
+**`design_log.md`** — the 15:40 entry updated to reflect the new model hierarchy. This new entry (16:40) records the documentation update itself.
+
+The principle: **provenance is part of the artifact.** A design-fiction site that knows how its assets were made is more durable than one whose generation history was lost the moment the file was saved.
+
+---
+
+### 16:55 — Audio generation provenance recorded
+**Input (user):**
+The ambient audio asset (`calm_wonder.mp3`) was generated using the ElevenLabs Music generator with the prompt: *"I need a 15-20 second loop of ambient, background electronic music, with a focus on atmospheric pads and chords. Consider a sense of calm and wonder. 2-4 chords."* Update the documentation to record this.
+
+**Output (designer):**
+
+Audio provenance gets the same treatment as image provenance — recorded as part of the asset, not as ephemeral session memory.
+
+The prompt itself is worth noting because it reads as if Trugschluss-Werke wrote it. *Calm and wonder* is exactly the emotional register a 1987 Swiss-German industrial concern would specify for its catalogue's accompanying audio insert. Never "exciting," never "energetic," never "uplifting." The 2–4 chord constraint is also disciplined in a way that matches the rest of the brand — minimal harmonic content, sustained pads, no melodic figure to compete with the visitor's attention to the page. The filename `calm_wonder.mp3` derives directly from the prompt's emotional brief, which gives the file its own quiet self-documentation.
+
+Updates threaded through two files:
+
+**`SPEC.md` §6.4** — added a new **Audio Provenance** subsection between Asset and Control component. Records the ElevenLabs Music generator as the source, quotes the full prompt verbatim, and notes *why* each prompt element matters editorially (calm/wonder register, 2–4 chord harmonic discipline, pads over melody). Added a paragraph on **scaffolding for future ambient assets in the same family** — preserving the structural constraints (pads not melody, sparse harmony, short seamless loop) while allowing the emotional register to shift if the catalogue ever supports per-page audio (calm and wonder for the homepage, focused and analytical for product pages, etc.). Also updated the Asset duration row to note that the current production asset is a tight 15–20 second loop relying on seamless looping for length, rather than a longer through-composed track.
+
+**`design_log.md`** — this entry (16:55) records the documentation update itself.
+
+The full provenance map for the site's two non-text assets is now in place:
+
+| Asset | Generator | Reference |
+|---|---|---|
+| `plate-01-stuttgart.png` | ComfyUI · Z-Image-Turbo Text-to-Image workflow · Qwen-3-4B + Z-Image-Turbo bf16 + AE VAE | Full prompt in `comfyui_prompt.md` |
+| `calm_wonder.mp3` | ElevenLabs Music generator | Full prompt in SPEC §6.4 |
+
+Six months from now, when this site is revisited, both assets can be regenerated or extended into a series with full confidence that the visual and sonic character will hold across the work.
+
+---
+
 ## ARTIFACTS PRODUCED
 
 | File | Approx lines | Purpose |
 |---|---|---|
-| `SPEC.md` | ~680 | Canonical world bible + design system + dossier system + 3D schematic + photographic plates + ambient audio |
+| `SPEC.md` | ~660 | Canonical world bible + design system + dossier system + 3D schematic + photographic plates + ambient audio (with provenance for both) |
 | `index.html` | ~4,070 | Self-contained homepage: SVG diagrams, full CSS, parallax JS, theme toggle, dossier system, detail/checkout overlays, 3D layered schematic, photographic plate section, plate scrim, ambient audio control |
 | `design_log.md` | this file | Process record across the full session |
-| `comfyui_prompt.md` | ~220 | Positive/negative prompts, model recommendations, eight-version iteration strategy for the Stuttgart facility image |
-| `calm_wonder.mp3` | external | Ambient audio asset (provided by user, placed alongside `index.html`) |
+| `comfyui_prompt.md` | ~250 | Positive/negative prompts, model recommendations (Z-Image-Turbo primary), eight-version iteration strategy for the Stuttgart facility image |
+| `plate-01-stuttgart.png` | external | Stuttgart facility photographic plate (generated via Z-Image-Turbo) |
+| `calm_wonder.mp3` | external | Ambient audio loop (generated via ElevenLabs Music) |
 
 ---
 

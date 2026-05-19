@@ -420,7 +420,7 @@ The page architecture supports **numbered photographic plates** between major se
 |---|---|
 | **Filename** | `plate-01-stuttgart.png` (placeholder, easy to iterate as `-v2`, `-v3`, etc.) |
 | **Dimensions** | 2880 × 1800 px (16:10 aspect) |
-| **Native generation** | 1536 × 960 (SDXL) or 1344 × 832 (Flux), upscaled 2× |
+| **Native generation** | Z-Image-Turbo (verified working) at official workflow defaults; alternates SDXL at 1536 × 960 or Flux at 1344 × 832, both upscaled 2× via ESRGAN or SUPIR |
 | **Format** | PNG (lossless, photographic). Expect 6–12 MB at full resolution. For production deployment, consider exporting an additional optimised JPEG fallback or webp variant — but the canonical asset is PNG. |
 | **Vertical safe zone** | Central 70% — top 15% and bottom 15% may be cropped during parallax |
 | **Colour grade** | Match site palette: cool ink-navy shadows, oxidised copper accents, bone-cream warm tones, no oversaturation |
@@ -449,7 +449,7 @@ When the image hasn't loaded (or hasn't been generated yet), a subtle 40×40px h
 
 ### Image generation
 
-A standalone document, `comfyui_prompt.md`, contains the full positive prompt, negative prompt, and six-version iteration strategy for generating the Stuttgart facility plate via ComfyUI. Recommended models: Flux.1 Dev or SDXL with Juggernaut XL v9 / RealVisXL v4. The prompt is tuned to produce a brutalist concrete manufacturing facility with period-accurate (1987) human figures at scale, in the site's exact palette.
+A standalone document, `comfyui_prompt.md`, contains the full positive prompt, negative prompt, and eight-version iteration strategy for generating the Stuttgart facility plate via ComfyUI. **The current production asset was generated using Z-Image-Turbo** (model files: `qwen_3_4b.safetensors` text encoder, `z_image_turbo_bf16.safetensors` diffusion model, `ae.safetensors` VAE) via the official Z-Image-Turbo Text-to-Image workflow. Alternate models documented for fallback: Flux.1 Dev, SDXL with Juggernaut XL v9 or RealVisXL v4. The prompt is tuned to produce a brutalist concrete manufacturing facility with period-accurate (1987) human figures at scale, in the site's exact palette.
 
 ### Future plates
 
@@ -474,8 +474,20 @@ The page supports a persistent **ambient audio track** that loops in the backgro
 | **Filename** | `calm_wonder.mp3` (placed in the same directory as `index.html`) |
 | **Format** | MP3 (widest browser support). Optional fallbacks: `.ogg` / `.webm` via `<source>` elements |
 | **Looping** | Seamless. The HTML5 `loop` attribute handles this natively — author the file with the loop point at the file boundaries (no fade-in/out at start/end) |
-| **Duration** | Any. Three to seven minutes is the editorial sweet spot — long enough that the loop isn't conspicuous, short enough to keep the file size reasonable |
+| **Duration** | Any. Three to seven minutes is the editorial sweet spot — long enough that the loop isn't conspicuous, short enough to keep the file size reasonable. The current production asset is a tight 15–20 second loop that relies on seamless looping for length |
 | **Bitrate** | 128 kbps stereo is sufficient for ambient material. 192 kbps if the file is musical and warrants the fidelity |
+
+### Audio provenance
+
+The current `calm_wonder.mp3` asset was generated using the **ElevenLabs Music generator** with the following prompt:
+
+> *"I need a 15-20 second loop of ambient, background electronic music, with a focus on atmospheric pads and chords. Consider a sense of calm and wonder. 2-4 chords."*
+
+The prompt is deliberately on-brand: *calm and wonder* is exactly the emotional register Trugschluss-Werke would specify for its catalogue's ambient track — never "exciting," never "energetic," never "uplifting." The 2–4 chord constraint ensures the loop isn't musically conspicuous on repeat. Atmospheric pads (sustained, slow-attack synthesizer voicings) rather than melodic content keep the audio from competing with the visitor's attention to the page.
+
+The filename `calm_wonder.mp3` derives directly from the prompt's emotional brief and serves as the asset's own quiet documentation.
+
+**For future ambient assets in the same family**, retain the prompt scaffolding: *ambient, electronic, atmospheric pads, 2–4 chords, 15–20 second loop, [emotional register].* The emotional register can shift across plates and contexts (calm and wonder for the homepage, focused and analytical for product pages if the catalogue ever supports per-page audio), but the structural constraints (pads not melody, sparse harmony, short seamless loop) hold the brand identity across tracks.
 
 ### Control component
 
