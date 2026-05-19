@@ -5,9 +5,9 @@
 **Client:** John I. McSwain III — Cold Mist Labs / OCTIQ
 **Designer (in role):** European graphics designer, 1960s sensibility
 **Log opened:** 18 May 2026, ~14:00 UTC
-**Log closed:** 18 May 2026, ~15:45 UTC
-**Duration:** ~105 minutes, single working session
-**Deliverables:** `SPEC.md`, `index.html`, `design_log.md`, `comfyui_prompt.md`
+**Log closed:** 18 May 2026, ~16:25 UTC
+**Duration:** ~145 minutes, single working session
+**Deliverables:** `SPEC.md`, `index.html`, `design_log.md`, `comfyui_prompt.md`, plus assets `plate-01-stuttgart.png` and `calm_wonder.mp3`
 
 ---
 
@@ -380,10 +380,10 @@ This is more honest to the conceit (it *is* a catalogue, and catalogues have pla
 
 *Image specifications.*
 
-- **Filename:** `plate-01-stuttgart.jpg` (intentionally minimal placeholder; iterate as `-v2`, `-v3`)
+- **Filename:** `plate-01-stuttgart.png` (intentionally minimal placeholder; iterate as `-v2`, `-v3`)
 - **Dimensions:** **2880 × 1800 px** (16:10 aspect)
 - **Native generation:** 1536 × 960 (SDXL) or 1344 × 832 (Flux), upscaled 2× via SDXL-ESRGAN or SUPIR
-- **Format:** Progressive JPEG quality 82, target 600KB–1.2MB
+- **Format:** PNG (lossless). Expect 6–12 MB at full resolution.
 - **Safe zone:** Central 70% vertical — top/bottom 15% may crop during parallax
 
 *The ComfyUI prompt document (`comfyui_prompt.md`).*
@@ -408,14 +408,83 @@ The architecture also supports future plates (II — Zürich design office inter
 
 ---
 
+### 16:05 — Plate text legibility scrim
+**Input (user):**
+Screenshots showed that text overlaid on the photographic plate had insufficient contrast in both themes. In dark mode the *Reichenbachstrasse 12* title disappeared into the building's shadow entirely.
+
+**Output (designer):**
+
+Two root causes identified:
+
+1. Plate text inherited theme variables — `color: var(--bone)` resolved to cream in light mode but to deep ink in dark mode, exactly the opposite of what was needed since the plate photograph is dark in *both* themes.
+2. The image's mid-tones were the same brightness as the text. The existing centered-vignette overlay darkened the wrong areas — the middle, not the corners where text actually sits.
+
+Fix, two-part:
+
+**Locked plate text to bone always.** Every plate text element (`plate-eyebrow`, `plate-title`, `plate-title em`, `plate-byline`, `plate-meta`, `plate-meta .row span:last-child`, `plate-label`, `plate-label .num`, `plate-ref`, `plate-ref strong`, `plate-caption` parent, `plate-frame .corner`) now uses the hardcoded `#ebe5d6` value instead of `var(--bone)`. The plate is a dark-island within both themes — its text must remain cream in both editions. This is an intentional override of the cross-theme system, justified by the fact that the photograph beneath does not change between themes.
+
+**Added a four-corner radial scrim.** A new `.plate-scrim` element sits between `.plate-image` and the text layers (`z-index: 1`). It contains four radial gradients in `rgba(15, 22, 32, 0.72)` ink-navy, each anchored to a corner, fading to fully transparent by ~40% of the way to center. The result: the four text zones get a subtle ink darkening, while the building's center stays completely clear. In dark mode the scrim deepens to `rgba(5, 8, 14, 0.82)` since the surrounding theme is already darker. The scrim does not parallax — it stays anchored to the viewport, so text-darkening remains where text is regardless of image drift.
+
+**Three smaller refinements:**
+- Added subtle ink-toned text-shadows to all plate text (`0 2px 12px rgba(15, 22, 32, 0.55)` on the title, lighter on smaller text). Invisible at casual inspection but defeats the busy-background problem at the edges of each letterform.
+- Raised base opacities slightly (byline 0.75 → 0.92, meta 0.7 → 0.88, eyebrow 0.8 → 0.85).
+- Strengthened the meta block's top border (0.3 → 0.45 alpha) and the corner brackets (0.6 → 0.7 opacity) since the scrim around them now gives them somewhere to live.
+
+The plate now reads cleanly in both editions. The building's center remains unobstructed. The text shadows are tuned to disappear under casual inspection. The cream-text-over-dark-photograph identity is now consistent across both themes — which is honest, since the photograph itself doesn't actually change between themes.
+
+---
+
+### 16:18 — Ambient audio control
+**Input (user):**
+Add a background audio loop with mute and volume controls that persist similar to the theme and dossier buttons. The file is `calm_wonder.mp3`.
+
+**Output (designer):**
+
+Framed in the brand voice as the **Ambient track** — an editorial choice, not "background music" or "soundtrack." A magazine that ships with a vinyl insert.
+
+**Hard rule: off by default.** First visit, the page is silent. Autoplay-with-sound is hostile design (and browsers block it anyway). The user opts in.
+
+**The control component.** Slots into the existing top-right cluster as the third persistent control. Left-to-right order: ambient (`right: 220px`) → dossier (`right: 90px`) → theme (`right: 28px`). Same visual register as the theme toggle: hairline border, mono micro-type, monoline icon, a label beneath reading **Ambient · On** or **Ambient · Off**.
+
+The mute toggle uses an **animated three-bar waveform icon**:
+- When playing: the three bars pulse vertically via CSS keyframes (0.9s loop, staggered 0/0.2/0.4s delays). The motion is subtle but constant — visual confirmation that audio is active.
+- When muted: bars compress to a single 1.5px hairline at 45% opacity.
+
+A **hover-revealed volume slider** slides out to the right of the toggle, animating `max-width` from 0 to 120px over 350ms. The slider uses thin hairline styling matching the rest of the design system — 1px track, 8×12px sharp-cornered ink-filled thumb, no rounded edges. Cross-browser styled (WebKit + Firefox).
+
+**Persistence.** Stored in `localStorage` under the key `tw-ambient` as a JSON object: `{ playing: boolean, volume: number (0–100) }`. Default volume: 40%. Survives sessions, refreshes, tab switches.
+
+**Resume on return.** If a returning visitor had ambient ON in their previous session, the page attempts to resume playback 800ms after load. If the browser blocks the resume (no user gesture in current session), the state is silently reverted to OFF and the UI updates to match — no error, no nag, no "click to enable audio" banner. The graceful failure mode is itself the design.
+
+**Volume behaviour.** Sliding to 0 does NOT auto-mute the toggle. The user remains in "ON" state at zero volume, so unsliding restores audibility without re-toggling. This matches the convention of audio applications (Spotify, Apple Music) where the play/pause and volume controls are independent concepts.
+
+**Error handling.** If the audio file is missing, fails to load, or throws any decode error, the control silently reverts to OFF state. The page does not break. The control behaves as though the user clicked it to mute.
+
+**Accessibility.**
+- Dynamic `aria-label` on toggle ("Play ambient audio" / "Mute ambient audio")
+- `aria-label="Ambient audio volume"` on the slider
+- `:focus-within` reveals the volume slider — keyboard users get the same experience as mouse users
+- The label beneath provides a redundant text indicator of state
+- Audio is never autoplayed without explicit user action
+
+**LocalStorage state map.** The page now persists three independent keys, none affecting the others:
+- `tw-theme` — light/dark preference
+- `tw-dossier` — cart items
+- `tw-ambient` — audio state
+
+The audio system is a clean three-key constellation: theme, commerce, sound. Each persists independently. Each restores independently. The site remembers everything it should and forgets nothing it shouldn't.
+
+---
+
 ## ARTIFACTS PRODUCED
 
 | File | Approx lines | Purpose |
 |---|---|---|
-| `SPEC.md` | ~580 | Canonical world bible + design system + dossier system + 3D schematic + photographic plates |
-| `index.html` | ~3,820 | Self-contained homepage: SVG diagrams, full CSS, parallax JS, theme toggle, dossier system, detail and checkout overlays, 3D layered schematic, photographic plate section |
+| `SPEC.md` | ~680 | Canonical world bible + design system + dossier system + 3D schematic + photographic plates + ambient audio |
+| `index.html` | ~4,070 | Self-contained homepage: SVG diagrams, full CSS, parallax JS, theme toggle, dossier system, detail/checkout overlays, 3D layered schematic, photographic plate section, plate scrim, ambient audio control |
 | `design_log.md` | this file | Process record across the full session |
-| `comfyui_prompt.md` | ~140 | Positive/negative prompts, model recommendations, six-version iteration strategy for the Stuttgart facility image |
+| `comfyui_prompt.md` | ~220 | Positive/negative prompts, model recommendations, eight-version iteration strategy for the Stuttgart facility image |
+| `calm_wonder.mp3` | external | Ambient audio asset (provided by user, placed alongside `index.html`) |
 
 ---
 

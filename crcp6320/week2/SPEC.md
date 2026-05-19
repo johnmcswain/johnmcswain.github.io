@@ -463,6 +463,84 @@ Each future plate slots into the existing section template — only the image fi
 
 ---
 
+## 6.4 AMBIENT AUDIO
+
+The page supports a persistent **ambient audio track** that loops in the background. Framed in the brand voice as the **Ambient track** — an editorial choice, like a magazine that ships with a vinyl insert. Not "background music," not "soundtrack," not "soundscape." Just *Ambient*.
+
+### Asset
+
+| Property | Value |
+|---|---|
+| **Filename** | `calm_wonder.mp3` (placed in the same directory as `index.html`) |
+| **Format** | MP3 (widest browser support). Optional fallbacks: `.ogg` / `.webm` via `<source>` elements |
+| **Looping** | Seamless. The HTML5 `loop` attribute handles this natively — author the file with the loop point at the file boundaries (no fade-in/out at start/end) |
+| **Duration** | Any. Three to seven minutes is the editorial sweet spot — long enough that the loop isn't conspicuous, short enough to keep the file size reasonable |
+| **Bitrate** | 128 kbps stereo is sufficient for ambient material. 192 kbps if the file is musical and warrants the fidelity |
+
+### Control component
+
+A persistent ambient control sits in the top-right cluster alongside the theme toggle and dossier button. Position order, left to right: **ambient → dossier → theme**.
+
+The control consists of:
+- A **mute toggle button** with an animated three-bar waveform icon. The bars pulse vertically while playing (CSS keyframe animation, 0.9s loop, staggered delays). When muted, the bars compress to a single hairline and dim to 45% opacity.
+- A **hover-revealed volume slider** that slides out to the right when the user hovers the control. Width animates from 0 to 120px over 350ms. The slider uses thin hairline styling matching the rest of the design system — 1px track, 8×12px ink-filled thumb, sharp corners.
+- A **micro-label beneath** reading **Ambient · On** or **Ambient · Off** (matching the `DAY EDITION` / `NIGHT EDITION` label format of the theme toggle).
+- A **state badge inside the button** reading "On" or "Off" in the heavy condensed mono.
+
+### Behaviour
+
+**Off by default.** First visit: silent. Visitors opt in by clicking the toggle. This is non-negotiable; autoplay-with-sound is hostile design and modern browsers block it anyway.
+
+**Persistence.** State is stored in `localStorage` under the key `tw-ambient` as a JSON object: `{ playing: boolean, volume: number (0–100) }`. The state survives across sessions, page refreshes, and tab switches.
+
+**Resume on return.** If a returning visitor had ambient ON in their previous session, the page attempts to resume playback 800ms after load. If the browser blocks the resume (no user gesture in current session), the state is silently reverted to OFF and the UI updates to match — no error, no nag, no "click here to enable audio" banner.
+
+**Graceful degradation.** If the audio file is missing, the file fails to load, or any decoding error occurs, the control silently reverts to OFF state. The page does not break. The control simply behaves as though the user clicked it to mute.
+
+**Volume.** Default 40% (a quiet ambient level — not silent, not intrusive). Range 0–100. Changes save immediately to `localStorage`. Sliding to 0 does NOT auto-mute the toggle — the user remains in "ON" state at zero volume, so unsliding restores audibility without re-toggling. This is the convention preferred by audio applications.
+
+### CSS keys
+
+```css
+.ambient-control          /* outer wrapper, position fixed top-right */
+.ambient-toggle           /* the clickable mute/play button */
+.ambient-toggle .wave     /* three-bar waveform icon */
+.ambient-toggle .wave span /* individual bars, animated */
+.ambient-volume           /* slide-out volume slider container */
+.ambient-volume input[type="range"]  /* the slider itself */
+.ambient-label            /* micro-text label beneath */
+
+/* States, applied to .ambient-control */
+.ambient-control.playing  /* audio is playing — bars animate */
+.ambient-control.muted    /* audio is paused — bars flat and dim */
+```
+
+### LocalStorage keys reference
+
+The page now persists three independent state keys:
+
+| Key | Shape | Description |
+|---|---|---|
+| `tw-theme` | string `"light"` \| `"dark"` | Day/night edition preference |
+| `tw-dossier` | array `[{id, qty}]` | Configuration dossier items |
+| `tw-ambient` | object `{playing, volume}` | Ambient audio state |
+
+All three persist independently. Clearing one does not affect the others.
+
+### Accessibility
+
+- The toggle has a dynamic `aria-label` that reads "Play ambient audio" when off, "Mute ambient audio" when on
+- The volume slider has `aria-label="Ambient audio volume"`
+- Keyboard focus reveals the volume slider via `:focus-within` (same behaviour as hover, so keyboard users get full control)
+- The label beneath provides a redundant text indicator of state
+- Audio is never autoplayed without explicit user action
+
+### Future audio additions
+
+The architecture supports additional audio tracks if the catalogue grows — for instance, a **second track** that plays only when the user is in the dossier drawer (a slightly different ambient, marking a shift in mode). The current implementation is single-track, but the state shape (`{ playing, volume }`) could be extended to `{ tracks: [...], active: 0, volume }` without breaking persistence.
+
+---
+
 ## 7. COPY LIBRARY (CANONICAL SENTENCES)
 
 These sentences are canonical. They may be reused verbatim across the site.
