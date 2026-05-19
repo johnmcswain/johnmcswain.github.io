@@ -2,23 +2,22 @@
 ## Trugschluss-Werke AG — Site Identity & Homepage
 
 **Project:** Fictional industrial e-commerce brand (design fiction artifact)
-**Designer:** John I. McSwain III (jimcswain@smu.edu)
-**AI Role:** European graphics designer, 1960s sensibility
-**Log opened:** 18 May 2026, ~14:00 UTC
-**Log closed:** 18 May 2026, ~17:00 UTC
-**Duration:** ~180 minutes, single working session
-**Deliverables:** `SPEC.md`, `index.html`, `design_log.md`, `comfyui_prompt.md`, plus assets `plate-01-stuttgart.png` (via Z-Image-Turbo) and `calm_wonder.mp3` (via ElevenLabs Music)
+<br>**Designer:** John I. McSwain III (jimcswain@smu.edu)
+<br>**AI Role:** European graphics designer, 1960s sensibility
+<br>**Log opened:** 18 May 2026, ~14:00 UTC
+<br>**Log closed:** 18 May 2026, ~17:00 UTC
+<br>**Duration:** ~180 minutes, single working session
+<br>**Deliverables:** `SPEC.md`, `index.html`, `design_log.md`, `comfyui_prompt.md`, plus assets `plate-01-stuttgart.png` (via Z-Image-Turbo) and `calm_wonder.mp3` (via ElevenLabs Music)
 
 ---
 
----
 ## Prelude
 
 Found the works of [Erik Nitsche](https://en.wikipedia.org/wiki/Erik_Nitsche) and his poster work for [General Dynamics](https://www.galerie123.com/en/selections/4/general-dynamics/) to be fascinating for this project, mainly because of the use of unique colors and creative non-linear style describing a company that specializes in precision and predictable outcomes. #paradoxical
 
 <img src="https://g123-media.sos-ch-gva-2.exoscale-cdn.com/filer_public_thumbnails/filer_public/c5/06/c506caa5-743c-4c3a-b2e0-09b404d8f04d/general-dynamics-solar-dynamics-el-atomo-para-la-paz-36790-atoms-for-peace-vintage-poster.jpg__960x0_q85_subsampling-2_upscale.jpg" width="300">
-
 <img src="https://g123-media.sos-ch-gva-2.exoscale-cdn.com/filer_public_thumbnails/filer_public/ee/0f/ee0fad10-8be7-4fc7-89f5-c0a2de3f5d9b/m0431-general-dynamics-industrial-gases-liquid-carbonic-36817-atomique-affiche-ancienne.jpg__960x0_q85_subsampling-2_upscale.jpg" width="300">
+
 ---
 
 ## SESSION TIMELINE
@@ -41,7 +40,7 @@ Asked: which direction? what product category?
 
 ### 14:08 — Reference established
 **Input (user):**
-Uploaded reference image: a 24×36 art print titled *Special Relativity* (2046 Print Shop aesthetic). Stated preference for brutalism, monochromatic schemes with one or two accent colours, and the modern minimalist style of 2046printshop.com.
+Uploaded reference image: a 24×36 art print titled [`Special Relativity`](https://2046printshop.com/products/special-relativity) (2046 Print Shop aesthetic). Stated preference for brutalism, monochromatic schemes with one or two accent colours, and the modern minimalist style of 2046printshop.com.<img src="https://2046printshop.com/cdn/shop/products/Theory-of-Special-Relativity_1_3414462a-bfed-43e0-94a2-3475920e6761.jpg?v=1664999150" width="500">
 
 **Output (designer):**
 Named what was actually working in the reference rather than imitating it:
