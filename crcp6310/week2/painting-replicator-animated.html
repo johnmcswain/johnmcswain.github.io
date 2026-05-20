@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Avant-Garde Replicator · Animated</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+<style>
+  :root {
+    --bone: #ece5d3;
+    --ink: #1a1814;
+    --rust: #b04a2a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bone);
+    color: var(--ink);
+    font-family: 'Courier New', monospace;
+    min-height: 100vh;
+    padding: 32px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+  header {
+    width: 100%;
+    max-width: 720px;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  h1 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 900;
+    font-size: 28px;
+    letter-spacing: -0.5px;
+    font-style: italic;
+  }
+  .meta {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    opacity: 0.6;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: 720px;
+    justify-content: center;
+  }
+  button {
+    background: transparent;
+    border: 1.5px solid var(--ink);
+    color: var(--ink);
+    padding: 8px 14px;
+    font-family: inherit;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  button:hover {
+    background: var(--ink);
+    color: var(--bone);
+  }
+  button.active {
+    background: var(--rust);
+    border-color: var(--rust);
+    color: var(--bone);
+  }
+  #canvas-wrap {
+    border: 1px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--ink);
+    background: white;
+    padding: 0;
+    line-height: 0;
+  }
+  .caption {
+    max-width: 720px;
+    text-align: center;
+    font-size: 13px;
+    font-style: italic;
+    line-height: 1.6;
+    padding: 0 16px;
+  }
+  .caption strong {
+    font-style: normal;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-size: 11px;
+  }
+  .caption .hint {
+    display: block;
+    margin-top: 6px;
+    font-style: normal;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    opacity: 0.55;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Avant-Garde Replicator</h1>
+    <span class="meta">p5.js · ambient + interactive</span>
+  </header>
+
+  <div class="controls" id="controls"></div>
+  <div id="canvas-wrap"></div>
+  <div class="caption" id="caption"></div>
+
+<script>
+const W = 600, H = 600;
+
+// ============ Helpers ============
+const lerpRGB = (a, b, t) => [
+  a[0] + (b[0]-a[0])*t,
+  a[1] + (b[1]-a[1])*t,
+  a[2] + (b[2]-a[2])*t
+];
+
+// ============ Painting definitions ============
+// Each painting has: id, label, title, artist, hint (interaction text),
+//   init(p) — called once when selected
+//   draw(p) — called every frame
+
+const paintings = [
+  // ============================================================
+  // MONDRIAN — grid breathes, click empty cells to fill
+  // ============================================================
+  {
+    id: 'mondrian',
+    label: 'Mondrian · 1930',
+    title: 'Composition II in Red, Blue, and Yellow',
+    artist: 'Piet Mondrian, 1930',
+    hint: 'Click white cells to fill them · hover colors to deepen',
+    state: null,
+    init(p) {
+      // Cells defined by the 4 grid lines (2 vertical, 2 horizontal)
+      // verticals at x=180, x=560; horizontals at y=380, y=470
+      this.state = {
+        cells: [
+          { x:0,   y:0,   w:180, h:380, color:[245,240,225], filled:false },
+          { x:180, y:0,   w:380, h:380, color:[206, 32, 41], filled:true  },
+          { x:560, y:0,   w:40,  h:380, color:[245,240,225], filled:false },
+          { x:0,   y:380, w:180, h:90,  color:[245,240,225], filled:false },
+          { x:180, y:380, w:380, h:90,  color:[245,240,225], filled:false },
+          { x:560, y:380, w:40,  h:90,  color:[245,240,225], filled:false },
+          { x:0,   y:470, w:180, h:130, color:[20, 50, 140], filled:true  },
+          { x:180, y:470, w:380, h:130, color:[245,240,225], filled:false },
+          { x:560, y:470, w:40,  h:130, color:[245,200, 50], filled:true  },
+        ],
+        fillCycle: [[206,32,41],[20,50,140],[245,200,50]],
+        cycleIdx: 0
+      };
+    },
+    draw(p) {
+      p.background(245, 240, 225);
+      const breath = (Math.sin(p.frameCount * 0.015) + 1) * 0.5; // 0..1
+      const k = 8 + breath * 1.5; // line weight breathes 8..9.5
+      const mx = p.mouseX, my = p.mouseY;
+
+      p.noStroke();
+      // Draw cells
+      for (const c of this.state.cells) {
+        let col = c.color;
+        if (c.filled) {
+          const hovered = mx >= c.x && mx <= c.x+c.w && my >= c.y && my <= c.y+c.h;
+          if (hovered) {
+            // deepen saturation by pulling toward darker version
+            col = [col[0]*0.85, col[1]*0.85, col[2]*0.85];
+          }
+        }
+        p.fill(col[0], col[1], col[2]);
+        p.rect(c.x, c.y, c.w, c.h);
+      }
+
+      // Grid lines — breathing weight
+      p.fill(15, 15, 15);
+      p.rect(180 - k/2, 0, k, 600);
+      p.rect(560 - k/2, 0, k, 600);
+      p.rect(0, 380 - k/2, 600, k);
+      p.rect(0, 470 - k/2, 600, k);
+    },
+    mousePressed(p) {
+      const mx = p.mouseX, my = p.mouseY;
+      for (const c of this.state.cells) {
+        if (mx >= c.x && mx <= c.x+c.w && my >= c.y && my <= c.y+c.h) {
+          if (!c.filled) {
+            c.color = this.state.fillCycle[this.state.cycleIdx % 3];
+            c.filled = true;
+            this.state.cycleIdx++;
+          } else {
+            // cycle through colors
+            c.color = this.state.fillCycle[this.state.cycleIdx % 3];
+            this.state.cycleIdx++;
+          }
+          break;
+        }
+      }
+    }
+  },
+
+  // ============================================================
+  // MALEVICH — black square drifts, repelled by mouse
+  // ============================================================
+  {
+    id: 'malevich',
+    label: 'Malevich · 1915',
+    title: 'Black Square',
+    artist: 'Kazimir Malevich, 1915',
+    hint: 'Move mouse near the square — it drifts away',
+    state: null,
+    init(p) {
+      this.state = {
+        baseX: 95, baseY: 90,   // resting position
+        offX: 0, offY: 0,       // current offset
+        velX: 0, velY: 0,       // velocity
+        sqW: 410, sqH: 420
+      };
+    },
+    draw(p) {
+      p.background(232, 220, 195);
+      p.noStroke();
+      p.fill(240, 230, 208);
+      p.rect(40, 40, 520, 520);
+
+      const s = this.state;
+      // Ambient drift via noise
+      const noiseX = (p.noise(p.frameCount * 0.005, 0) - 0.5) * 8;
+      const noiseY = (p.noise(0, p.frameCount * 0.005) - 0.5) * 8;
+
+      // Mouse repulsion
+      const cx = s.baseX + s.offX + s.sqW/2;
+      const cy = s.baseY + s.offY + s.sqH/2;
+      const dx = cx - p.mouseX;
+      const dy = cy - p.mouseY;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const force = Math.max(0, 1 - dist/300);
+      const repelX = (dx / (dist || 1)) * force * 1.2;
+      const repelY = (dy / (dist || 1)) * force * 1.2;
+
+      // Spring back to center
+      s.velX += repelX - s.offX * 0.02 + noiseX * 0.01;
+      s.velY += repelY - s.offY * 0.02 + noiseY * 0.01;
+      s.velX *= 0.88;
+      s.velY *= 0.88;
+      s.offX += s.velX;
+      s.offY += s.velY;
+
+      p.fill(18, 18, 16);
+      p.rect(s.baseX + s.offX, s.baseY + s.offY, s.sqW, s.sqH);
+    },
+    mousePressed(p) {}
+  },
+
+  // ============================================================
+  // KANDINSKY — concentric circles rotate; hover pauses a cell
+  // ============================================================
+  {
+    id: 'kandinsky',
+    label: 'Kandinsky · 1913',
+    title: 'Color Study: Squares with Concentric Circles',
+    artist: 'Wassily Kandinsky, 1913',
+    hint: 'Hover any cell to pause its rotation',
+    state: null,
+    init(p) {
+      this.state = {
+        cols: 4, rows: 3,
+        bgPalette: [
+          [180,140,60],[60,80,120],[120,40,40],[40,100,70],
+          [200,100,40],[80,60,100],[160,180,80],[40,60,90],
+          [180,90,50],[230,200,70],[110,140,170],[60,40,40]
+        ],
+        ringPalettes: [
+          [[60,90,150],[230,220,90],[200,80,40],[40,60,100],[230,200,150]],
+          [[230,200,90],[200,60,40],[230,220,200],[80,40,30],[180,170,100]],
+          [[30,40,80],[230,200,90],[200,80,50],[230,210,170],[60,80,30]],
+          [[200,80,40],[40,60,90],[230,200,90],[230,220,200],[150,50,30]],
+          [[40,60,90],[230,210,170],[180,60,40],[80,90,40],[230,200,90]],
+          [[230,220,200],[200,80,40],[40,60,90],[230,200,90],[120,40,30]],
+          [[40,60,90],[200,80,40],[230,200,90],[60,90,40],[230,210,170]],
+          [[230,200,90],[40,60,90],[230,220,200],[200,80,40],[80,40,30]],
+          [[230,210,170],[40,60,90],[230,200,90],[200,80,40],[60,90,40]],
+          [[40,60,90],[230,200,90],[200,80,40],[230,210,170],[30,40,80]],
+          [[230,200,90],[200,80,40],[40,60,90],[230,210,170],[120,40,30]],
+          [[200,80,40],[230,200,90],[40,60,90],[230,210,170],[60,90,40]]
+        ],
+        // Each cell has its own rotation phase, speed, and wobble
+        cellPhase: Array.from({length:12}, (_,i) => Math.random() * Math.PI * 2),
+        cellSpeed: Array.from({length:12}, (_,i) => 0.003 + Math.random() * 0.008),
+        cellWobble: Array.from({length:12}, (_,i) => 0.5 + Math.random() * 0.5)
+      };
+    },
+    draw(p) {
+      p.background(235, 228, 210);
+      const s = this.state;
+      const cw = W / s.cols, ch = H / s.rows;
+      p.noStroke();
+
+      // Determine which cell mouse is over
+      const hoverCol = Math.floor(p.mouseX / cw);
+      const hoverRow = Math.floor(p.mouseY / ch);
+      const hoverIdx = (p.mouseX >= 0 && p.mouseX < W && p.mouseY >= 0 && p.mouseY < H)
+        ? hoverRow * s.cols + hoverCol : -1;
+
+      for (let i = 0; i < s.cols; i++) {
+        for (let j = 0; j < s.rows; j++) {
+          const idx = j * s.cols + i;
+          const x = i * cw, y = j * ch;
+          const cx = x + cw/2, cy = y + ch/2;
+
+          // Background
+          const bg = s.bgPalette[idx];
+          p.fill(bg[0], bg[1], bg[2]);
+          p.rect(x, y, cw, ch);
+
+          // Advance phase unless hovered
+          if (idx !== hoverIdx) {
+            s.cellPhase[idx] += s.cellSpeed[idx];
+          }
+
+          // Rings — center wobbles in a small orbit
+          const phase = s.cellPhase[idx];
+          const wob = s.cellWobble[idx] * 8;
+          const ox = Math.cos(phase) * wob;
+          const oy = Math.sin(phase) * wob;
+
+          const rings = s.ringPalettes[idx];
+          let r = Math.min(cw, ch) * 0.45;
+          // Pulsing inner radius
+          const pulse = 1 + Math.sin(phase * 1.5) * 0.04;
+          for (let k = 0; k < rings.length; k++) {
+            p.fill(rings[k][0], rings[k][1], rings[k][2]);
+            const ringR = r * pulse * (1 - k * 0.28);
+            // Each ring offset slightly differently
+            const ringOx = ox * (1 - k * 0.15);
+            const ringOy = oy * (1 - k * 0.15);
+            p.ellipse(cx + ringOx, cy + ringOy, ringR*2, ringR*2);
+          }
+
+          // Highlight hovered cell with subtle border
+          if (idx === hoverIdx) {
+            p.noFill();
+            p.stroke(20, 20, 20, 100);
+            p.strokeWeight(2);
+            p.rect(x+1, y+1, cw-2, ch-2);
+            p.noStroke();
+          }
+        }
+      }
+    },
+    mousePressed(p) {}
+  },
+
+  // ============================================================
+  // KLEE — Castle and Sun, sun radiates warmth, click drops new sun
+  // ============================================================
+  {
+    id: 'klee',
+    label: 'Klee · 1928',
+    title: 'Castle and Sun',
+    artist: 'Paul Klee, 1928',
+    hint: 'Click anywhere to drop a new sun · warmth bleeds outward',
+    state: null,
+    init(p) {
+      // Build tile grid once, then animate color bleed from sun positions
+      const palette = [
+        [180,60,50],[200,80,40],[220,140,60],[180,120,40],
+        [80,100,60],[100,80,50],[60,80,90],[40,60,80],
+        [180,90,80],[210,160,90],[140,80,60],[90,110,80],
+        [200,170,100],[160,100,70],[70,90,110],[180,140,80]
+      ];
+      const tiles = [];
+      const cellW = 50, cellH = 50;
+      // Use seeded random for stable tile pattern
+      let seed = 42;
+      const rnd = () => {
+        seed = (seed * 9301 + 49297) % 233280;
+        return seed / 233280;
+      };
+      for (let y = 80; y < 560; y += cellH) {
+        for (let x = 20; x < 580; x += cellW) {
+          const baseColor = palette[Math.floor(rnd() * palette.length)];
+          const shapeRoll = rnd();
+          tiles.push({
+            x, y, w: cellW, h: cellH,
+            baseColor,
+            shape: shapeRoll < 0.7 ? 'rect' : (shapeRoll < 0.85 ? 'tri-up' : 'tri-down'),
+            jitterX: rnd() * 4,
+            jitterY: rnd() * 4,
+            wJit: rnd() * 6 + 2,
+            hJit: rnd() * 6 + 2
+          });
+        }
+      }
+      this.state = {
+        tiles,
+        suns: [{ x: 440, y: 140, r: 45, born: 0 }],
+        towers: [
+          { x:120, y:40, w:50, h:60, color:[180,60,50], roof:[140,80,60] },
+          { x:260, y:30, w:50, h:70, color:[220,140,60], roof:[60,80,90] },
+          { x:360, y:50, w:50, h:50, color:[80,100,60], roof:null }
+        ]
+      };
+    },
+    draw(p) {
+      p.background(60, 50, 70);
+      const s = this.state;
+      const t = p.frameCount;
+
+      p.noStroke();
+      // Draw tiles with warmth from suns bleeding into them
+      for (const tile of s.tiles) {
+        const tcx = tile.x + tile.w/2;
+        const tcy = tile.y + tile.h/2;
+        let warmth = 0;
+        for (const sun of s.suns) {
+          const dx = tcx - sun.x;
+          const dy = tcy - sun.y;
+          const d = Math.sqrt(dx*dx + dy*dy);
+          // Pulsing warmth
+          const pulse = 0.7 + 0.3 * Math.sin(t * 0.03 + d * 0.02);
+          const w = Math.max(0, 1 - d / 280) * pulse;
+          warmth = Math.max(warmth, w);
+        }
+        const sunColor = [240, 180, 80];
+        const col = lerpRGB(tile.baseColor, sunColor, warmth * 0.55);
+        p.fill(col[0], col[1], col[2]);
+
+        if (tile.shape === 'rect') {
+          p.rect(tile.x + tile.jitterX, tile.y + tile.jitterY,
+                 tile.w - tile.wJit, tile.h - tile.hJit);
+        } else if (tile.shape === 'tri-up') {
+          p.triangle(tile.x, tile.y + tile.h,
+                     tile.x + tile.w, tile.y + tile.h,
+                     tile.x + tile.w/2, tile.y);
+        } else {
+          p.triangle(tile.x, tile.y,
+                     tile.x + tile.w, tile.y,
+                     tile.x + tile.w/2, tile.y + tile.h);
+        }
+      }
+
+      // Towers
+      for (const tw of s.towers) {
+        p.fill(tw.color[0], tw.color[1], tw.color[2]);
+        p.rect(tw.x, tw.y, tw.w, tw.h);
+        if (tw.roof) {
+          p.fill(tw.roof[0], tw.roof[1], tw.roof[2]);
+          p.triangle(tw.x, tw.y, tw.x + tw.w, tw.y, tw.x + tw.w/2, tw.y - 30);
+        }
+      }
+
+      // Suns — pulse and glow
+      for (const sun of s.suns) {
+        const age = t - sun.born;
+        const pulse = 1 + Math.sin(t * 0.04) * 0.05;
+        // glow halo
+        for (let g = 6; g >= 1; g--) {
+          p.fill(240, 180, 80, 12);
+          p.ellipse(sun.x, sun.y, sun.r * 2 * pulse + g * 14, sun.r * 2 * pulse + g * 14);
+        }
+        p.fill(220, 60, 50);
+        p.ellipse(sun.x, sun.y, sun.r * 2 * pulse, sun.r * 2 * pulse);
+      }
+    },
+    mousePressed(p) {
+      // Drop a new sun, keep max 4
+      this.state.suns.push({
+        x: p.mouseX, y: p.mouseY, r: 35, born: p.frameCount
+      });
+      if (this.state.suns.length > 4) this.state.suns.shift();
+    }
+  },
+
+  // ============================================================
+  // MOHOLY-NAGY — kinetic construction, parallax on mouse
+  // ============================================================
+  {
+    id: 'moholy',
+    label: 'Moholy-Nagy · 1922',
+    title: 'A II (Construction)',
+    artist: 'László Moholy-Nagy, 1922',
+    hint: 'Move mouse — layers parallax · shapes drift on their axes',
+    state: null,
+    init(p) {
+      this.state = {
+        targetMX: W/2, targetMY: H/2,
+        smoothMX: W/2, smoothMY: H/2
+      };
+    },
+    draw(p) {
+      p.background(225, 215, 195);
+      const s = this.state;
+      const t = p.frameCount;
+
+      // Smooth mouse for parallax
+      const mx = (p.mouseX >= 0 && p.mouseX <= W) ? p.mouseX : W/2;
+      const my = (p.mouseY >= 0 && p.mouseY <= H) ? p.mouseY : H/2;
+      s.smoothMX += (mx - s.smoothMX) * 0.06;
+      s.smoothMY += (my - s.smoothMY) * 0.06;
+      const px = (s.smoothMX - W/2) / (W/2); // -1..1
+      const py = (s.smoothMY - H/2) / (H/2);
+
+      p.noStroke();
+
+      // Yellow circle (deepest layer, smallest parallax)
+      p.push();
+      p.translate(380 + px * 8, 220 + py * 8);
+      const breath1 = 1 + Math.sin(t * 0.012) * 0.02;
+      p.fill(225, 175, 50, 230);
+      p.ellipse(0, 0, 240 * breath1, 240 * breath1);
+      p.pop();
+
+      // Black diagonal bar — slow rotation drift
+      p.push();
+      p.translate(300 + px * 14, 300 + py * 14);
+      p.rotate(-0.5 + Math.sin(t * 0.006) * 0.04);
+      p.fill(25, 25, 30);
+      p.rect(-260, -22, 520, 44);
+      p.pop();
+
+      // Red rectangle
+      p.push();
+      p.translate(310 + px * 20, 250 + py * 20);
+      p.rotate(0.15 + Math.cos(t * 0.008) * 0.03);
+      p.fill(180, 40, 35, 235);
+      p.rect(-150, -50, 300, 100);
+      p.pop();
+
+      // Blue rectangle
+      p.push();
+      p.translate(280 + px * 26, 400 + py * 26);
+      p.rotate(-0.25 + Math.sin(t * 0.005 + 1) * 0.05);
+      p.fill(30, 55, 110, 230);
+      p.rect(-180, -30, 360, 60);
+      p.pop();
+
+      // Crossing lines — front layer, largest parallax
+      p.stroke(25, 25, 30); p.strokeWeight(3);
+      p.line(40 + px*32, 520 + py*32, 560 + px*32, 80 + py*32);
+      p.line(60 + px*32, 80 + py*32, 540 + px*32, 540 + py*32);
+      p.noStroke();
+
+      // White accent circle
+      p.fill(240, 235, 225);
+      const breath2 = 1 + Math.sin(t * 0.02 + 2) * 0.06;
+      p.ellipse(180 + px * 38, 460 + py * 38, 50 * breath2, 50 * breath2);
+
+      // Tiny black square
+      p.push();
+      p.translate(480 + px * 42, 480 + py * 42);
+      p.rotate(t * 0.004);
+      p.fill(25, 25, 30);
+      p.rect(-15, -15, 30, 30);
+      p.pop();
+    },
+    mousePressed(p) {}
+  },
+
+  // ============================================================
+  // ALBERS — colors cycle through historical palettes; mouseY = speed
+  // ============================================================
+  {
+    id: 'albers',
+    label: 'Albers · 1959',
+    title: 'Homage to the Square',
+    artist: 'Josef Albers, c. 1959',
+    hint: 'Move mouse up/down — speed of color cycling · click to jump',
+    state: null,
+    init(p) {
+      // Historical Albers palettes, each: [outer, mid1, mid2, inner]
+      this.state = {
+        palettes: [
+          // Warm ochre
+          [[180,130,50],[210,165,70],[225,200,110],[240,230,170]],
+          // Cool blue
+          [[40,60,95],[70,100,140],[130,170,200],[200,220,230]],
+          // Olive/sage
+          [[90,100,60],[140,150,90],[180,180,120],[220,215,170]],
+          // Red/orange heat
+          [[140,40,30],[200,80,40],[220,140,80],[240,200,140]],
+          // Grayscale
+          [[40,40,40],[100,100,100],[170,170,170],[230,230,225]],
+          // Earth/terracotta
+          [[110,50,40],[170,90,60],[210,150,100],[235,210,170]],
+          // Forest
+          [[30,60,40],[60,100,70],[120,160,110],[200,220,180]]
+        ],
+        currentIdx: 0,
+        nextIdx: 1,
+        progress: 0,  // 0..1 transition
+        speed: 0.003
+      };
+    },
+    draw(p) {
+      p.noStroke();
+      const s = this.state;
+
+      // mouseY controls speed (top=slow, bottom=fast)
+      const my = Math.max(0, Math.min(H, p.mouseY));
+      s.speed = 0.0008 + (my / H) * 0.012;
+      s.progress += s.speed;
+      if (s.progress >= 1) {
+        s.progress = 0;
+        s.currentIdx = s.nextIdx;
+        s.nextIdx = (s.nextIdx + 1) % s.palettes.length;
+      }
+
+      // Interpolate between current and next palette
+      const cur = s.palettes[s.currentIdx];
+      const nxt = s.palettes[s.nextIdx];
+      const t = s.progress;
+      // Ease in-out for smoother feel
+      const eased = t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2;
+
+      const colors = cur.map((c, i) => lerpRGB(c, nxt[i], eased));
+
+      // 4 nested squares, sinking down (Albers signature)
+      // Outer fills entire canvas
+      p.fill(colors[0][0], colors[0][1], colors[0][2]);
+      p.rect(0, 0, W, H);
+
+      // Inner squares: equal side margins, top margin < bottom margin
+      const configs = [
+        { side: 60, topRatio: 0.7 },
+        { side: 120, topRatio: 0.7 },
+        { side: 180, topRatio: 0.7 }
+      ];
+      for (let i = 0; i < 3; i++) {
+        const { side, topRatio } = configs[i];
+        const top = side * topRatio;
+        const bottom = side * (2 - topRatio);
+        p.fill(colors[i+1][0], colors[i+1][1], colors[i+1][2]);
+        p.rect(side, top, W - 2*side, H - top - bottom);
+      }
+    },
+    mousePressed(p) {
+      // Jump to next palette
+      this.state.currentIdx = this.state.nextIdx;
+      this.state.nextIdx = (this.state.nextIdx + 1) % this.state.palettes.length;
+      this.state.progress = 0;
+    }
+  }
+];
+
+// ============ App wiring ============
+let current = 0;
+let p5Instance;
+
+const sketch = (p) => {
+  p.setup = () => {
+    const c = p.createCanvas(W, H);
+    c.parent('canvas-wrap');
+    paintings[current].init(p);
+  };
+  p.draw = () => {
+    paintings[current].draw(p);
+  };
+  p.mousePressed = () => {
+    // Only respond if click is inside canvas
+    if (p.mouseX >= 0 && p.mouseX <= W && p.mouseY >= 0 && p.mouseY <= H) {
+      paintings[current].mousePressed(p);
+    }
+  };
+};
+
+function selectPainting(i) {
+  current = i;
+  document.querySelectorAll('#controls button').forEach((b, idx) => {
+    b.classList.toggle('active', idx === i);
+  });
+  paintings[i].init(p5Instance);
+  updateCaption();
+}
+
+function buildControls() {
+  const wrap = document.getElementById('controls');
+  paintings.forEach((pt, i) => {
+    const b = document.createElement('button');
+    b.textContent = pt.label;
+    if (i === 0) b.classList.add('active');
+    b.addEventListener('click', () => selectPainting(i));
+    wrap.appendChild(b);
+  });
+}
+
+function updateCaption() {
+  const cap = document.getElementById('caption');
+  const pt = paintings[current];
+  cap.innerHTML = `<strong>${pt.artist}</strong><br>${pt.title}<span class="hint">${pt.hint}</span>`;
+}
+
+buildControls();
+updateCaption();
+p5Instance = new p5(sketch);
+</script>
+</body>
+</html>
