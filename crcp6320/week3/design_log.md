@@ -14,39 +14,39 @@
 
 **Uploaded images (17 screenshots of the Kindle app):**
 
-<img src="Screenshot_2026-05-21_at_5_17_00_PM.png" alt="Library grid view in dark mode showing book covers in three rows. Sort menu open in upper right showing View (Grid/List/Collections) and Sort (Recent/Title/Author/Publication Date) options." />
+<img src="A.png" alt="Library grid view in dark mode showing book covers in three rows. Sort menu open in upper right showing View (Grid/List/Collections) and Sort (Recent/Title/Author/Publication Date) options." />
 
-<img src="Screenshot_2026-05-21_at_5_17_21_PM.png" alt="Library filter panel open showing Lending programs (prime 7 selected), Read state (Read 30, Unread 1942), Content type (Books 1972 selected, Comics and Manga 13, Audible 18, Docs 29, Samples 1699), overlaid on the book grid with bottom nav showing Library and More tabs." />
+<img src="B.png" alt="Library filter panel open showing Lending programs (prime 7 selected), Read state (Read 30, Unread 1942), Content type (Books 1972 selected, Comics and Manga 13, Audible 18, Docs 29, Samples 1699), overlaid on the book grid with bottom nav showing Library and More tabs." />
 
-<img src="Screenshot_2026-05-21_at_5_17_29_PM.png" alt="Settings panel with toggles for Group Series in Library (on), Sync (on with Click for explanation), Auto-download audiobooks (on), Send-to-Kindle Email Address field, About section with Version/Terms/Legal/Privacy/Ads choices, Registered to John (John's Kindle for Mac), Sign Out button, and Close your Amazon account link." />
+<img src="C.png" alt="Settings panel with toggles for Group Series in Library (on), Sync (on with Click for explanation), Auto-download audiobooks (on), Send-to-Kindle Email Address field, About section with Version/Terms/Legal/Privacy/Ads choices, Registered to John (John's Kindle for Mac), Sign Out button, and Close your Amazon account link." />
 
-<img src="Screenshot_2026-05-21_at_5_18_09_PM.png" alt="Settings panel showing sections General (Group Series in Library, Manage Additional Fonts), Download and Sync (Sync, Auto-download audiobooks with Click for explanation sub-labels), Send-to-Kindle Email Address, and About (Version, Terms of Use, Legal Notices, Privacy Notice, Your Ads Privacy Choices), with Registered to John and a Sign Out button." />
+<img src="D.png" alt="Settings panel showing sections General (Group Series in Library, Manage Additional Fonts), Download and Sync (Sync, Auto-download audiobooks with Click for explanation sub-labels), Send-to-Kindle Email Address, and About (Version, Terms of Use, Legal Notices, Privacy Notice, Your Ads Privacy Choices), with Registered to John and a Sign Out button." />
 
-<img src="Screenshot_2026-05-21_at_5_19_30_PM.png" alt="Reader Layout settings showing four Page Color options (white, sepia, mint green, black) with the white option selected, plus toggles for Continuous Scrolling, and segmented controls for Alignment, Margins, and Column." />
+<img src="E.png" alt="Reader Layout settings showing four Page Color options (white, sepia, mint green, black) with the white option selected, plus toggles for Continuous Scrolling, and segmented controls for Alignment, Margins, and Column." />
 
-<img src="Screenshot_2026-05-21_at_5_19_46_PM.png" alt="Themes panel showing four preset options (Compact, Standard, Large, Low Vision) with a Custom Save settings as new theme option at top in blue." />
+<img src="F.png" alt="Themes panel showing four preset options (Compact, Standard, Large, Low Vision) with a Custom Save settings as new theme option at top in blue." />
 
-<img src="Screenshot_2026-05-21_at_5_20_02_PM.png" alt="Copyright page of You Are an IP Company displayed in two-column layout with publisher information, ISBN numbers, trademark notices, Instant IP Certification Mark explanation, and Legal Disclaimer section." />
+<img src="G.png" alt="Copyright page of You Are an IP Company displayed in two-column layout with publisher information, ISBN numbers, trademark notices, Instant IP Certification Mark explanation, and Legal Disclaimer section." />
 
-<img src="Screenshot_2026-05-21_at_5_20_25_PM.png" alt="More reader options panel with toggles for Assistive Reader (off), Real-time Text Highlighting (on), Reading Ruler (off), Reading Progress, Popular Highlights (on), Visible Clock (off), About This Book (on), Page Turn Animation (off), each with a one-line descriptor below." />
+<img src="H.png" alt="More reader options panel with toggles for Assistive Reader (off), Real-time Text Highlighting (on), Reading Ruler (off), Reading Progress, Popular Highlights (on), Visible Clock (off), About This Book (on), Page Turn Animation (off), each with a one-line descriptor below." />
 
-<img src="Screenshot_2026-05-21_at_5_20_59_PM.png" alt="Reader info panel sliding in from right showing book cover, title, author, with menu items About this book, Sync to furthest page read, Go to Page, Annotations (View your bookmarks, notes, and highlights), X-Ray, Popular highlights, Recommend this Book, Before you go." />
+<img src="I.png" alt="Reader info panel sliding in from right showing book cover, title, author, with menu items About this book, Sync to furthest page read, Go to Page, Annotations (View your bookmarks, notes, and highlights), X-Ray, Popular highlights, Recommend this Book, Before you go." />
 
-<img src="Screenshot_2026-05-21_at_5_21_11_PM.png" alt="Font picker showing eight typeface options (Amazon Ember Bold, Baskerville, Bookerly, Caecilia, Georgia, Helvetica, OpenDyslexic, Palatino) with Bookerly selected in blue, plus a Size slider and Spacing option below." />
+<img src="J.png" alt="Font picker showing eight typeface options (Amazon Ember Bold, Baskerville, Bookerly, Caecilia, Georgia, Helvetica, OpenDyslexic, Palatino) with Bookerly selected in blue, plus a Size slider and Spacing option below." />
 
-<img src="Screenshot_2026-05-21_at_5_21_33_PM.png" alt="Note to Reader page with QR code for accessing free course alongside flowchart showing You Are an IP Company Our Why with steps Ideas Change the World, Ideas Are Valuable, People Steal Ideas, Creators Stop Creating Ideas, The World Doesn't Change, Protect Your Ideas Today, Start Changing Your World." />
+<img src="K.png" alt="Note to Reader page with QR code for accessing free course alongside flowchart showing You Are an IP Company Our Why with steps Ideas Change the World, Ideas Are Valuable, People Steal Ideas, Creators Stop Creating Ideas, The World Doesn't Change, Protect Your Ideas Today, Start Changing Your World." />
 
-<img src="Screenshot_2026-05-21_at_5_21_48_PM.png" alt="Title page of You Are an IP Company by Dr. Kary Oberbrunner and Katherine Rubino, Esq., published by Ethos Collective, with subtitle The 12-Step Plan to Increase Your Intellectual Property Influence, Impact, and Income." />
+<img src="L.png" alt="Title page of You Are an IP Company by Dr. Kary Oberbrunner and Katherine Rubino, Esq., published by Ethos Collective, with subtitle The 12-Step Plan to Increase Your Intellectual Property Influence, Impact, and Income." />
 
-<img src="Screenshot_2026-05-21_at_5_21_59_PM.png" alt="Amazon product page preview for You Are an IP Company showing book cover with USA Today Featured Bestseller badge, International Best Seller label, Foreword by Dan Sullivan, with rating 4.6 stars 120 reviews and Show more link." />
+<img src="M.png" alt="Amazon product page preview for You Are an IP Company showing book cover with USA Today Featured Bestseller badge, International Best Seller label, Foreword by Dan Sullivan, with rating 4.6 stars 120 reviews and Show more link." />
 
-<img src="Screenshot_2026-05-21_at_5_22_19_PM.png" alt="Annotations panel open on right side with Filters modal showing Type filters (Favorite, Note, Highlight, Bookmark) and Color filters (Orange, Yellow, Green, Aqua, Pink), and an empty Chapter section." />
+<img src="N.png" alt="Annotations panel open on right side with Filters modal showing Type filters (Favorite, Note, Highlight, Bookmark) and Color filters (Orange, Yellow, Green, Aqua, Pink), and an empty Chapter section." />
 
-<img src="Screenshot_2026-05-21_at_5_22_38_PM.png" alt="Annotations panel on the right showing No Annotations Found message, with the reader showing The (IP) Truth Will Set You Free chapter open in two-column layout." />
+<img src="O.png" alt="Annotations panel on the right showing No Annotations Found message, with the reader showing The (IP) Truth Will Set You Free chapter open in two-column layout." />
 
-<img src="Screenshot_2026-05-21_at_5_23_02_PM.png" alt="More menu showing Sync (Last synced on 4/23/26 1:14 PM), Settings, and Help and Feedback options with right chevrons." />
+<img src="P.png" alt="More menu showing Sync (Last synced on 4/23/26 1:14 PM), Settings, and Help and Feedback options with right chevrons." />
 
-<img src="Screenshot_2026-05-21_at_5_23_12_PM.png" alt="Library grid view filtered to Books showing rows of book covers including Shop Class as Soulcraft, Why We Drive, Beyond Good and Evil, The Ellipsis Manual, The Indoctrinated Brain, Replaced, The Ethical Nightmare Challenge, Inside the Box, Big Time, and many others." />
+<img src="Q.png" alt="Library grid view filtered to Books showing rows of book covers including Shop Class as Soulcraft, Why We Drive, Beyond Good and Evil, The Ellipsis Manual, The Indoctrinated Brain, Replaced, The Ethical Nightmare Challenge, Inside the Box, Big Time, and many others." />
 
 ---
 
