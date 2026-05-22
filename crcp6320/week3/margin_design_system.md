@@ -10,9 +10,9 @@
 
 The system inherits Kindle's **discipline** (one accent, tight palette, repeatable patterns) and **restraint** (minimal chrome, content-first). It deliberately rejects Kindle's **muted institutional voice** and **dark-by-default** posture in favor of a light/warm, opinionated stance.
 
-<img src="R.png" alt="Figma color palette generator showing four colors in a horizontal layout: magenta #9E2473, blue #3490C2, near-black #0A1B24, and pale ice blue #CBE3F1." />
+<img src="R.png" width="400" alt="Figma color palette generator showing four colors in a horizontal layout: magenta #9E2473, blue #3490C2, near-black #0A1B24, and pale ice blue #CBE3F1." />
 
-<img src="S.png" alt="Fontjoy interface showing three font choices in a left sidebar (Fugaz One, Biryani, Martel) with the phrase 'Font pairing made simple' set in a bold italic display face above body copy explaining the tool." />
+<img src="S.png" width="400" alt="Fontjoy interface showing three font choices in a left sidebar (Fugaz One, Biryani, Martel) with the phrase 'Font pairing made simple' set in a bold italic display face above body copy explaining the tool." />
 
 From the Figma palette I'm keeping the **near-black `#0A1B24`** as a primary neutral and the **pale ice blue `#CBE3F1`** as a supporting tint. I'm rejecting the magenta/blue duo — two chromatic accents would fight the discipline we inherited from Kindle. I'll choose a single warmer accent instead.
 
