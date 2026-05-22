@@ -140,25 +140,25 @@ const paintings = [
     label: 'Mondrian · 1930',
     title: 'Composition II in Red, Blue, and Yellow',
     artist: 'Piet Mondrian, 1930',
-    hint: 'Click white cells to fill them · hover colors to deepen',
+    hint: 'Hover colors to deepen · click any cell to cycle palette',
     state: null,
     init(p) {
       // Cells defined by the 4 grid lines (2 vertical, 2 horizontal)
-      // verticals at x=180, x=560; horizontals at y=380, y=470
+      // Cycle: white → red → blue → yellow → black → white
+      const WHITE = [245,240,225];
       this.state = {
+        palette: [WHITE, [206,32,41], [20,50,140], [245,200,50], [25,25,25]],
         cells: [
-          { x:0,   y:0,   w:180, h:380, color:[245,240,225], filled:false },
-          { x:180, y:0,   w:380, h:380, color:[206, 32, 41], filled:true  },
-          { x:560, y:0,   w:40,  h:380, color:[245,240,225], filled:false },
-          { x:0,   y:380, w:180, h:90,  color:[245,240,225], filled:false },
-          { x:180, y:380, w:380, h:90,  color:[245,240,225], filled:false },
-          { x:560, y:380, w:40,  h:90,  color:[245,240,225], filled:false },
-          { x:0,   y:470, w:180, h:130, color:[20, 50, 140], filled:true  },
-          { x:180, y:470, w:380, h:130, color:[245,240,225], filled:false },
-          { x:560, y:470, w:40,  h:130, color:[245,200, 50], filled:true  },
-        ],
-        fillCycle: [[206,32,41],[20,50,140],[245,200,50]],
-        cycleIdx: 0
+          { x:0,   y:0,   w:180, h:380, paletteIdx: 0 },
+          { x:180, y:0,   w:380, h:380, paletteIdx: 1 },
+          { x:560, y:0,   w:40,  h:380, paletteIdx: 0 },
+          { x:0,   y:380, w:180, h:90,  paletteIdx: 0 },
+          { x:180, y:380, w:380, h:90,  paletteIdx: 0 },
+          { x:560, y:380, w:40,  h:90,  paletteIdx: 0 },
+          { x:0,   y:470, w:180, h:130, paletteIdx: 2 },
+          { x:180, y:470, w:380, h:130, paletteIdx: 0 },
+          { x:560, y:470, w:40,  h:130, paletteIdx: 3 },
+        ]
       };
     },
     draw(p) {
@@ -170,11 +170,11 @@ const paintings = [
       p.noStroke();
       // Draw cells
       for (const c of this.state.cells) {
-        let col = c.color;
-        if (c.filled) {
+        let col = this.state.palette[c.paletteIdx];
+        // Hover deepens only the saturated colors (not white or black)
+        if (c.paletteIdx >= 1 && c.paletteIdx <= 3) {
           const hovered = mx >= c.x && mx <= c.x+c.w && my >= c.y && my <= c.y+c.h;
           if (hovered) {
-            // deepen saturation by pulling toward darker version
             col = [col[0]*0.85, col[1]*0.85, col[2]*0.85];
           }
         }
@@ -193,15 +193,7 @@ const paintings = [
       const mx = p.mouseX, my = p.mouseY;
       for (const c of this.state.cells) {
         if (mx >= c.x && mx <= c.x+c.w && my >= c.y && my <= c.y+c.h) {
-          if (!c.filled) {
-            c.color = this.state.fillCycle[this.state.cycleIdx % 3];
-            c.filled = true;
-            this.state.cycleIdx++;
-          } else {
-            // cycle through colors
-            c.color = this.state.fillCycle[this.state.cycleIdx % 3];
-            this.state.cycleIdx++;
-          }
+          c.paletteIdx = (c.paletteIdx + 1) % this.state.palette.length;
           break;
         }
       }
@@ -216,14 +208,15 @@ const paintings = [
     label: 'Malevich · 1915',
     title: 'Black Square',
     artist: 'Kazimir Malevich, 1915',
-    hint: 'Move mouse near the square — it drifts away',
+    hint: 'Move mouse near square = drifts away · click to spawn orbiting debris',
     state: null,
     init(p) {
       this.state = {
-        baseX: 95, baseY: 90,   // resting position
-        offX: 0, offY: 0,       // current offset
-        velX: 0, velY: 0,       // velocity
-        sqW: 410, sqH: 420
+        baseX: 95, baseY: 90,
+        offX: 0, offY: 0,
+        velX: 0, velY: 0,
+        sqW: 410, sqH: 420,
+        debris: []  // {orbitR, angle, angleSpeed, size, color}
       };
     },
     draw(p) {
@@ -255,10 +248,46 @@ const paintings = [
       s.offX += s.velX;
       s.offY += s.velY;
 
+      // Big square
       p.fill(18, 18, 16);
       p.rect(s.baseX + s.offX, s.baseY + s.offY, s.sqW, s.sqH);
+
+      // Orbiting debris — each circles the center of the big square
+      const sqCx = s.baseX + s.offX + s.sqW/2;
+      const sqCy = s.baseY + s.offY + s.sqH/2;
+      for (const d of s.debris) {
+        d.angle += d.angleSpeed;
+        const dx2 = Math.cos(d.angle) * d.orbitR;
+        const dy2 = Math.sin(d.angle) * d.orbitR;
+        p.push();
+        p.translate(sqCx + dx2, sqCy + dy2);
+        p.rotate(d.angle * 1.5);
+        p.fill(d.color[0], d.color[1], d.color[2]);
+        p.rect(-d.size/2, -d.size/2, d.size, d.size);
+        p.pop();
+      }
     },
-    mousePressed(p) {}
+    mousePressed(p) {
+      // Spawn debris at click point — orbiting the square center
+      const s = this.state;
+      const sqCx = s.baseX + s.offX + s.sqW/2;
+      const sqCy = s.baseY + s.offY + s.sqH/2;
+      const dx = p.mouseX - sqCx;
+      const dy = p.mouseY - sqCy;
+      const orbitR = Math.sqrt(dx*dx + dy*dy);
+      const angle = Math.atan2(dy, dx);
+      // Suprematist-ish palette for debris
+      const palette = [[206,32,41],[20,50,140],[245,200,50],[18,18,16],[240,230,208]];
+      s.debris.push({
+        orbitR,
+        angle,
+        angleSpeed: (Math.random() < 0.5 ? -1 : 1) * (0.005 + Math.random() * 0.015),
+        size: 12 + Math.random() * 28,
+        color: palette[Math.floor(Math.random() * palette.length)]
+      });
+      // Cap at 12 to keep it composed
+      if (s.debris.length > 12) s.debris.shift();
+    }
   },
 
   // ============================================================
@@ -269,7 +298,7 @@ const paintings = [
     label: 'Kandinsky · 1913',
     title: 'Color Study: Squares with Concentric Circles',
     artist: 'Wassily Kandinsky, 1913',
-    hint: 'Hover any cell to pause its rotation',
+    hint: 'Hover cell = pause its rotation · click cell = reverse direction',
     state: null,
     init(p) {
       this.state = {
@@ -293,10 +322,10 @@ const paintings = [
           [[230,200,90],[200,80,40],[40,60,90],[230,210,170],[120,40,30]],
           [[200,80,40],[230,200,90],[40,60,90],[230,210,170],[60,90,40]]
         ],
-        // Each cell has its own rotation phase, speed, and wobble
-        cellPhase: Array.from({length:12}, (_,i) => Math.random() * Math.PI * 2),
-        cellSpeed: Array.from({length:12}, (_,i) => 0.003 + Math.random() * 0.008),
-        cellWobble: Array.from({length:12}, (_,i) => 0.5 + Math.random() * 0.5)
+        cellPhase: Array.from({length:12}, () => Math.random() * Math.PI * 2),
+        cellSpeed: Array.from({length:12}, () => 0.003 + Math.random() * 0.008),
+        cellWobble: Array.from({length:12}, () => 0.5 + Math.random() * 0.5),
+        cellDir: Array.from({length:12}, () => 1)  // +1 or -1
       };
     },
     draw(p) {
@@ -317,17 +346,14 @@ const paintings = [
           const x = i * cw, y = j * ch;
           const cx = x + cw/2, cy = y + ch/2;
 
-          // Background
           const bg = s.bgPalette[idx];
           p.fill(bg[0], bg[1], bg[2]);
           p.rect(x, y, cw, ch);
 
-          // Advance phase unless hovered
           if (idx !== hoverIdx) {
-            s.cellPhase[idx] += s.cellSpeed[idx];
+            s.cellPhase[idx] += s.cellSpeed[idx] * s.cellDir[idx];
           }
 
-          // Rings — center wobbles in a small orbit
           const phase = s.cellPhase[idx];
           const wob = s.cellWobble[idx] * 8;
           const ox = Math.cos(phase) * wob;
@@ -335,18 +361,15 @@ const paintings = [
 
           const rings = s.ringPalettes[idx];
           let r = Math.min(cw, ch) * 0.45;
-          // Pulsing inner radius
           const pulse = 1 + Math.sin(phase * 1.5) * 0.04;
           for (let k = 0; k < rings.length; k++) {
             p.fill(rings[k][0], rings[k][1], rings[k][2]);
             const ringR = r * pulse * (1 - k * 0.28);
-            // Each ring offset slightly differently
             const ringOx = ox * (1 - k * 0.15);
             const ringOy = oy * (1 - k * 0.15);
             p.ellipse(cx + ringOx, cy + ringOy, ringR*2, ringR*2);
           }
 
-          // Highlight hovered cell with subtle border
           if (idx === hoverIdx) {
             p.noFill();
             p.stroke(20, 20, 20, 100);
@@ -357,7 +380,15 @@ const paintings = [
         }
       }
     },
-    mousePressed(p) {}
+    mousePressed(p) {
+      const s = this.state;
+      const cw = W / s.cols, ch = H / s.rows;
+      const col = Math.floor(p.mouseX / cw);
+      const row = Math.floor(p.mouseY / ch);
+      if (col < 0 || col >= s.cols || row < 0 || row >= s.rows) return;
+      const idx = row * s.cols + col;
+      s.cellDir[idx] *= -1;
+    }
   },
 
   // ============================================================
@@ -368,10 +399,10 @@ const paintings = [
     label: 'Klee · 1928',
     title: 'Castle and Sun',
     artist: 'Paul Klee, 1928',
-    hint: 'Click anywhere to drop a new sun · warmth bleeds outward',
+    hint: 'Mouse hover bleeds warmth · click drops sun · shift-click drops cooling moon',
     state: null,
     init(p) {
-      // Build tile grid once, then animate color bleed from sun positions
+      // Build tile grid once
       const palette = [
         [180,60,50],[200,80,40],[220,140,60],[180,120,40],
         [80,100,60],[100,80,50],[60,80,90],[40,60,80],
@@ -380,7 +411,6 @@ const paintings = [
       ];
       const tiles = [];
       const cellW = 50, cellH = 50;
-      // Use seeded random for stable tile pattern
       let seed = 42;
       const rnd = () => {
         seed = (seed * 9301 + 49297) % 233280;
@@ -404,6 +434,7 @@ const paintings = [
       this.state = {
         tiles,
         suns: [{ x: 440, y: 140, r: 45, born: 0 }],
+        moons: [],
         towers: [
           { x:120, y:40, w:50, h:60, color:[180,60,50], roof:[140,80,60] },
           { x:260, y:30, w:50, h:70, color:[220,140,60], roof:[60,80,90] },
@@ -417,22 +448,30 @@ const paintings = [
       const t = p.frameCount;
 
       p.noStroke();
-      // Draw tiles with warmth from suns bleeding into them
+      // Warmth from suns + cooling from moons
+      const sunColor = [240, 180, 80];
+      const moonColor = [80, 110, 180];
       for (const tile of s.tiles) {
         const tcx = tile.x + tile.w/2;
         const tcy = tile.y + tile.h/2;
+
         let warmth = 0;
         for (const sun of s.suns) {
-          const dx = tcx - sun.x;
-          const dy = tcy - sun.y;
+          const dx = tcx - sun.x, dy = tcy - sun.y;
           const d = Math.sqrt(dx*dx + dy*dy);
-          // Pulsing warmth
           const pulse = 0.7 + 0.3 * Math.sin(t * 0.03 + d * 0.02);
-          const w = Math.max(0, 1 - d / 280) * pulse;
-          warmth = Math.max(warmth, w);
+          warmth = Math.max(warmth, Math.max(0, 1 - d / 280) * pulse);
         }
-        const sunColor = [240, 180, 80];
-        const col = lerpRGB(tile.baseColor, sunColor, warmth * 0.55);
+        let cool = 0;
+        for (const moon of s.moons) {
+          const dx = tcx - moon.x, dy = tcy - moon.y;
+          const d = Math.sqrt(dx*dx + dy*dy);
+          const pulse = 0.7 + 0.3 * Math.sin(t * 0.025 + d * 0.02 + 1);
+          cool = Math.max(cool, Math.max(0, 1 - d / 280) * pulse);
+        }
+
+        let col = lerpRGB(tile.baseColor, sunColor, warmth * 0.55);
+        col = lerpRGB(col, moonColor, cool * 0.55);
         p.fill(col[0], col[1], col[2]);
 
         if (tile.shape === 'rect') {
@@ -459,11 +498,9 @@ const paintings = [
         }
       }
 
-      // Suns — pulse and glow
+      // Suns
       for (const sun of s.suns) {
-        const age = t - sun.born;
         const pulse = 1 + Math.sin(t * 0.04) * 0.05;
-        // glow halo
         for (let g = 6; g >= 1; g--) {
           p.fill(240, 180, 80, 12);
           p.ellipse(sun.x, sun.y, sun.r * 2 * pulse + g * 14, sun.r * 2 * pulse + g * 14);
@@ -471,13 +508,34 @@ const paintings = [
         p.fill(220, 60, 50);
         p.ellipse(sun.x, sun.y, sun.r * 2 * pulse, sun.r * 2 * pulse);
       }
+      // Moons
+      for (const moon of s.moons) {
+        const pulse = 1 + Math.sin(t * 0.035 + 1) * 0.05;
+        for (let g = 6; g >= 1; g--) {
+          p.fill(80, 110, 180, 12);
+          p.ellipse(moon.x, moon.y, moon.r * 2 * pulse + g * 14, moon.r * 2 * pulse + g * 14);
+        }
+        // Crescent feel: full disc then a darker bite
+        p.fill(200, 215, 235);
+        p.ellipse(moon.x, moon.y, moon.r * 2 * pulse, moon.r * 2 * pulse);
+        p.fill(60, 50, 70);
+        p.ellipse(moon.x + moon.r * 0.45, moon.y - moon.r * 0.1,
+                  moon.r * 1.6 * pulse, moon.r * 1.6 * pulse);
+      }
     },
     mousePressed(p) {
-      // Drop a new sun, keep max 4
-      this.state.suns.push({
-        x: p.mouseX, y: p.mouseY, r: 35, born: p.frameCount
-      });
-      if (this.state.suns.length > 4) this.state.suns.shift();
+      const shift = p.keyIsDown(16); // SHIFT keycode
+      if (shift) {
+        this.state.moons.push({
+          x: p.mouseX, y: p.mouseY, r: 32, born: p.frameCount
+        });
+        if (this.state.moons.length > 4) this.state.moons.shift();
+      } else {
+        this.state.suns.push({
+          x: p.mouseX, y: p.mouseY, r: 35, born: p.frameCount
+        });
+        if (this.state.suns.length > 4) this.state.suns.shift();
+      }
     }
   },
 
@@ -489,30 +547,42 @@ const paintings = [
     label: 'Moholy-Nagy · 1922',
     title: 'A II (Construction)',
     artist: 'László Moholy-Nagy, 1922',
-    hint: 'Move mouse — layers parallax · shapes drift on their axes',
+    hint: 'Mouse parallaxes layers · click to freeze / unfreeze composition',
     state: null,
     init(p) {
       this.state = {
         targetMX: W/2, targetMY: H/2,
-        smoothMX: W/2, smoothMY: H/2
+        smoothMX: W/2, smoothMY: H/2,
+        frozen: false,
+        // when frozen, stash the time + smoothed mouse so view stays static
+        frozenT: 0,
+        frozenPX: 0,
+        frozenPY: 0
       };
     },
     draw(p) {
       p.background(225, 215, 195);
       const s = this.state;
-      const t = p.frameCount;
 
-      // Smooth mouse for parallax
-      const mx = (p.mouseX >= 0 && p.mouseX <= W) ? p.mouseX : W/2;
-      const my = (p.mouseY >= 0 && p.mouseY <= H) ? p.mouseY : H/2;
-      s.smoothMX += (mx - s.smoothMX) * 0.06;
-      s.smoothMY += (my - s.smoothMY) * 0.06;
-      const px = (s.smoothMX - W/2) / (W/2); // -1..1
-      const py = (s.smoothMY - H/2) / (H/2);
+      // Time and parallax — either live or frozen snapshot
+      let t, px, py;
+      if (s.frozen) {
+        t = s.frozenT;
+        px = s.frozenPX;
+        py = s.frozenPY;
+      } else {
+        t = p.frameCount;
+        const mx = (p.mouseX >= 0 && p.mouseX <= W) ? p.mouseX : W/2;
+        const my = (p.mouseY >= 0 && p.mouseY <= H) ? p.mouseY : H/2;
+        s.smoothMX += (mx - s.smoothMX) * 0.06;
+        s.smoothMY += (my - s.smoothMY) * 0.06;
+        px = (s.smoothMX - W/2) / (W/2);
+        py = (s.smoothMY - H/2) / (H/2);
+      }
 
       p.noStroke();
 
-      // Yellow circle (deepest layer, smallest parallax)
+      // Yellow circle
       p.push();
       p.translate(380 + px * 8, 220 + py * 8);
       const breath1 = 1 + Math.sin(t * 0.012) * 0.02;
@@ -520,7 +590,7 @@ const paintings = [
       p.ellipse(0, 0, 240 * breath1, 240 * breath1);
       p.pop();
 
-      // Black diagonal bar — slow rotation drift
+      // Black diagonal bar
       p.push();
       p.translate(300 + px * 14, 300 + py * 14);
       p.rotate(-0.5 + Math.sin(t * 0.006) * 0.04);
@@ -544,7 +614,7 @@ const paintings = [
       p.rect(-180, -30, 360, 60);
       p.pop();
 
-      // Crossing lines — front layer, largest parallax
+      // Crossing lines
       p.stroke(25, 25, 30); p.strokeWeight(3);
       p.line(40 + px*32, 520 + py*32, 560 + px*32, 80 + py*32);
       p.line(60 + px*32, 80 + py*32, 540 + px*32, 540 + py*32);
@@ -562,8 +632,211 @@ const paintings = [
       p.fill(25, 25, 30);
       p.rect(-15, -15, 30, 30);
       p.pop();
+
+      // Frozen indicator
+      if (s.frozen) {
+        p.noStroke();
+        p.fill(25, 25, 30, 180);
+        p.rect(W - 18, H - 18, 10, 10);
+      }
     },
-    mousePressed(p) {}
+    mousePressed(p) {
+      const s = this.state;
+      if (!s.frozen) {
+        // Capture current state
+        s.frozen = true;
+        s.frozenT = p.frameCount;
+        s.frozenPX = (s.smoothMX - W/2) / (W/2);
+        s.frozenPY = (s.smoothMY - H/2) / (H/2);
+      } else {
+        s.frozen = false;
+      }
+    }
+  },
+
+  // ============================================================
+  // DELAUNAY — Orphic concentric discs, rotate like gears
+  // ============================================================
+  {
+    id: 'delaunay',
+    label: 'Delaunay · 1938',
+    title: 'Rhythm (Orphic discs)',
+    artist: 'Sonia Delaunay, 1938',
+    hint: 'Mouse X = rotation speed · mouse Y = direction · click reseeds',
+    state: null,
+    init(p) {
+      // Three large discs, each with concentric color rings as "gear teeth"
+      // Plus smaller satellite discs
+      const ringPalette = [
+        [220,60,50],[230,180,50],[40,90,150],[230,220,200],
+        [180,60,120],[60,140,90],[220,120,40],[20,30,60]
+      ];
+      const shuffled = () => {
+        const a = [...ringPalette];
+        for (let i = a.length-1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i+1));
+          [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+      };
+      this.state = {
+        discs: [
+          { cx: 200, cy: 220, radius: 160, rings: shuffled().slice(0,6), phase: 0, baseSpeed: 1 },
+          { cx: 420, cy: 380, radius: 140, rings: shuffled().slice(0,5), phase: 0, baseSpeed: -1.4 },
+          { cx: 300, cy: 480, radius: 90, rings: shuffled().slice(0,4), phase: 0, baseSpeed: 1.8 },
+          { cx: 490, cy: 130, radius: 70, rings: shuffled().slice(0,4), phase: 0, baseSpeed: -2.2 },
+          { cx: 90, cy: 480, radius: 55, rings: shuffled().slice(0,3), phase: 0, baseSpeed: 2.6 }
+        ]
+      };
+    },
+    draw(p) {
+      p.background(238, 230, 215);
+      const s = this.state;
+
+      // Mouse X controls speed magnitude, mouse Y flips direction smoothly
+      const mx = (p.mouseX >= 0 && p.mouseX <= W) ? p.mouseX : W/2;
+      const my = (p.mouseY >= 0 && p.mouseY <= H) ? p.mouseY : H/2;
+      const speedMag = mx / W; // 0..1
+      const dirSign = my < H/2 ? 1 : -1;
+
+      p.noStroke();
+      for (const disc of s.discs) {
+        disc.phase += 0.015 * disc.baseSpeed * speedMag * dirSign;
+
+        // Draw concentric rings, but each ring is split into colored arcs (gear-tooth feel)
+        const segments = 8;
+        const ringCount = disc.rings.length;
+        for (let r = 0; r < ringCount; r++) {
+          const radius = disc.radius * (1 - r / ringCount);
+          const innerR = disc.radius * (1 - (r+1) / ringCount);
+          const ringColor = disc.rings[r];
+          // Alternating: solid ring vs segmented ring for visual rhythm
+          if (r % 2 === 0) {
+            // Solid ring
+            p.fill(ringColor[0], ringColor[1], ringColor[2]);
+            p.ellipse(disc.cx, disc.cy, radius * 2, radius * 2);
+          } else {
+            // Segmented ring — draw pie slices alternating with previous ring color
+            const altColor = disc.rings[(r - 1 + ringCount) % ringCount];
+            for (let seg = 0; seg < segments; seg++) {
+              const a1 = disc.phase + (seg / segments) * Math.PI * 2;
+              const a2 = disc.phase + ((seg+1) / segments) * Math.PI * 2;
+              const useAlt = seg % 2 === 0;
+              const c = useAlt ? altColor : ringColor;
+              p.fill(c[0], c[1], c[2]);
+              p.beginShape();
+              p.vertex(disc.cx, disc.cy);
+              // Arc approximated with vertices
+              const steps = 6;
+              for (let st = 0; st <= steps; st++) {
+                const a = a1 + (a2 - a1) * (st / steps);
+                p.vertex(disc.cx + Math.cos(a) * radius, disc.cy + Math.sin(a) * radius);
+              }
+              p.endShape(p.CLOSE);
+            }
+          }
+        }
+        // Innermost solid center
+        const inner = disc.rings[disc.rings.length - 1];
+        p.fill(inner[0], inner[1], inner[2]);
+        const cr = disc.radius * (1 / disc.rings.length) * 0.6;
+        p.ellipse(disc.cx, disc.cy, cr * 2, cr * 2);
+      }
+    },
+    mousePressed(p) {
+      // Reseed colors
+      const ringPalette = [
+        [220,60,50],[230,180,50],[40,90,150],[230,220,200],
+        [180,60,120],[60,140,90],[220,120,40],[20,30,60]
+      ];
+      const shuffled = () => {
+        const a = [...ringPalette];
+        for (let i = a.length-1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i+1));
+          [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+      };
+      for (const disc of this.state.discs) {
+        disc.rings = shuffled().slice(0, disc.rings.length);
+      }
+    }
+  },
+
+  // ============================================================
+  // VAN DOESBURG — Counter-Composition; mouseX tilts the grid
+  // ============================================================
+  {
+    id: 'vandoesburg',
+    label: 'van Doesburg · 1924',
+    title: 'Counter-Composition V',
+    artist: 'Theo van Doesburg, 1924',
+    hint: 'Mouse X = grid tilt angle · click to lock/unlock auto-sway',
+    state: null,
+    init(p) {
+      this.state = {
+        autoSway: true,
+        manualAngle: 0,
+        // Geometric blocks defined in un-rotated grid space, centered at canvas center
+        // Van Doesburg's signature: large white field with diagonal black bars and a few color blocks
+        blocks: [
+          // big black diagonal bar across upper area
+          { x: -340, y: -240, w: 680, h: 70, color: [20,20,22] },
+          // thinner black bar lower
+          { x: -340, y:  60, w: 680, h: 40, color: [20,20,22] },
+          // vertical black bar
+          { x: -60, y: -340, w: 50, h: 680, color: [20,20,22] },
+          // red square upper right
+          { x:  140, y: -200, w: 120, h: 120, color: [200,45,40] },
+          // blue rectangle lower left
+          { x: -280, y:  140, w: 160, h: 80, color: [30,55,140] },
+          // yellow accent
+          { x:   60, y:  180, w: 70, h: 70, color: [230,195,55] }
+        ]
+      };
+    },
+    draw(p) {
+      p.background(238, 232, 218);
+      const s = this.state;
+      const t = p.frameCount;
+
+      // Determine tilt angle
+      let angle;
+      if (s.autoSway) {
+        // Slow oscillation between -45° and -30° (van Doesburg's signature ~45° tilt)
+        angle = -Math.PI/4 + Math.sin(t * 0.008) * 0.12;
+      } else {
+        // Manual: mouseX maps to -75°..-15° range
+        const mx = (p.mouseX >= 0 && p.mouseX <= W) ? p.mouseX : W/2;
+        const t01 = mx / W;
+        angle = -Math.PI/4 + (t01 - 0.5) * Math.PI / 3; // ±30° around -45°
+        s.manualAngle = angle;
+      }
+
+      p.push();
+      p.translate(W/2, H/2);
+      p.rotate(angle);
+      p.noStroke();
+
+      // White ground (rotated) — large enough to cover canvas at any angle
+      p.fill(238, 232, 218);
+      p.rect(-500, -500, 1000, 1000);
+
+      // Draw blocks
+      for (const b of s.blocks) {
+        p.fill(b.color[0], b.color[1], b.color[2]);
+        p.rect(b.x, b.y, b.w, b.h);
+      }
+      p.pop();
+
+      // Indicator: tiny mode badge in corner (subtle)
+      p.noStroke();
+      p.fill(20, 20, 22, s.autoSway ? 60 : 140);
+      p.rect(W - 18, H - 18, 10, 10);
+    },
+    mousePressed(p) {
+      this.state.autoSway = !this.state.autoSway;
+    }
   },
 
   // ============================================================
