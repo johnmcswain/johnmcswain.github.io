@@ -299,9 +299,9 @@ The Kindle app is one of the most disciplined consumer interfaces in production 
 
 **Uploaded inspiration images:**
 
-<img src="Screenshot_2026-05-21_at_5_53_32_PM.png" width="400" alt="Figma color palette generator showing four colors in a horizontal layout: magenta #9E2473, blue #3490C2, near-black #0A1B24, and pale ice blue #CBE3F1." />
+<img src="R.png" width="400" alt="Figma color palette generator showing four colors in a horizontal layout: magenta #9E2473, blue #3490C2, near-black #0A1B24, and pale ice blue #CBE3F1." />
 
-<img src="Screenshot_2026-05-21_at_5_54_05_PM.png" width="400" alt="Fontjoy interface showing three font choices in a left sidebar (Fugaz One, Biryani, Martel) with the phrase 'Font pairing made simple' set in a bold italic display face above body copy explaining the tool." />
+<img src="S.png" width="400" alt="Fontjoy interface showing three font choices in a left sidebar (Fugaz One, Biryani, Martel) with the phrase 'Font pairing made simple' set in a bold italic display face above body copy explaining the tool." />
 
 ---
 

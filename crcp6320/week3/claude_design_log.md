@@ -80,7 +80,7 @@ Presented for download. Removed the intermediate `(bundle-src).html` file once t
 
 | File | Role |
 | --- | --- |
-| [`uploads/margin_design_system.md`](margin_design_system.md) | Input spec (user-provided) |
+| [`margin_design_system.html`](margin_design_system.html) | Input spec (user-provided) |
 | [`margin_design_system_standalone.html`](margin_design_system_standalone.html) | Visual reference page (live working copy) |
 | [`margin_design_system_standalone.html`](margin_design_system_standalone.html) | Same page, self-contained for offline use |
 | [`claude_design_log.md`](claude_design_log.md) | This file |
