@@ -6,18 +6,18 @@ A short record of how this project came together, with links to every input and 
 
 ## Inputs
 
-- [`margin_design_system.md`](margin_design_system.md) — the v0.1 spec the user attached. Covers product premise, color tokens, typography roles + scale, spacing scale, voice rules, and component patterns inherited from a Kindle teardown.
+- [`margin_design_system.md`](margin_design_system.html) — the v0.1 spec the user attached. Covers product premise, color tokens, typography roles + scale, spacing scale, voice rules, and component patterns inherited from a Kindle teardown.
 
 ## Outputs
 
 - [`Margin Design System Standalone (HTML)`](margin_design_system_standalone.html) — same page, bundled into a single self-contained file (fonts inlined, works offline).
-- [`Claude Design Log`](claude_design_log.md) — this file.
+- [`Claude Design Log`](claude_design_log.html) — this file.
 
 ---
 
 ## Step 1 — Read the spec
 
-Read [`margin_design_system.md`](margin_design_system.md) in full. Confirmed no companion images existed (`R.png` and `S.png` were referenced in the spec but not uploaded — they're descriptive context, not required assets).
+Read [`margin_design_system.md`](margin_design_system.html) in full. Confirmed no companion images existed (`R.png` and `S.png` were referenced in the spec but not uploaded — they're descriptive context, not required assets).
 
 Pulled out the system's load-bearing rules:
 
@@ -83,4 +83,4 @@ Presented for download. Removed the intermediate `(bundle-src).html` file once t
 | [`margin_design_system.html`](margin_design_system.html) | Input spec (user-provided) |
 | [`margin_design_system_standalone.html`](margin_design_system_standalone.html) | Visual reference page (live working copy) |
 | [`margin_design_system_standalone.html`](margin_design_system_standalone.html) | Same page, self-contained for offline use |
-| [`claude_design_log.md`](claude_design_log.md) | This file |
+| [`claude_design_log.md`](claude_design_log.html) | This file |
