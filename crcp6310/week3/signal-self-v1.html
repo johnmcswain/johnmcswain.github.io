@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SIGNAL / SELF — v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,600&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --ink: #f2efe6;
+    --dim: #6a6a72;
+    --accent: #ff3d2e;
+    --grid: rgba(242, 239, 230, 0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'JetBrains Mono', monospace;
+    overflow: hidden;
+  }
+  #hydra-canvas, #three-canvas {
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+  }
+  #hydra-canvas { z-index: 0; opacity: 0.55; mix-blend-mode: screen; }
+  #three-canvas { z-index: 1; }
+
+  /* HUD */
+  .hud {
+    position: fixed;
+    z-index: 10;
+    pointer-events: none;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink);
+    text-shadow: 0 0 8px rgba(0,0,0,0.8);
+  }
+  .hud .label { color: var(--dim); }
+  .hud .val { color: var(--accent); }
+
+  .hud-tl { top: 20px; left: 24px; }
+  .hud-tr { top: 20px; right: 24px; text-align: right; }
+  .hud-bl { bottom: 20px; left: 24px; }
+  .hud-br { bottom: 20px; right: 24px; text-align: right; }
+
+  .title {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: 28px;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--ink);
+    margin-bottom: 6px;
+    font-style: italic;
+  }
+  .title em { color: var(--accent); font-style: normal; font-weight: 600; }
+
+  .stat-row { margin: 2px 0; }
+  .stat-row .val { display: inline-block; min-width: 60px; }
+
+  /* Upload panel */
+  .upload-panel {
+    position: fixed;
+    z-index: 20;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(10, 10, 12, 0.92);
+    border: 1px solid var(--ink);
+    padding: 40px 56px;
+    text-align: center;
+    backdrop-filter: blur(20px);
+    transition: opacity 0.6s ease;
+  }
+  .upload-panel.hidden { opacity: 0; pointer-events: none; }
+  .upload-panel h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: 42px;
+    letter-spacing: -0.03em;
+    margin-bottom: 8px;
+    font-style: italic;
+  }
+  .upload-panel h1 em { color: var(--accent); font-style: normal; font-weight: 600; }
+  .upload-panel p {
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+  .upload-btn {
+    display: inline-block;
+    padding: 14px 32px;
+    border: 1px solid var(--ink);
+    color: var(--ink);
+    background: transparent;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+  }
+  .upload-btn:hover {
+    background: var(--ink);
+    color: var(--bg);
+  }
+  .upload-hint {
+    margin-top: 24px;
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+  }
+  .upload-hint .key {
+    display: inline-block;
+    border: 1px solid var(--dim);
+    padding: 1px 6px;
+    margin: 0 2px;
+    color: var(--ink);
+  }
+
+  /* Controller status indicator */
+  .controller-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--dim);
+    margin-right: 8px;
+    vertical-align: middle;
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+  .controller-dot.live {
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* Vignette */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 5;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.55) 100%);
+  }
+
+  /* Stick visualizer */
+  .stick-vis {
+    width: 48px; height: 48px;
+    border: 1px solid var(--dim);
+    border-radius: 50%;
+    position: relative;
+    display: inline-block;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  .stick-vis::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 4px; height: 4px;
+    background: var(--accent);
+    border-radius: 50%;
+    transform: translate(calc(-50% + var(--sx, 0px)), calc(-50% + var(--sy, 0px)));
+    box-shadow: 0 0 6px var(--accent);
+  }
+</style>
+</head>
+<body>
+
+<canvas id="hydra-canvas"></canvas>
+<canvas id="three-canvas"></canvas>
+
+<div class="upload-panel" id="upload-panel">
+  <h1>signal / <em>self</em></h1>
+  <p>upload an image — become the signal</p>
+  <input type="file" id="file-input" accept="image/jpeg,image/png" style="display:none" />
+  <button class="upload-btn" onclick="document.getElementById('file-input').click()">select image</button>
+  <div class="upload-hint">
+    pair your xbox controller via bluetooth · press any button to begin
+  </div>
+</div>
+
+<div class="hud hud-tl">
+  <div class="title">signal / <em>self</em></div>
+  <div class="stat-row"><span class="label">v</span> <span class="val">0.1.0</span></div>
+</div>
+
+<div class="hud hud-tr">
+  <div class="stat-row">
+    <span class="controller-dot" id="ctrl-dot"></span>
+    <span class="label">controller</span> <span class="val" id="ctrl-status">offline</span>
+  </div>
+  <div class="stat-row"><span class="label">fps</span> <span class="val" id="fps">—</span></div>
+  <div class="stat-row"><span class="label">hydra mode</span> <span class="val" id="hydra-mode">0</span></div>
+</div>
+
+<div class="hud hud-bl">
+  <div class="stat-row"><span class="label">L-stick</span> <span class="stick-vis" id="ls"></span></div>
+  <div class="stat-row"><span class="label">R-stick</span> <span class="stick-vis" id="rs"></span></div>
+</div>
+
+<div class="hud hud-br">
+  <div class="stat-row"><span class="label">[A]</span> hydra cycle</div>
+  <div class="stat-row"><span class="label">[B]</span> reset</div>
+  <div class="stat-row"><span class="label">[LT/RT]</span> zoom</div>
+  <div class="stat-row"><span class="label">[LB/RB]</span> roll</div>
+</div>
+
+<!-- Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://unpkg.com/hydra-synth@1.3.29/dist/hydra-synth.js"></script>
+
+<script>
+/* =========================================================
+   SIGNAL / SELF — v1
+   three.js + Hydra + Gamepad API
+   ========================================================= */
+
+const state = {
+  scene: null, camera: null, renderer: null, mesh: null,
+  uniforms: null,
+  hydra: null, hydraMode: 0,
+  texture: null,
+  controller: null, controllerIndex: null,
+  zoom: 3.0,
+  targetZoom: 3.0,
+  rot: { x: 0, y: 0, z: 0 },
+  targetRot: { x: 0, y: 0, z: 0 },
+  distort: { x: 0, y: 0 },
+  prevButtons: [],
+  fps: { last: performance.now(), frames: 0, value: 0 },
+};
+
+/* ---------- Hydra background synth ---------- */
+function initHydra() {
+  const canvas = document.getElementById('hydra-canvas');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  state.hydra = new Hydra({ canvas, detectAudio: false, makeGlobal: true });
+  setHydraMode(0);
+}
+
+const hydraPatterns = [
+  // 0 — slow organic flow
+  () => osc(4, 0.1, 1.2).rotate(0.2, 0.1).kaleid(3).modulate(noise(2, 0.3), 0.3).out(),
+  // 1 — pulsing grid
+  () => shape(4, 0.2, 0.05).repeat(8, 8).scrollX(0, 0.05).color(1, 0.2, 0.1).out(),
+  // 2 — voronoi static
+  () => voronoi(8, 0.3, 0.2).colorama(0.2).modulateScale(osc(2, 0.1), 0.3).out(),
+  // 3 — noise field
+  () => noise(3, 0.15).color(1.2, 0.4, 0.3).contrast(1.4).out(),
+  // 4 — rotating osc kaleid
+  () => osc(10, 0.05, 1.5).kaleid(6).rotate(0, 0.1).modulate(osc(2), 0.2).out(),
+];
+
+function setHydraMode(i) {
+  state.hydraMode = ((i % hydraPatterns.length) + hydraPatterns.length) % hydraPatterns.length;
+  try { hydraPatterns[state.hydraMode](); } catch(e) { console.warn(e); }
+  document.getElementById('hydra-mode').textContent = String(state.hydraMode).padStart(2, '0');
+}
+
+/* ---------- three.js scene ---------- */
+function initThree() {
+  const canvas = document.getElementById('three-canvas');
+  state.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  state.renderer.setSize(window.innerWidth, window.innerHeight);
+  state.renderer.setClearColor(0x000000, 0);
+
+  state.scene = new THREE.Scene();
+  state.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+  state.camera.position.z = state.zoom;
+
+  // Plane with custom shader — we will set the texture on upload
+  const geometry = new THREE.PlaneGeometry(2, 2, 128, 128);
+
+  state.uniforms = {
+    uTexture: { value: null },
+    uTime: { value: 0 },
+    uDistort: { value: new THREE.Vector2(0, 0) },
+    uHasTexture: { value: 0 },
+  };
+
+  const material = new THREE.ShaderMaterial({
+    uniforms: state.uniforms,
+    transparent: true,
+    vertexShader: `
+      uniform float uTime;
+      uniform vec2 uDistort;
+      varying vec2 vUv;
+      varying float vDisp;
+
+      // simple 3d noise
+      vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+      vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+      vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+      vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+      float snoise(vec3 v) {
+        const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+        const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+        vec3 i = floor(v + dot(v, C.yyy));
+        vec3 x0 = v - i + dot(i, C.xxx);
+        vec3 g = step(x0.yzx, x0.xyz);
+        vec3 l = 1.0 - g;
+        vec3 i1 = min(g.xyz, l.zxy);
+        vec3 i2 = max(g.xyz, l.zxy);
+        vec3 x1 = x0 - i1 + C.xxx;
+        vec3 x2 = x0 - i2 + C.yyy;
+        vec3 x3 = x0 - D.yyy;
+        i = mod289(i);
+        vec4 p = permute(permute(permute(
+                   i.z + vec4(0.0, i1.z, i2.z, 1.0))
+                 + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+                 + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+        float n_ = 0.142857142857;
+        vec3 ns = n_ * D.wyz - D.xzx;
+        vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+        vec4 x_ = floor(j * ns.z);
+        vec4 y_ = floor(j - 7.0 * x_);
+        vec4 x = x_ * ns.x + ns.yyyy;
+        vec4 y = y_ * ns.x + ns.yyyy;
+        vec4 h = 1.0 - abs(x) - abs(y);
+        vec4 b0 = vec4(x.xy, y.xy);
+        vec4 b1 = vec4(x.zw, y.zw);
+        vec4 s0 = floor(b0)*2.0 + 1.0;
+        vec4 s1 = floor(b1)*2.0 + 1.0;
+        vec4 sh = -step(h, vec4(0.0));
+        vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+        vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+        vec3 p0 = vec3(a0.xy, h.x);
+        vec3 p1 = vec3(a0.zw, h.y);
+        vec3 p2 = vec3(a1.xy, h.z);
+        vec3 p3 = vec3(a1.zw, h.w);
+        vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+        p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+        vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+        m = m * m;
+        return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+      }
+
+      void main() {
+        vUv = uv;
+        vec3 pos = position;
+        float amp = length(uDistort) * 0.6;
+        float n = snoise(vec3(pos.xy * 2.0 + uDistort * 3.0, uTime * 0.4));
+        pos.z += n * amp;
+        // ripple from sticks
+        pos.z += sin(pos.x * 8.0 + uTime * 2.0 + uDistort.x * 6.0) * uDistort.x * 0.15;
+        pos.z += cos(pos.y * 8.0 + uTime * 1.7 + uDistort.y * 6.0) * uDistort.y * 0.15;
+        vDisp = pos.z;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D uTexture;
+      uniform float uTime;
+      uniform vec2 uDistort;
+      uniform float uHasTexture;
+      varying vec2 vUv;
+      varying float vDisp;
+
+      void main() {
+        vec2 uv = vUv;
+        // chromatic split driven by displacement
+        float s = vDisp * 0.04 + length(uDistort) * 0.015;
+        vec4 col;
+        if (uHasTexture > 0.5) {
+          float r = texture2D(uTexture, uv + vec2(s, 0.0)).r;
+          float g = texture2D(uTexture, uv).g;
+          float b = texture2D(uTexture, uv - vec2(s, 0.0)).b;
+          col = vec4(r, g, b, 1.0);
+        } else {
+          // placeholder grid
+          vec2 g = abs(fract(uv * 16.0) - 0.5);
+          float line = step(0.46, max(g.x, g.y));
+          col = vec4(vec3(0.15 + line * 0.2), 1.0);
+        }
+        // subtle scanline + tint by displacement
+        col.rgb += vec3(0.15, 0.05, 0.02) * vDisp;
+        col.rgb *= 0.85 + 0.15 * sin(uv.y * 800.0);
+        gl_FragColor = col;
+      }
+    `,
+  });
+
+  state.mesh = new THREE.Mesh(geometry, material);
+  state.scene.add(state.mesh);
+
+  window.addEventListener('resize', onResize);
+}
+
+function onResize() {
+  state.camera.aspect = window.innerWidth / window.innerHeight;
+  state.camera.updateProjectionMatrix();
+  state.renderer.setSize(window.innerWidth, window.innerHeight);
+  const c = document.getElementById('hydra-canvas');
+  c.width = window.innerWidth; c.height = window.innerHeight;
+}
+
+/* ---------- Image upload ---------- */
+function initUpload() {
+  const input = document.getElementById('file-input');
+  input.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const tex = new THREE.Texture(img);
+        tex.needsUpdate = true;
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        state.texture = tex;
+        state.uniforms.uTexture.value = tex;
+        state.uniforms.uHasTexture.value = 1.0;
+        // match aspect
+        const aspect = img.width / img.height;
+        state.mesh.scale.set(aspect > 1 ? 1 : aspect, aspect > 1 ? 1 / aspect : 1, 1);
+        document.getElementById('upload-panel').classList.add('hidden');
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ---------- Gamepad ---------- */
+function initGamepad() {
+  window.addEventListener('gamepadconnected', (e) => {
+    state.controllerIndex = e.gamepad.index;
+    document.getElementById('ctrl-status').textContent = 'live';
+    document.getElementById('ctrl-dot').classList.add('live');
+    console.log('Gamepad connected:', e.gamepad.id);
+  });
+  window.addEventListener('gamepaddisconnected', () => {
+    state.controllerIndex = null;
+    document.getElementById('ctrl-status').textContent = 'offline';
+    document.getElementById('ctrl-dot').classList.remove('live');
+  });
+}
+
+function readGamepad() {
+  if (state.controllerIndex === null) return;
+  const pads = navigator.getGamepads();
+  const pad = pads[state.controllerIndex];
+  if (!pad) return;
+
+  // Standard mapping (Xbox):
+  // axes: 0=LX, 1=LY, 2=RX, 3=RY
+  // buttons: 0=A, 1=B, 2=X, 3=Y, 4=LB, 5=RB, 6=LT, 7=RT, 8=Back, 9=Start, 10=LS, 11=RS, 12-15=DPad
+  const dz = (v) => Math.abs(v) < 0.12 ? 0 : v;
+  const lx = dz(pad.axes[0]);
+  const ly = dz(pad.axes[1]);
+  const rx = dz(pad.axes[2]);
+  const ry = dz(pad.axes[3]);
+
+  // Left stick → orbit
+  state.targetRot.y += lx * 0.04;
+  state.targetRot.x += ly * 0.04;
+
+  // Right stick → distort
+  state.distort.x = rx;
+  state.distort.y = ry;
+
+  // Triggers → zoom
+  const lt = pad.buttons[6]?.value || 0;
+  const rt = pad.buttons[7]?.value || 0;
+  state.targetZoom += (lt - rt) * 0.04;
+  state.targetZoom = Math.max(1.2, Math.min(8, state.targetZoom));
+
+  // Bumpers → roll
+  if (pad.buttons[4]?.pressed) state.targetRot.z += 0.03;
+  if (pad.buttons[5]?.pressed) state.targetRot.z -= 0.03;
+
+  // Edge-triggered buttons
+  const pressed = (i) => pad.buttons[i]?.pressed && !state.prevButtons[i];
+  if (pressed(0)) setHydraMode(state.hydraMode + 1); // A
+  if (pressed(1)) reset();                            // B
+
+  // Dismiss upload panel on any input
+  if (pad.buttons.some((b) => b.pressed)) {
+    // (only dismiss if texture loaded — otherwise stay until upload)
+  }
+
+  state.prevButtons = pad.buttons.map((b) => b.pressed);
+
+  // Update stick visualizers
+  const ls = document.getElementById('ls');
+  const rs = document.getElementById('rs');
+  ls.style.setProperty('--sx', (lx * 18) + 'px');
+  ls.style.setProperty('--sy', (ly * 18) + 'px');
+  rs.style.setProperty('--sx', (rx * 18) + 'px');
+  rs.style.setProperty('--sy', (ry * 18) + 'px');
+}
+
+function reset() {
+  state.targetRot.x = 0;
+  state.targetRot.y = 0;
+  state.targetRot.z = 0;
+  state.targetZoom = 3.0;
+  setHydraMode(0);
+}
+
+/* ---------- Loop ---------- */
+function animate() {
+  requestAnimationFrame(animate);
+  readGamepad();
+
+  // ease
+  state.rot.x += (state.targetRot.x - state.rot.x) * 0.08;
+  state.rot.y += (state.targetRot.y - state.rot.y) * 0.08;
+  state.rot.z += (state.targetRot.z - state.rot.z) * 0.08;
+  state.zoom += (state.targetZoom - state.zoom) * 0.08;
+
+  state.mesh.rotation.x = state.rot.x;
+  state.mesh.rotation.y = state.rot.y;
+  state.mesh.rotation.z = state.rot.z;
+  state.camera.position.z = state.zoom;
+
+  state.uniforms.uTime.value = performance.now() * 0.001;
+  state.uniforms.uDistort.value.set(state.distort.x, state.distort.y);
+
+  state.renderer.render(state.scene, state.camera);
+
+  // fps
+  state.fps.frames++;
+  const now = performance.now();
+  if (now - state.fps.last > 500) {
+    state.fps.value = Math.round((state.fps.frames * 1000) / (now - state.fps.last));
+    document.getElementById('fps').textContent = state.fps.value;
+    state.fps.last = now;
+    state.fps.frames = 0;
+  }
+}
+
+/* ---------- Boot ---------- */
+window.addEventListener('load', () => {
+  initHydra();
+  initThree();
+  initUpload();
+  initGamepad();
+  animate();
+});
+
+// Keyboard fallback for testing without a controller
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'a') setHydraMode(state.hydraMode + 1);
+  if (e.key === 'r') reset();
+  if (e.key === 'ArrowUp') state.targetZoom = Math.max(1.2, state.targetZoom - 0.2);
+  if (e.key === 'ArrowDown') state.targetZoom = Math.min(8, state.targetZoom + 0.2);
+});
+</script>
+</body>
+</html>

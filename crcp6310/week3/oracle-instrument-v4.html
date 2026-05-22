@@ -1,0 +1,1399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ORACLE / INSTRUMENT — v4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,200;9..144,300;9..144,600;9..144,900&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #07070a;
+    --paper: #f4f1e8;
+    --ink: #e8e4d6;
+    --dim: #58585f;
+    --dimmer: #2a2a30;
+    --accent: #ff2d1f;
+    --accent-2: #00d4ff;
+    --warn: #ffb800;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'JetBrains Mono', monospace;
+    overflow: hidden;
+    cursor: crosshair;
+  }
+
+  /* Layer stack (bottom to top):
+     hydra → three → paper → hud */
+  #hydra-canvas, #three-canvas, #paper-canvas {
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+  }
+  #hydra-canvas { z-index: 0; }     /* hidden — only used as a texture source */
+  #three-canvas { z-index: 1; }
+  #paper-canvas { z-index: 2; pointer-events: none; }
+
+  /* keep hydra rendering but invisible */
+  #hydra-canvas { opacity: 0; pointer-events: none; }
+
+  /* HUD */
+  .hud {
+    position: fixed;
+    z-index: 10;
+    pointer-events: none;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink);
+    text-shadow: 0 0 12px rgba(0,0,0,0.9);
+  }
+  .hud .label { color: var(--dim); }
+  .hud .val { color: var(--ink); }
+  .hud .hot { color: var(--accent); }
+
+  .hud-tl { top: 24px; left: 28px; }
+  .hud-tr { top: 24px; right: 28px; text-align: right; }
+  .hud-bl { bottom: 24px; left: 28px; }
+  .hud-br { bottom: 24px; right: 28px; text-align: right; }
+  .hud-tc { top: 24px; left: 50%; transform: translateX(-50%); text-align: center; }
+  .hud-bc { bottom: 24px; left: 50%; transform: translateX(-50%); text-align: center; }
+
+  .title {
+    font-family: 'Fraunces', serif;
+    font-weight: 200;
+    font-size: 26px;
+    letter-spacing: -0.02em;
+    line-height: 0.95;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+  .title em {
+    color: var(--accent);
+    font-style: italic;
+    font-weight: 600;
+  }
+  .subtitle {
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 0.3em;
+    margin-bottom: 14px;
+  }
+
+  .stat-row { margin: 3px 0; white-space: nowrap; }
+  .stat-row .val { display: inline-block; min-width: 50px; }
+  .stat-row .num { font-variant-numeric: tabular-nums; }
+
+  /* dot indicator */
+  .dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--dimmer);
+    margin-right: 8px;
+    vertical-align: middle;
+    transition: all 0.3s;
+  }
+  .dot.live {
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  .dot.warm {
+    background: var(--warn);
+    box-shadow: 0 0 8px var(--warn);
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+  }
+
+  /* mode label */
+  .mode-bar {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-style: italic;
+    font-size: 14px;
+    letter-spacing: 0.05em;
+    color: var(--ink);
+    border-left: 1px solid var(--accent);
+    padding-left: 12px;
+  }
+
+  /* upload modal */
+  .upload-panel {
+    position: fixed;
+    z-index: 30;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(7, 7, 10, 0.96);
+    border: 1px solid var(--ink);
+    padding: 56px 72px;
+    text-align: center;
+    backdrop-filter: blur(24px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+    max-width: 90vw;
+  }
+  .upload-panel.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+  .upload-panel h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 200;
+    font-size: 56px;
+    letter-spacing: -0.04em;
+    margin-bottom: 4px;
+    line-height: 0.9;
+  }
+  .upload-panel h1 em {
+    color: var(--accent);
+    font-style: italic;
+    font-weight: 600;
+  }
+  .upload-panel .tag {
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    margin-bottom: 36px;
+  }
+  .upload-btn {
+    display: inline-block;
+    padding: 16px 40px;
+    border: 1px solid var(--ink);
+    color: var(--ink);
+    background: transparent;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    transition: all 0.25s ease;
+  }
+  .upload-btn:hover {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+  }
+
+  /* two-path entry */
+  .entry-paths {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+    margin-bottom: 28px;
+    min-width: 340px;
+  }
+  .entry-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 20px 32px;
+    border: 1px solid var(--dim);
+    color: var(--ink);
+    background: transparent;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    transition: all 0.25s ease;
+    position: relative;
+  }
+  .entry-btn .btn-label {
+    font-size: 11px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+  .entry-btn .btn-sub {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    color: var(--dim);
+    text-transform: none;
+    transition: color 0.25s ease;
+  }
+  .entry-btn:hover {
+    border-color: var(--accent);
+    background: rgba(255, 45, 31, 0.06);
+  }
+  .entry-btn:hover .btn-sub { color: var(--ink); }
+  .entry-btn.primary {
+    border-color: var(--ink);
+  }
+  .entry-btn.primary:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .entry-btn.primary:hover .btn-label,
+  .entry-btn.primary:hover .btn-sub {
+    color: var(--bg);
+  }
+
+  .entry-divider {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--dim);
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    font-style: italic;
+    font-family: 'Fraunces', serif;
+  }
+  .entry-divider::before,
+  .entry-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--dimmer);
+  }
+  .upload-hint {
+    margin-top: 32px;
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 0.2em;
+    line-height: 1.8;
+  }
+  .upload-hint .key {
+    display: inline-block;
+    border: 1px solid var(--dim);
+    padding: 2px 7px;
+    margin: 0 3px;
+    color: var(--ink);
+    font-size: 8px;
+  }
+
+  /* corner brackets for the upload panel */
+  .upload-panel::before, .upload-panel::after {
+    content: '';
+    position: absolute;
+    width: 14px; height: 14px;
+    border: 1px solid var(--accent);
+  }
+  .upload-panel::before {
+    top: -1px; left: -1px;
+    border-right: none; border-bottom: none;
+  }
+  .upload-panel::after {
+    bottom: -1px; right: -1px;
+    border-left: none; border-top: none;
+  }
+
+  /* close button — hidden by default, shown once user has entered the app */
+  .panel-close {
+    position: absolute;
+    top: 12px; right: 16px;
+    background: transparent;
+    border: none;
+    color: var(--dim);
+    font-size: 20px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px 8px;
+    display: none;
+    font-family: 'JetBrains Mono', monospace;
+    transition: color 0.2s ease;
+  }
+  .panel-close:hover { color: var(--accent); }
+  body.entered .panel-close { display: block; }
+
+  /* stick visualizer */
+  .stick-vis {
+    width: 42px; height: 42px;
+    border: 1px solid var(--dim);
+    border-radius: 50%;
+    position: relative;
+    display: inline-block;
+    margin-left: 10px;
+    vertical-align: middle;
+  }
+  .stick-vis::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 3px; height: 3px;
+    background: var(--accent);
+    border-radius: 50%;
+    transform: translate(calc(-50% + var(--sx, 0px)), calc(-50% + var(--sy, 0px)));
+    box-shadow: 0 0 8px var(--accent);
+    transition: transform 0.05s linear;
+  }
+  .stick-vis::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 1px; height: 1px;
+    background: var(--dim);
+    transform: translate(-50%, -50%);
+    box-shadow:
+      0 -16px 0 var(--dimmer),
+      0 16px 0 var(--dimmer),
+      -16px 0 0 var(--dimmer),
+      16px 0 0 var(--dimmer);
+  }
+
+  /* trigger bars */
+  .trigger {
+    display: inline-block;
+    width: 60px; height: 4px;
+    background: var(--dimmer);
+    position: relative;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  .trigger::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    height: 100%;
+    width: calc(var(--v, 0) * 100%);
+    background: var(--accent);
+    transition: width 0.05s linear;
+  }
+
+  /* vignette + grain */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 8;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.7) 100%);
+  }
+
+  /* weather swatch — samples live hydra color */
+  .weather-swatch {
+    display: inline-block;
+    width: 14px; height: 14px;
+    margin-left: 6px;
+    vertical-align: middle;
+    border: 1px solid var(--dim);
+    background: var(--dimmer);
+    transition: background 0.4s ease, box-shadow 0.4s ease;
+  }
+  .weather-swatch.active {
+    box-shadow: 0 0 10px currentColor;
+  }
+
+  /* weather flash overlay */
+  .weather-flash {
+    position: fixed;
+    inset: 0;
+    z-index: 7;
+    pointer-events: none;
+    background: var(--accent);
+    opacity: 0;
+    mix-blend-mode: overlay;
+    transition: opacity 0.6s ease-out;
+  }
+  .weather-flash.fire {
+    opacity: 0.25;
+    transition: opacity 0.1s ease-out;
+  }
+
+  /* corner crosshairs for the frame */
+  .corner {
+    position: fixed;
+    width: 18px; height: 18px;
+    z-index: 9;
+    pointer-events: none;
+  }
+  .corner::before, .corner::after {
+    content: '';
+    position: absolute;
+    background: var(--dim);
+  }
+  .corner::before { width: 18px; height: 1px; top: 0; left: 0; }
+  .corner::after  { width: 1px; height: 18px; top: 0; left: 0; }
+  .c-tl { top: 12px; left: 12px; }
+  .c-tr { top: 12px; right: 12px; transform: scaleX(-1); }
+  .c-bl { bottom: 12px; left: 12px; transform: scaleY(-1); }
+  .c-br { bottom: 12px; right: 12px; transform: scale(-1, -1); }
+</style>
+</head>
+<body>
+
+<canvas id="hydra-canvas" width="512" height="512"></canvas>
+<canvas id="three-canvas"></canvas>
+<canvas id="paper-canvas"></canvas>
+<div class="weather-flash" id="weather-flash"></div>
+
+<div class="corner c-tl"></div>
+<div class="corner c-tr"></div>
+<div class="corner c-bl"></div>
+<div class="corner c-br"></div>
+
+<div class="upload-panel" id="upload-panel">
+  <button class="panel-close" id="panel-close" onclick="document.getElementById('upload-panel').classList.add('hidden')" title="close (esc)">×</button>
+  <h1>oracle / <em>instrument</em></h1>
+  <div class="tag">v 0.4.0 · particle field synthesizer</div>
+  <input type="file" id="file-input" accept="image/jpeg,image/png" style="display:none" />
+  <div class="entry-paths">
+    <button class="entry-btn primary" onclick="document.getElementById('file-input').click()">
+      <span class="btn-label">offer an image</span>
+      <span class="btn-sub">— become the subject —</span>
+    </button>
+    <div class="entry-divider"><span>or</span></div>
+    <button class="entry-btn" id="enter-empty-btn">
+      <span class="btn-label">enter empty-handed</span>
+      <span class="btn-sub">— let the weather be the form —</span>
+    </button>
+  </div>
+  <div class="upload-hint">
+    pair an xbox controller via bluetooth before continuing<br/>
+    press <span class="key">A</span> in-app to wake the gamepad api
+  </div>
+</div>
+
+<div class="hud hud-tl">
+  <div class="title">oracle / <em>instrument</em></div>
+  <div class="subtitle">— particle field synthesizer —</div>
+  <div class="mode-bar" id="mode-label">awaiting subject</div>
+</div>
+
+<div class="hud hud-tr">
+  <div class="stat-row">
+    <span class="dot" id="ctrl-dot"></span>
+    <span class="label">controller</span> <span class="val" id="ctrl-status">—</span>
+  </div>
+  <div class="stat-row"><span class="label">fps</span> <span class="val num" id="fps">—</span></div>
+  <div class="stat-row"><span class="label">particles</span> <span class="val num" id="pcount">—</span></div>
+  <div class="stat-row"><span class="label">weather</span> <span class="val num" id="hydra-mode">—</span> <span class="weather-swatch" id="weather-swatch"></span></div>
+  <div class="stat-row"><span class="label">scribe</span> <span class="val" id="scribe-mode">resting</span></div>
+</div>
+
+<div class="hud hud-bl">
+  <div class="stat-row"><span class="label">L</span> <span class="stick-vis" id="ls"></span></div>
+  <div class="stat-row"><span class="label">R</span> <span class="stick-vis" id="rs"></span></div>
+  <div class="stat-row"><span class="label">LT</span> <span class="trigger" id="lt-bar"></span></div>
+  <div class="stat-row"><span class="label">RT</span> <span class="trigger" id="rt-bar"></span></div>
+</div>
+
+<div class="hud hud-br">
+  <div class="stat-row"><span class="label">L-stick</span> orbit</div>
+  <div class="stat-row"><span class="label">R-stick</span> turbulence</div>
+  <div class="stat-row"><span class="label">LT / RT</span> dispersion · cohesion</div>
+  <div class="stat-row"><span class="label">LB / RB</span> roll</div>
+  <div class="stat-row"><span class="label">[A]</span> weather cycle</div>
+  <div class="stat-row"><span class="label">[B]</span> reset</div>
+  <div class="stat-row"><span class="label">[X]</span> scribe mode</div>
+  <div class="stat-row"><span class="label">[Y]</span> hydra ↔ face · add image</div>
+</div>
+
+<div class="hud hud-bc">
+  <div class="stat-row"><span class="label" id="hint-text">— offer an image to begin —</span></div>
+</div>
+
+<!-- Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://unpkg.com/hydra-synth@1.3.29/dist/hydra-synth.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/paper@0.12.18/dist/paper-core.min.js"></script>
+
+<script>
+/* =========================================================
+   ORACLE / INSTRUMENT — v2
+   three.js particle field + hydra texture + paper.js scribe
+   ========================================================= */
+
+const PARTICLE_GRID = 128; // 128x128 = 16384 particles
+const PARTICLE_COUNT = PARTICLE_GRID * PARTICLE_GRID;
+
+const state = {
+  scene: null, camera: null, renderer: null,
+  points: null, uniforms: null,
+  hydra: null, hydraMode: 0, hydraTexture: null,
+  faceTexture: null,
+  faceTextureBlend: 0, // 0 = pure face, 1 = full hydra mix
+  targetFaceBlend: 0,
+  weatherIntensity: 0.55,        // current weather strength (eases toward target)
+  targetWeatherIntensity: 0.55,  // baseline visible influence
+  controller: null, controllerIndex: null,
+  zoom: 3.2, targetZoom: 3.2,
+  rot: { x: 0, y: 0, z: 0 },
+  targetRot: { x: 0, y: 0, z: 0 },
+  turbulence: new THREE.Vector2(0, 0),
+  dispersion: 0, // LT
+  cohesion: 0,   // RT
+  prevButtons: [],
+  fps: { last: performance.now(), frames: 0, value: 0 },
+  scribeMode: 0, // 0=resting 1=contour 2=annotate 3=geometric
+  scribeModes: ['resting', 'contour', 'annotate', 'geometric'],
+  paper: { project: null, layer: null, lastDraw: 0 },
+  hasFace: false,
+  emptyMode: false, // true when user chose "enter empty-handed"
+  bootTime: performance.now(),
+  modeLabels: [
+    'subject acquired',
+    'dispersal in progress',
+    'reading the weather',
+    'particle storm',
+    'cohesion · the form returns',
+    'the scribe speaks',
+  ],
+};
+
+/* ---------- Hydra (used as live texture source) ---------- */
+function initHydra() {
+  const canvas = document.getElementById('hydra-canvas');
+  state.hydra = new Hydra({
+    canvas, detectAudio: false, makeGlobal: true,
+    width: 512, height: 512,
+  });
+
+  // texture from hydra's WebGL canvas
+  state.hydraTexture = new THREE.CanvasTexture(canvas);
+  state.hydraTexture.minFilter = THREE.LinearFilter;
+  state.hydraTexture.magFilter = THREE.LinearFilter;
+  state.hydraTexture.wrapS = THREE.RepeatWrapping;
+  state.hydraTexture.wrapT = THREE.RepeatWrapping;
+
+  setHydraMode(0);
+}
+
+const hydraPatterns = [
+  // 0 — BREATH: slow swirling kaleid with strong color
+  () => osc(8, 0.06, 1.8)
+          .rotate(0.4, 0.08)
+          .kaleid(4)
+          .modulate(noise(2, 0.25), 0.35)
+          .color(1.6, 0.6, 0.4)
+          .saturate(2.2)
+          .contrast(1.3)
+          .out(),
+  // 1 — BLOOM: aggressive kaleidoscopic flower
+  () => osc(14, 0.08, 2.0)
+          .kaleid(7)
+          .modulate(osc(4, 0.15), 0.4)
+          .rotate(0, 0.15)
+          .color(1.8, 0.3, 1.2)
+          .saturate(2.4)
+          .contrast(1.5)
+          .out(),
+  // 2 — CELLULAR: cyan voronoi with motion
+  () => voronoi(18, 0.4, 0.25)
+          .modulateScale(osc(2, 0.1), 0.35)
+          .rotate(0, 0.05)
+          .color(0.3, 1.6, 1.8)
+          .saturate(2.0)
+          .contrast(1.6)
+          .out(),
+  // 3 — STORM: violent noise with high contrast
+  () => noise(6, 0.4)
+          .colorama(0.3)
+          .contrast(2.0)
+          .saturate(2.5)
+          .color(1.6, 0.5, 0.8)
+          .out(),
+  // 4 — PULSE: throbbing grid
+  () => shape(4, 0.35, 0.06).repeat(8, 8)
+          .scrollX(0, 0.05).scrollY(0, 0.03)
+          .modulate(osc(2, 0.2), 0.1)
+          .color(2.0, 0.8, 0.2)
+          .saturate(2.0)
+          .contrast(1.4)
+          .out(),
+  // 5 — FEEDBACK: recursive flow
+  () => osc(3, 0.08, 2.2)
+          .modulate(osc(2, 0.1).rotate(0.7), 0.6)
+          .kaleid(3)
+          .color(1.5, 0.4, 1.8)
+          .saturate(2.3)
+          .contrast(1.5)
+          .out(),
+];
+
+const hydraNames = ['breath', 'bloom', 'cellular', 'storm', 'pulse', 'feedback'];
+
+// each weather mode has a characteristic color + behavior signature
+// behavior: [swirl, jitter, throb, cluster, flow]
+const weatherSignatures = [
+  { color: '#ff994d', swirl: 0.7, jitter: 0.2, throb: 0.3, cluster: 0.1, flow: 0.5 }, // breath
+  { color: '#ff5cd6', swirl: 1.0, jitter: 0.3, throb: 0.2, cluster: 0.0, flow: 0.8 }, // bloom
+  { color: '#4de8ff', swirl: 0.2, jitter: 0.1, throb: 0.1, cluster: 1.0, flow: 0.3 }, // cellular
+  { color: '#ff3d2e', swirl: 0.3, jitter: 1.0, throb: 0.2, cluster: 0.0, flow: 0.6 }, // storm
+  { color: '#ffc833', swirl: 0.1, jitter: 0.2, throb: 1.0, cluster: 0.4, flow: 0.2 }, // pulse
+  { color: '#c44dff', swirl: 0.9, jitter: 0.4, throb: 0.4, cluster: 0.2, flow: 1.0 }, // feedback
+];
+
+function setHydraMode(i) {
+  state.hydraMode = ((i % hydraPatterns.length) + hydraPatterns.length) % hydraPatterns.length;
+  try { hydraPatterns[state.hydraMode](); } catch(e) { console.warn(e); }
+  document.getElementById('hydra-mode').textContent = hydraNames[state.hydraMode];
+
+  // update color swatch
+  const sig = weatherSignatures[state.hydraMode];
+  const swatch = document.getElementById('weather-swatch');
+  swatch.style.background = sig.color;
+  swatch.style.color = sig.color;
+  swatch.classList.add('active');
+
+  // flash overlay so the user FEELS the change
+  const flash = document.getElementById('weather-flash');
+  flash.style.background = sig.color;
+  flash.classList.add('fire');
+  setTimeout(() => flash.classList.remove('fire'), 80);
+
+  // ramp weather intensity so behavioral signature surges briefly
+  state.weatherIntensity = 1.0;
+  state.targetWeatherIntensity = 0.55; // settles at a visible baseline, not zero
+}
+
+/* ---------- three.js particle field ---------- */
+function initThree() {
+  const canvas = document.getElementById('three-canvas');
+  state.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  state.renderer.setSize(window.innerWidth, window.innerHeight);
+  state.renderer.setClearColor(0x000000, 0);
+
+  state.scene = new THREE.Scene();
+  state.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+  state.camera.position.z = state.zoom;
+
+  // Build particle grid
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const uvs = new Float32Array(PARTICLE_COUNT * 2);
+  const randoms = new Float32Array(PARTICLE_COUNT);
+
+  let i3 = 0, i2 = 0, i1 = 0;
+  for (let y = 0; y < PARTICLE_GRID; y++) {
+    for (let x = 0; x < PARTICLE_GRID; x++) {
+      const u = x / (PARTICLE_GRID - 1);
+      const v = y / (PARTICLE_GRID - 1);
+      positions[i3++] = (u - 0.5) * 2.0;
+      positions[i3++] = -(v - 0.5) * 2.0; // flip so image is upright
+      positions[i3++] = 0;
+      uvs[i2++] = u;
+      uvs[i2++] = v;
+      randoms[i1++] = Math.random();
+    }
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('aUv', new THREE.BufferAttribute(uvs, 2));
+  geometry.setAttribute('aRandom', new THREE.BufferAttribute(randoms, 1));
+
+  state.uniforms = {
+    uFaceTex:    { value: null },
+    uHydraTex:   { value: state.hydraTexture },
+    uHasFace:    { value: 0 },
+    uTime:       { value: 0 },
+    uTurbulence: { value: new THREE.Vector2(0, 0) },
+    uDispersion: { value: 0 },
+    uCohesion:   { value: 0 },
+    uHydraBlend: { value: 0 },
+    uWeatherMode:      { value: 0 },
+    uWeatherIntensity: { value: 0.55 },
+    // behavioral signature for the current weather (swirl, jitter, throb, cluster, flow)
+    uWeatherSig: { value: new THREE.Vector4(0.7, 0.2, 0.3, 0.1) }, // x=swirl y=jitter z=throb w=cluster
+    uWeatherFlow: { value: 0.5 },
+    uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
+    uAspect:     { value: 1 },
+  };
+
+  const material = new THREE.ShaderMaterial({
+    uniforms: state.uniforms,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    vertexShader: `
+      uniform sampler2D uFaceTex;
+      uniform sampler2D uHydraTex;
+      uniform float uHasFace;
+      uniform float uTime;
+      uniform vec2 uTurbulence;
+      uniform float uDispersion;
+      uniform float uCohesion;
+      uniform float uHydraBlend;
+      uniform float uWeatherIntensity;
+      uniform vec4 uWeatherSig;   // x=swirl y=jitter z=throb w=cluster
+      uniform float uWeatherFlow;
+      uniform float uPixelRatio;
+      uniform float uAspect;
+
+      attribute vec2 aUv;
+      attribute float aRandom;
+
+      varying vec3 vColor;
+      varying float vBrightness;
+      varying float vRand;
+      varying float vWeatherHeat;
+
+      // simplex 3d noise (compact)
+      vec3 mod289(vec3 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
+      vec4 mod289(vec4 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
+      vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+      vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+      float snoise(vec3 v) {
+        const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+        const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+        vec3 i  = floor(v + dot(v, C.yyy));
+        vec3 x0 = v - i + dot(i, C.xxx);
+        vec3 g = step(x0.yzx, x0.xyz);
+        vec3 l = 1.0 - g;
+        vec3 i1 = min(g.xyz, l.zxy);
+        vec3 i2 = max(g.xyz, l.zxy);
+        vec3 x1 = x0 - i1 + C.xxx;
+        vec3 x2 = x0 - i2 + C.yyy;
+        vec3 x3 = x0 - D.yyy;
+        i = mod289(i);
+        vec4 p = permute(permute(permute(
+                  i.z + vec4(0.0, i1.z, i2.z, 1.0))
+                + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+                + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+        float n_ = 0.142857142857;
+        vec3 ns = n_ * D.wyz - D.xzx;
+        vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+        vec4 x_ = floor(j * ns.z);
+        vec4 y_ = floor(j - 7.0 * x_);
+        vec4 x = x_ * ns.x + ns.yyyy;
+        vec4 y = y_ * ns.x + ns.yyyy;
+        vec4 h = 1.0 - abs(x) - abs(y);
+        vec4 b0 = vec4(x.xy, y.xy);
+        vec4 b1 = vec4(x.zw, y.zw);
+        vec4 s0 = floor(b0)*2.0 + 1.0;
+        vec4 s1 = floor(b1)*2.0 + 1.0;
+        vec4 sh = -step(h, vec4(0.0));
+        vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+        vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+        vec3 p0 = vec3(a0.xy, h.x);
+        vec3 p1 = vec3(a0.zw, h.y);
+        vec3 p2 = vec3(a1.xy, h.z);
+        vec3 p3 = vec3(a1.zw, h.w);
+        vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+        p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+        vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+        m = m * m;
+        return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+      }
+
+      mat2 rot2(float a) { float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
+
+      void main() {
+        vec3 pos = position;
+        vec2 originXY = pos.xy;
+
+        // sample face + hydra
+        vec4 faceCol  = texture2D(uFaceTex,  aUv);
+        vec4 hydraCol = texture2D(uHydraTex, aUv);
+
+        // When no face is provided (uHasFace = 0), hydra IS the subject.
+        // The particles sample hydra's luminance as their structural form.
+        vec4 subject = (uHasFace > 0.5) ? mix(faceCol, hydraCol, uHydraBlend) : hydraCol;
+        vec4 mixed = subject;
+        float lum = dot(mixed.rgb, vec3(0.299, 0.587, 0.114));
+        float freedom = 1.0 - lum;
+
+        // ---- WEATHER BEHAVIORAL SIGNATURE (always-on influence) ----
+        // The hydra texture's brightness is treated as a "weather field"
+        // that pushes particles even when not visually blended.
+        float weatherField = dot(hydraCol.rgb, vec3(0.333));
+        float wI = uWeatherIntensity; // baseline ~0.55, spikes to 1.0 on mode change
+        float swirl   = uWeatherSig.x * wI;
+        float jitter  = uWeatherSig.y * wI;
+        float throb   = uWeatherSig.z * wI;
+        float cluster = uWeatherSig.w * wI;
+        float flow    = uWeatherFlow * wI;
+
+        // SWIRL: rotate position around center, scaled by weather field
+        float swirlAngle = (weatherField - 0.5) * swirl * 2.5 + uTime * swirl * 0.3;
+        pos.xy = rot2(swirlAngle * (0.3 + freedom * 0.7)) * pos.xy;
+
+        // JITTER: high-frequency random displacement
+        if (jitter > 0.001) {
+          float j1 = snoise(vec3(pos.xy * 8.0, uTime * 4.0 + aRandom * 100.0));
+          float j2 = snoise(vec3(pos.xy * 8.0 + 50.0, uTime * 4.0));
+          pos.x += j1 * jitter * 0.25;
+          pos.y += j2 * jitter * 0.25;
+        }
+
+        // THROB: radial pulse synced to time
+        if (throb > 0.001) {
+          float pulse = sin(uTime * 3.0 + length(originXY) * 4.0);
+          pos.xy *= 1.0 + pulse * throb * 0.18;
+        }
+
+        // CLUSTER: pull dark particles toward bright hydra regions
+        if (cluster > 0.001) {
+          vec2 toCenter = -originXY;
+          float clusterPull = weatherField * cluster * 0.3;
+          pos.xy += toCenter * clusterPull * freedom;
+        }
+
+        // FLOW: directional drift based on hydra gradient
+        if (flow > 0.001) {
+          vec4 hL = texture2D(uHydraTex, aUv - vec2(0.02, 0.0));
+          vec4 hR = texture2D(uHydraTex, aUv + vec2(0.02, 0.0));
+          vec4 hD = texture2D(uHydraTex, aUv - vec2(0.0, 0.02));
+          vec4 hU = texture2D(uHydraTex, aUv + vec2(0.0, 0.02));
+          vec2 grad = vec2(
+            dot(hR.rgb - hL.rgb, vec3(0.333)),
+            dot(hU.rgb - hD.rgb, vec3(0.333))
+          );
+          pos.xy += grad * flow * 2.0;
+        }
+
+        // ---- USER-DRIVEN TURBULENCE (right stick) ----
+        float t = uTime * 0.4;
+        vec3 noiseInput = vec3(pos.xy * 1.5, t);
+        float nx = snoise(noiseInput + vec3(uTurbulence.x * 4.0, 0.0, 0.0));
+        float ny = snoise(noiseInput + vec3(0.0, uTurbulence.y * 4.0, 7.3));
+        float nz = snoise(noiseInput + vec3(0.0, 0.0, 13.7));
+
+        float turbAmp = length(uTurbulence) * 0.45 + 0.04;
+        pos.x += nx * turbAmp * (0.3 + freedom * 0.7);
+        pos.y += ny * turbAmp * (0.3 + freedom * 0.7);
+        pos.z += nz * (turbAmp * 1.6 + uDispersion * 0.8);
+
+        // dispersion radial
+        vec2 radial = normalize(originXY + 0.0001);
+        pos.xy += radial * uDispersion * (0.3 + aRandom * 0.6);
+        // cohesion pull
+        pos.xy *= 1.0 - uCohesion * 0.5 * (0.5 + aRandom * 0.5);
+        // hydra warp on blend
+        pos.xy += (hydraCol.rg - 0.5) * uHydraBlend * 0.4;
+
+        vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
+
+        // weather "heat" — how much this particle is being moved by weather
+        float weatherHeat = (swirl + jitter + throb + cluster + flow) * 0.4
+                          + (weatherField - 0.5) * 0.5;
+        vWeatherHeat = clamp(weatherHeat, 0.0, 1.0);
+
+        // point size — luminance + weather pulse + camera distance
+        float pulseSize = 1.0 + throb * sin(uTime * 4.0 + aRandom * 6.28) * 0.4;
+        float size = (1.5 + lum * 3.5) * uPixelRatio * pulseSize;
+        gl_PointSize = size * (8.0 / -mvPos.z);
+
+        // ---- COLOR: face base + always-visible hydra tint ----
+        vec3 col = mixed.rgb;
+        // ALWAYS apply some hydra tint even at blend=0 — this is what makes weather visible
+        // Multiply-blend with hydra at moderate strength
+        vec3 hydraTint = hydraCol.rgb * 1.4;
+        col = mix(col, col * hydraTint, 0.45 * wI);
+        // add hydra hot spots
+        col += hydraCol.rgb * weatherField * wI * 0.3 * freedom;
+        col = pow(col, vec3(0.85));
+
+        // hot edges where particles are dispersed or weather-active
+        float dispGlow = uDispersion * 0.6 + length(uTurbulence) * 0.3;
+        col = mix(col, vec3(1.0, 0.18, 0.12), dispGlow * (1.0 - lum) * 0.7);
+
+        vColor = col;
+        vBrightness = lum;
+        vRand = aRandom;
+
+        gl_Position = projectionMatrix * mvPos;
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vColor;
+      varying float vBrightness;
+      varying float vRand;
+      varying float vWeatherHeat;
+      uniform float uHasFace;
+
+      void main() {
+        vec2 c = gl_PointCoord - 0.5;
+        float d = length(c);
+        if (d > 0.5) discard;
+
+        // weather-active particles get a soft halo
+        float core = smoothstep(0.5, 0.0, d);
+        float halo = smoothstep(0.5, 0.15, d) * vWeatherHeat * 0.6;
+        float alpha = core + halo;
+        alpha *= (0.4 + vBrightness * 0.6);
+
+        vec3 col = vColor;
+        col *= 0.9 + 0.1 * vRand;
+        // weather heat brightens the particle
+        col += vec3(0.3, 0.15, 0.05) * vWeatherHeat;
+
+        // In empty-handed mode (no face), we want richer color — boost saturation
+        // and brightness since hydra IS the form, not a tint on top of one.
+        if (uHasFace < 0.5) {
+          col = pow(col, vec3(0.75));    // brighten midtones
+          col *= 1.3;                     // boost overall
+          alpha *= (0.5 + vBrightness * 0.7);
+        }
+
+        gl_FragColor = vec4(col, alpha);
+      }
+    `,
+  });
+
+  state.points = new THREE.Points(geometry, material);
+  state.scene.add(state.points);
+
+  // ---- ATMOSPHERIC BACKDROP ----
+  // A large dim plane behind the particles that displays the hydra texture
+  // directly. Gives weather presence in the empty regions of the frame.
+  const bgGeom = new THREE.PlaneGeometry(8, 8);
+  const bgUniforms = {
+    uHydraTex: { value: state.hydraTexture },
+    uTime: { value: 0 },
+    uIntensity: { value: 0.55 },
+  };
+  state.bgUniforms = bgUniforms;
+  const bgMat = new THREE.ShaderMaterial({
+    uniforms: bgUniforms,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D uHydraTex;
+      uniform float uTime;
+      uniform float uIntensity;
+      varying vec2 vUv;
+      void main() {
+        // sample hydra with slow drift
+        vec2 uv = vUv + vec2(sin(uTime * 0.05) * 0.02, cos(uTime * 0.04) * 0.02);
+        vec3 col = texture2D(uHydraTex, uv).rgb;
+        // radial fade so it doesn't fight the particles in the center
+        vec2 c = vUv - 0.5;
+        float r = length(c) * 1.6;
+        float vignette = smoothstep(0.2, 1.1, r) * 0.7 + 0.1;
+        col *= vignette * uIntensity * 0.45;
+        gl_FragColor = vec4(col, 0.6);
+      }
+    `,
+  });
+  state.bgPlane = new THREE.Mesh(bgGeom, bgMat);
+  state.bgPlane.position.z = -2.5;
+  state.scene.add(state.bgPlane);
+
+  document.getElementById('pcount').textContent = PARTICLE_COUNT.toLocaleString();
+
+  window.addEventListener('resize', onResize);
+  onResize();
+}
+
+function onResize() {
+  state.camera.aspect = window.innerWidth / window.innerHeight;
+  state.camera.updateProjectionMatrix();
+  state.renderer.setSize(window.innerWidth, window.innerHeight);
+  state.uniforms.uAspect.value = window.innerWidth / window.innerHeight;
+  // resize paper
+  if (state.paper.project) {
+    paper.view.viewSize = new paper.Size(window.innerWidth, window.innerHeight);
+  }
+}
+
+/* ---------- Image upload ---------- */
+function initUpload() {
+  const input = document.getElementById('file-input');
+  input.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        // Square-crop into a 512x512 canvas so the particle UVs map cleanly
+        const size = 512;
+        const off = document.createElement('canvas');
+        off.width = size; off.height = size;
+        const ctx = off.getContext('2d');
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, size, size);
+        // cover-fit
+        const s = Math.min(img.width, img.height);
+        const sx = (img.width - s) / 2;
+        const sy = (img.height - s) / 2;
+        ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size);
+
+        const tex = new THREE.CanvasTexture(off);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        state.faceTexture = tex;
+        state.uniforms.uFaceTex.value = tex;
+        state.uniforms.uHasFace.value = 1.0;
+        state.hasFace = true;
+        state.emptyMode = false;
+
+        document.getElementById('upload-panel').classList.add('hidden');
+        document.body.classList.add('entered');
+        setModeLabel('subject acquired');
+        document.getElementById('hint-text').textContent = '— press any button to begin —';
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // "Enter empty-handed" — no image, particles read Hydra directly as their form
+  document.getElementById('enter-empty-btn').addEventListener('click', () => {
+    enterEmptyMode();
+  });
+}
+
+function enterEmptyMode() {
+  state.emptyMode = true;
+  state.hasFace = false;
+  // Tell the shader there's no face — it will fall back to hydra-as-form
+  state.uniforms.uHasFace.value = 0.0;
+  // Force the visual blend up so particles render with hydra colors
+  state.targetFaceBlend = 1.0;
+  document.getElementById('upload-panel').classList.add('hidden');
+  document.body.classList.add('entered');
+  setModeLabel('weather is the form');
+  document.getElementById('hint-text').textContent = '— move the sticks · press [Y] later to add an image —';
+}
+
+/* ---------- Paper.js scribe ---------- */
+function initPaper() {
+  paper.setup(document.getElementById('paper-canvas'));
+  state.paper.project = paper.project;
+  state.paper.layer = new paper.Layer();
+
+  // gentle frame ticks: every 80ms, age existing marks
+  setInterval(() => {
+    if (!state.paper.layer) return;
+    const items = state.paper.layer.children.slice();
+    for (const it of items) {
+      if (it.data && it.data.life !== undefined) {
+        it.data.life -= 1;
+        if (it.opacity !== undefined) it.opacity = Math.max(0, it.data.life / it.data.maxLife);
+        if (it.data.life <= 0) it.remove();
+      }
+    }
+  }, 80);
+}
+
+function scribeTick() {
+  if (state.scribeMode === 0) return;
+  const now = performance.now();
+  if (now - state.paper.lastDraw < 60) return; // throttle
+  state.paper.lastDraw = now;
+
+  const W = window.innerWidth, H = window.innerHeight;
+  const cx = W / 2, cy = H / 2;
+  const turbMag = Math.hypot(state.turbulence.x, state.turbulence.y);
+  const energy = turbMag + state.dispersion * 0.7 + Math.abs(state.targetRot.y - state.rot.y) * 4;
+
+  if (state.scribeMode === 1) {
+    // CONTOUR — flowing curves radiating from the center
+    const angle = Math.atan2(state.turbulence.y, state.turbulence.x || 0.0001);
+    const r = 200 + Math.random() * 180 + energy * 60;
+    const start = new paper.Point(cx + Math.cos(angle) * 40, cy + Math.sin(angle) * 40);
+    const end   = new paper.Point(cx + Math.cos(angle) * r,  cy + Math.sin(angle) * r);
+    const ctrl1 = start.add(new paper.Point((Math.random() - 0.5) * 80, (Math.random() - 0.5) * 80));
+    const ctrl2 = end.add(new paper.Point((Math.random() - 0.5) * 120, (Math.random() - 0.5) * 120));
+
+    const path = new paper.Path();
+    path.strokeColor = energy > 0.5 ? '#ff2d1f' : '#e8e4d6';
+    path.strokeWidth = 0.6;
+    path.opacity = 0.5;
+    path.moveTo(start);
+    path.cubicCurveTo(ctrl1, ctrl2, end);
+    path.data = { life: 40, maxLife: 40 };
+    state.paper.layer.addChild(path);
+  } else if (state.scribeMode === 2) {
+    // ANNOTATE — short labels and tick marks like an architect's notes
+    const x = cx + (Math.random() - 0.5) * W * 0.7;
+    const y = cy + (Math.random() - 0.5) * H * 0.7;
+    const len = 12 + Math.random() * 30 + energy * 20;
+
+    const tick = new paper.Path.Line(new paper.Point(x, y), new paper.Point(x + len, y));
+    tick.strokeColor = '#e8e4d6';
+    tick.strokeWidth = 0.7;
+    tick.opacity = 0.55;
+    tick.data = { life: 50, maxLife: 50 };
+    state.paper.layer.addChild(tick);
+
+    if (Math.random() < 0.4) {
+      const labels = [
+        'subject', 'flux', '∂t', 'cohere', 'disperse', 'φ', 'signal',
+        'self', 'orient', 'azimuth', 'breath', 'index', 'ψ',
+        Math.round(energy * 100) + '%', state.fps.value + 'fps',
+        hydraNames[state.hydraMode], state.scribeModes[state.scribeMode],
+      ];
+      const txt = new paper.PointText(new paper.Point(x + len + 6, y + 3));
+      txt.content = labels[Math.floor(Math.random() * labels.length)];
+      txt.fillColor = energy > 0.6 ? '#ff2d1f' : '#e8e4d6';
+      txt.fontFamily = 'JetBrains Mono';
+      txt.fontSize = 9;
+      txt.opacity = 0.7;
+      txt.data = { life: 50, maxLife: 50 };
+      state.paper.layer.addChild(txt);
+    }
+  } else if (state.scribeMode === 3) {
+    // GEOMETRIC — circles and triangles scaled by stick state
+    const x = cx + state.turbulence.x * 200 + (Math.random() - 0.5) * 100;
+    const y = cy + state.turbulence.y * 200 + (Math.random() - 0.5) * 100;
+    const size = 8 + Math.random() * 24 + energy * 30;
+
+    const shape = Math.random() < 0.5
+      ? new paper.Path.Circle(new paper.Point(x, y), size)
+      : (() => {
+          const p = new paper.Path();
+          for (let i = 0; i < 3; i++) {
+            const a = (i / 3) * Math.PI * 2 + Math.random();
+            p.add(new paper.Point(x + Math.cos(a) * size, y + Math.sin(a) * size));
+          }
+          p.closed = true;
+          return p;
+        })();
+    shape.strokeColor = energy > 0.5 ? '#ff2d1f' : '#e8e4d6';
+    shape.strokeWidth = 0.5;
+    shape.opacity = 0.4;
+    shape.data = { life: 35, maxLife: 35 };
+    state.paper.layer.addChild(shape);
+  }
+}
+
+function setScribeMode(i) {
+  state.scribeMode = ((i % state.scribeModes.length) + state.scribeModes.length) % state.scribeModes.length;
+  document.getElementById('scribe-mode').textContent = state.scribeModes[state.scribeMode];
+}
+
+/* ---------- Gamepad ---------- */
+function initGamepad() {
+  window.addEventListener('gamepadconnected', (e) => {
+    state.controllerIndex = e.gamepad.index;
+    document.getElementById('ctrl-status').textContent = 'live';
+    document.getElementById('ctrl-dot').classList.add('live');
+    setModeLabel('controller paired');
+    console.log('Gamepad:', e.gamepad.id);
+  });
+  window.addEventListener('gamepaddisconnected', () => {
+    state.controllerIndex = null;
+    document.getElementById('ctrl-status').textContent = 'lost';
+    document.getElementById('ctrl-dot').classList.remove('live');
+  });
+}
+
+function readGamepad() {
+  if (state.controllerIndex === null) {
+    // probe — sometimes connect event misses
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (let i = 0; i < pads.length; i++) {
+      if (pads[i]) { state.controllerIndex = i; break; }
+    }
+    if (state.controllerIndex === null) return;
+    document.getElementById('ctrl-status').textContent = 'live';
+    document.getElementById('ctrl-dot').classList.add('live');
+  }
+
+  const pads = navigator.getGamepads();
+  const pad = pads[state.controllerIndex];
+  if (!pad) return;
+
+  const dz = (v) => Math.abs(v) < 0.12 ? 0 : (v - Math.sign(v) * 0.12) / 0.88;
+  const lx = dz(pad.axes[0]);
+  const ly = dz(pad.axes[1]);
+  const rx = dz(pad.axes[2]);
+  const ry = dz(pad.axes[3]);
+
+  state.targetRot.y += lx * 0.035;
+  state.targetRot.x += ly * 0.035;
+
+  state.turbulence.set(rx, ry);
+
+  const lt = pad.buttons[6]?.value || 0;
+  const rt = pad.buttons[7]?.value || 0;
+  state.dispersion = lt;
+  state.cohesion = rt;
+
+  document.getElementById('lt-bar').style.setProperty('--v', lt);
+  document.getElementById('rt-bar').style.setProperty('--v', rt);
+
+  if (pad.buttons[4]?.pressed) state.targetRot.z += 0.025;
+  if (pad.buttons[5]?.pressed) state.targetRot.z -= 0.025;
+
+  // edge-triggered face buttons
+  const pressed = (i) => pad.buttons[i]?.pressed && !state.prevButtons[i];
+  if (pressed(0)) {
+    setHydraMode(state.hydraMode + 1);
+    flashMode('weather: ' + hydraNames[state.hydraMode]);
+  }
+  if (pressed(1)) {
+    reset();
+    flashMode('reset');
+  }
+  if (pressed(2)) {
+    setScribeMode(state.scribeMode + 1);
+    flashMode('scribe: ' + state.scribeModes[state.scribeMode]);
+  }
+  if (pressed(3)) {
+    // Y: if empty mode, open upload panel so the user can offer an image now.
+    //    otherwise, toggle face↔hydra blend.
+    if (state.emptyMode) {
+      document.getElementById('upload-panel').classList.remove('hidden');
+      flashMode('offer an image to crystallize the field');
+    } else {
+      state.targetFaceBlend = state.targetFaceBlend > 0.5 ? 0 : 1;
+      flashMode(state.targetFaceBlend > 0.5 ? 'hydra dominant' : 'face dominant');
+    }
+  }
+
+  state.prevButtons = pad.buttons.map((b) => b.pressed);
+
+  const ls = document.getElementById('ls');
+  const rs = document.getElementById('rs');
+  ls.style.setProperty('--sx', (lx * 16) + 'px');
+  ls.style.setProperty('--sy', (ly * 16) + 'px');
+  rs.style.setProperty('--sx', (rx * 16) + 'px');
+  rs.style.setProperty('--sy', (ry * 16) + 'px');
+}
+
+function reset() {
+  state.targetRot.x = 0;
+  state.targetRot.y = 0;
+  state.targetRot.z = 0;
+  state.targetZoom = 3.2;
+  state.targetFaceBlend = 0;
+  setHydraMode(0);
+  setScribeMode(0);
+  // clear paper marks
+  if (state.paper.layer) state.paper.layer.removeChildren();
+}
+
+function setModeLabel(s) {
+  document.getElementById('mode-label').textContent = s;
+}
+let flashTimer = null;
+function flashMode(s) {
+  setModeLabel(s);
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => {
+    // pick contextual mode label
+    const energy = Math.hypot(state.turbulence.x, state.turbulence.y)
+                 + state.dispersion * 0.7 + state.cohesion * 0.5;
+    let label;
+    if (!state.hasFace && !state.emptyMode) label = 'awaiting subject';
+    else if (state.emptyMode) {
+      if (energy < 0.1) label = 'weather is the form';
+      else if (state.dispersion > 0.6) label = 'the form scatters';
+      else if (state.cohesion > 0.6)   label = 'the form gathers';
+      else if (energy > 0.8)           label = 'turbulent weather';
+      else if (state.scribeMode > 0)   label = 'the scribe speaks';
+      else label = 'reading the weather';
+    }
+    else if (energy < 0.1) label = 'subject at rest';
+    else if (state.dispersion > 0.6) label = 'dispersal in progress';
+    else if (state.cohesion > 0.6)   label = 'cohesion · the form returns';
+    else if (energy > 0.8)           label = 'particle storm';
+    else if (state.targetFaceBlend > 0.5) label = 'reading the weather';
+    else if (state.scribeMode > 0)   label = 'the scribe speaks';
+    else label = 'subject acquired';
+    setModeLabel(label);
+  }, 1400);
+}
+
+/* ---------- Loop ---------- */
+function animate() {
+  requestAnimationFrame(animate);
+  readGamepad();
+  scribeTick();
+
+  // ease
+  state.rot.x += (state.targetRot.x - state.rot.x) * 0.07;
+  state.rot.y += (state.targetRot.y - state.rot.y) * 0.07;
+  state.rot.z += (state.targetRot.z - state.rot.z) * 0.07;
+  state.zoom  += (state.targetZoom  - state.zoom)  * 0.07;
+  state.faceTextureBlend += (state.targetFaceBlend - state.faceTextureBlend) * 0.04;
+  // weather intensity eases back toward baseline after a spike
+  state.weatherIntensity += (state.targetWeatherIntensity - state.weatherIntensity) * 0.025;
+
+  state.points.rotation.x = state.rot.x;
+  state.points.rotation.y = state.rot.y;
+  state.points.rotation.z = state.rot.z;
+  // backdrop rotates more slowly for parallax
+  if (state.bgPlane) {
+    state.bgPlane.rotation.z = state.rot.z * 0.3;
+  }
+  state.camera.position.z = state.zoom;
+
+  state.uniforms.uTime.value = (performance.now() - state.bootTime) * 0.001;
+  state.uniforms.uTurbulence.value.copy(state.turbulence);
+  state.uniforms.uDispersion.value = state.dispersion;
+  state.uniforms.uCohesion.value = state.cohesion;
+  state.uniforms.uHydraBlend.value = state.faceTextureBlend;
+  state.uniforms.uWeatherIntensity.value = state.weatherIntensity;
+  state.uniforms.uWeatherMode.value = state.hydraMode;
+  const sig = weatherSignatures[state.hydraMode];
+  state.uniforms.uWeatherSig.value.set(sig.swirl, sig.jitter, sig.throb, sig.cluster);
+  state.uniforms.uWeatherFlow.value = sig.flow;
+
+  // backdrop uniforms
+  if (state.bgUniforms) {
+    state.bgUniforms.uTime.value = state.uniforms.uTime.value;
+    state.bgUniforms.uIntensity.value = state.weatherIntensity;
+  }
+
+  // mark hydra texture for update each frame
+  if (state.hydraTexture) state.hydraTexture.needsUpdate = true;
+
+  state.renderer.render(state.scene, state.camera);
+
+  // fps
+  state.fps.frames++;
+  const now = performance.now();
+  if (now - state.fps.last > 500) {
+    state.fps.value = Math.round((state.fps.frames * 1000) / (now - state.fps.last));
+    document.getElementById('fps').textContent = state.fps.value;
+    state.fps.last = now;
+    state.fps.frames = 0;
+  }
+
+  // contextual mode label drift
+  if (state.hasFace && (now % 4000) < 16) {
+    flashMode(''); // triggers re-evaluation in flashMode's timeout
+  }
+}
+
+/* ---------- Boot ---------- */
+window.addEventListener('load', () => {
+  initHydra();
+  initThree();
+  initUpload();
+  initPaper();
+  initGamepad();
+  animate();
+  // give swatch its initial color now that hydra exists
+  setHydraMode(0);
+});
+
+// Keyboard fallback
+window.addEventListener('keydown', (e) => {
+  if (e.key.toLowerCase() === 'a') { setHydraMode(state.hydraMode + 1); flashMode('weather: ' + hydraNames[state.hydraMode]); }
+  if (e.key.toLowerCase() === 'b') { reset(); flashMode('reset'); }
+  if (e.key.toLowerCase() === 'x') { setScribeMode(state.scribeMode + 1); flashMode('scribe: ' + state.scribeModes[state.scribeMode]); }
+  if (e.key === 'Escape') {
+    if (document.body.classList.contains('entered')) {
+      document.getElementById('upload-panel').classList.add('hidden');
+    }
+  }
+  if (e.key.toLowerCase() === 'y') {
+    if (state.emptyMode) {
+      document.getElementById('upload-panel').classList.remove('hidden');
+    } else {
+      state.targetFaceBlend = state.targetFaceBlend > 0.5 ? 0 : 1;
+    }
+  }
+  if (e.key === 'ArrowUp')   state.targetZoom = Math.max(1.2, state.targetZoom - 0.2);
+  if (e.key === 'ArrowDown') state.targetZoom = Math.min(8, state.targetZoom + 0.2);
+  if (e.key === 'ArrowLeft') state.targetRot.y -= 0.2;
+  if (e.key === 'ArrowRight') state.targetRot.y += 0.2;
+});
+</script>
+</body>
+</html>
