@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ORACLE / INSTRUMENT — v4</title>
+<title>ORACLE / INSTRUMENT — v5</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,200;9..144,300;9..144,600;9..144,900&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
@@ -122,6 +122,40 @@
     color: var(--ink);
     border-left: 1px solid var(--accent);
     padding-left: 12px;
+  }
+
+  /* settle indicator — fades in only during the post-upload recognition window */
+  .settle-indicator {
+    margin-top: 10px;
+    padding-left: 12px;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .settle-indicator.active { opacity: 1; }
+  .settle-label {
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .settle-bar {
+    display: inline-block;
+    width: 90px;
+    height: 1px;
+    background: var(--dimmer);
+    position: relative;
+  }
+  .settle-fill {
+    position: absolute;
+    top: 0; left: 0;
+    height: 100%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+    width: 0%;
+    transition: width 0.1s linear;
   }
 
   /* upload modal */
@@ -434,7 +468,7 @@
 <div class="upload-panel" id="upload-panel">
   <button class="panel-close" id="panel-close" onclick="document.getElementById('upload-panel').classList.add('hidden')" title="close (esc)">×</button>
   <h1>oracle / <em>instrument</em></h1>
-  <div class="tag">v 0.4.0 · particle field synthesizer</div>
+  <div class="tag">v 0.5.0 · particle field synthesizer</div>
   <input type="file" id="file-input" accept="image/jpeg,image/png" style="display:none" />
   <div class="entry-paths">
     <button class="entry-btn primary" onclick="document.getElementById('file-input').click()">
@@ -457,6 +491,10 @@
   <div class="title">oracle / <em>instrument</em></div>
   <div class="subtitle">— particle field synthesizer —</div>
   <div class="mode-bar" id="mode-label">awaiting subject</div>
+  <div class="settle-indicator" id="settle-indicator">
+    <span class="settle-label">settling</span>
+    <span class="settle-bar"><span class="settle-fill" id="settle-fill"></span></span>
+  </div>
 </div>
 
 <div class="hud hud-tr">
@@ -529,6 +567,8 @@ const state = {
   paper: { project: null, layer: null, lastDraw: 0 },
   hasFace: false,
   emptyMode: false, // true when user chose "enter empty-handed"
+  settle: 1.0,         // 0 = fully crisp/settled (just uploaded), 1 = full instrument
+  targetSettle: 1.0,   // animates from 0 → 1 over a few seconds after upload
   bootTime: performance.now(),
   modeLabels: [
     'subject acquired',
@@ -696,6 +736,7 @@ function initThree() {
     // behavioral signature for the current weather (swirl, jitter, throb, cluster, flow)
     uWeatherSig: { value: new THREE.Vector4(0.7, 0.2, 0.3, 0.1) }, // x=swirl y=jitter z=throb w=cluster
     uWeatherFlow: { value: 0.5 },
+    uSettle:     { value: 1.0 }, // 0 = crisp/just-uploaded, 1 = full instrument mode
     uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
     uAspect:     { value: 1 },
   };
@@ -717,6 +758,7 @@ function initThree() {
       uniform float uWeatherIntensity;
       uniform vec4 uWeatherSig;   // x=swirl y=jitter z=throb w=cluster
       uniform float uWeatherFlow;
+      uniform float uSettle;      // 0 = just uploaded (crisp), 1 = full instrument
       uniform float uPixelRatio;
       uniform float uAspect;
 
@@ -796,8 +838,9 @@ function initThree() {
         // ---- WEATHER BEHAVIORAL SIGNATURE (always-on influence) ----
         // The hydra texture's brightness is treated as a "weather field"
         // that pushes particles even when not visually blended.
+        // BUT — scaled by uSettle so a just-uploaded face renders crisp first.
         float weatherField = dot(hydraCol.rgb, vec3(0.333));
-        float wI = uWeatherIntensity; // baseline ~0.55, spikes to 1.0 on mode change
+        float wI = uWeatherIntensity * uSettle; // baseline ~0.55, spikes on mode change, 0 when settled
         float swirl   = uWeatherSig.x * wI;
         float jitter  = uWeatherSig.y * wI;
         float throb   = uWeatherSig.z * wI;
@@ -870,14 +913,16 @@ function initThree() {
         vWeatherHeat = clamp(weatherHeat, 0.0, 1.0);
 
         // point size — luminance + weather pulse + camera distance
+        // When settling (uSettle ~ 0), boost size significantly so the image reads as a solid photo.
         float pulseSize = 1.0 + throb * sin(uTime * 4.0 + aRandom * 6.28) * 0.4;
-        float size = (1.5 + lum * 3.5) * uPixelRatio * pulseSize;
+        float settleBoost = mix(2.4, 1.0, uSettle); // 2.4× size when just uploaded, 1× at full instrument
+        float size = (1.5 + lum * 3.5) * uPixelRatio * pulseSize * settleBoost;
         gl_PointSize = size * (8.0 / -mvPos.z);
 
         // ---- COLOR: face base + always-visible hydra tint ----
         vec3 col = mixed.rgb;
-        // ALWAYS apply some hydra tint even at blend=0 — this is what makes weather visible
-        // Multiply-blend with hydra at moderate strength
+        // ALWAYS apply some hydra tint even at blend=0 — this is what makes weather visible.
+        // BUT scale by uSettle so a fresh upload renders with true face colors first.
         vec3 hydraTint = hydraCol.rgb * 1.4;
         col = mix(col, col * hydraTint, 0.45 * wI);
         // add hydra hot spots
@@ -901,6 +946,7 @@ function initThree() {
       varying float vRand;
       varying float vWeatherHeat;
       uniform float uHasFace;
+      uniform float uSettle;
 
       void main() {
         vec2 c = gl_PointCoord - 0.5;
@@ -912,6 +958,11 @@ function initThree() {
         float halo = smoothstep(0.5, 0.15, d) * vWeatherHeat * 0.6;
         float alpha = core + halo;
         alpha *= (0.4 + vBrightness * 0.6);
+
+        // SETTLING: when just uploaded (uSettle = 0), particles render more solid
+        // so the additive blending doesn't blow out the image. As we ease into
+        // instrument mode, alpha returns to its translucent default.
+        alpha *= mix(1.8, 1.0, uSettle);
 
         vec3 col = vColor;
         col *= 0.9 + 0.1 * vRand;
@@ -1028,10 +1079,25 @@ function initUpload() {
         state.hasFace = true;
         state.emptyMode = false;
 
+        // ---- SETTLING ----
+        // Start crisp: zero out weather influence, then ease back to 1.0 over ~4 seconds.
+        // This gives the user a moment to recognize themselves before the instrument
+        // comes alive around the image.
+        state.settle = 0.0;
+        state.targetSettle = 0.0;       // hold at 0 for the recognition window
+        // Force any active stick input to neutral so we don't immediately distort
+        state.turbulence.set(0, 0);
+        state.dispersion = 0;
+        state.cohesion = 0;
+        // After 1.8s, begin the ramp up
+        setTimeout(() => { state.targetSettle = 1.0; }, 1800);
+
         document.getElementById('upload-panel').classList.add('hidden');
         document.body.classList.add('entered');
-        setModeLabel('subject acquired');
-        document.getElementById('hint-text').textContent = '— press any button to begin —';
+        setModeLabel('subject acquired · settling');
+        document.getElementById('hint-text').textContent = '— the instrument is waking · move when ready —';
+        // Show a settling indicator briefly
+        showSettleIndicator();
       };
       img.src = ev.target.result;
     };
@@ -1051,6 +1117,9 @@ function enterEmptyMode() {
   state.uniforms.uHasFace.value = 0.0;
   // Force the visual blend up so particles render with hydra colors
   state.targetFaceBlend = 1.0;
+  // No settling needed — there's no image to recognize. Full instrument from the start.
+  state.settle = 1.0;
+  state.targetSettle = 1.0;
   document.getElementById('upload-panel').classList.add('hidden');
   document.body.classList.add('entered');
   setModeLabel('weather is the form');
@@ -1212,6 +1281,12 @@ function readGamepad() {
   state.dispersion = lt;
   state.cohesion = rt;
 
+  // If user is interacting during settle, accelerate the ramp — they're ready to play.
+  const userActivity = Math.abs(lx) + Math.abs(ly) + Math.abs(rx) + Math.abs(ry) + lt + rt;
+  if (userActivity > 0.15 && state.targetSettle < 1.0) {
+    state.targetSettle = 1.0;
+  }
+
   document.getElementById('lt-bar').style.setProperty('--v', lt);
   document.getElementById('rt-bar').style.setProperty('--v', rt);
 
@@ -1220,6 +1295,10 @@ function readGamepad() {
 
   // edge-triggered face buttons
   const pressed = (i) => pad.buttons[i]?.pressed && !state.prevButtons[i];
+  // Any face button press also signals "ready" and accelerates settling
+  if (state.targetSettle < 1.0 && [0,1,2,3].some(i => pressed(i))) {
+    state.targetSettle = 1.0;
+  }
   if (pressed(0)) {
     setHydraMode(state.hydraMode + 1);
     flashMode('weather: ' + hydraNames[state.hydraMode]);
@@ -1264,10 +1343,31 @@ function reset() {
   setScribeMode(0);
   // clear paper marks
   if (state.paper.layer) state.paper.layer.removeChildren();
+  // re-settle if face is loaded — reset means "back to recognizing yourself"
+  if (state.hasFace) {
+    state.settle = 0.0;
+    state.targetSettle = 0.0;
+    setTimeout(() => { state.targetSettle = 1.0; }, 1500);
+    showSettleIndicator();
+  }
 }
 
 function setModeLabel(s) {
   document.getElementById('mode-label').textContent = s;
+}
+
+function showSettleIndicator() {
+  const ind = document.getElementById('settle-indicator');
+  ind.classList.add('active');
+  // hide it once settled
+  const check = setInterval(() => {
+    const fill = document.getElementById('settle-fill');
+    fill.style.width = (state.settle * 100).toFixed(1) + '%';
+    if (state.settle > 0.985) {
+      clearInterval(check);
+      ind.classList.remove('active');
+    }
+  }, 100);
 }
 let flashTimer = null;
 function flashMode(s) {
@@ -1279,6 +1379,7 @@ function flashMode(s) {
                  + state.dispersion * 0.7 + state.cohesion * 0.5;
     let label;
     if (!state.hasFace && !state.emptyMode) label = 'awaiting subject';
+    else if (state.hasFace && state.settle < 0.7) label = 'subject acquired · settling';
     else if (state.emptyMode) {
       if (energy < 0.1) label = 'weather is the form';
       else if (state.dispersion > 0.6) label = 'the form scatters';
@@ -1312,6 +1413,8 @@ function animate() {
   state.faceTextureBlend += (state.targetFaceBlend - state.faceTextureBlend) * 0.04;
   // weather intensity eases back toward baseline after a spike
   state.weatherIntensity += (state.targetWeatherIntensity - state.weatherIntensity) * 0.025;
+  // settle eases from 0 → 1 after upload — slow ramp so the face is recognized first
+  state.settle += (state.targetSettle - state.settle) * 0.012;
 
   state.points.rotation.x = state.rot.x;
   state.points.rotation.y = state.rot.y;
@@ -1328,6 +1431,7 @@ function animate() {
   state.uniforms.uCohesion.value = state.cohesion;
   state.uniforms.uHydraBlend.value = state.faceTextureBlend;
   state.uniforms.uWeatherIntensity.value = state.weatherIntensity;
+  state.uniforms.uSettle.value = state.settle;
   state.uniforms.uWeatherMode.value = state.hydraMode;
   const sig = weatherSignatures[state.hydraMode];
   state.uniforms.uWeatherSig.value.set(sig.swirl, sig.jitter, sig.throb, sig.cluster);
@@ -1336,7 +1440,7 @@ function animate() {
   // backdrop uniforms
   if (state.bgUniforms) {
     state.bgUniforms.uTime.value = state.uniforms.uTime.value;
-    state.bgUniforms.uIntensity.value = state.weatherIntensity;
+    state.bgUniforms.uIntensity.value = state.weatherIntensity * state.settle;
   }
 
   // mark hydra texture for update each frame
