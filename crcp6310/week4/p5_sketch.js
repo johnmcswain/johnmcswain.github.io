@@ -2,7 +2,7 @@
 //  ENTROPY / CPU PRESSURE VISUALIZER
 //  Author: John McSwain
 //  Live site: https://johnmcswain.github.io/crcp6310/week4/entropy_pressure_visualizer.html
-//  GitHub: https://github.com/johnmcswain/crcp6310/blob/main/week4/p5_sketch.js
+//  GitHub: https://github.com/johnmcswain/johnmcswain.github.io/blob/master/crcp6310/week4/p5_sketch.js
 // ────────────────────────────────────────────────────────────────────────────
 //  INSPIRATION
 //  This sketch is the inverse of a strange-attractor study. Its ancestor wove
