@@ -1,8 +1,5 @@
 // ════════════════════════════════════════════════════════════════════════════
 //  ENTROPY / CPU PRESSURE VISUALIZER
-//  Author: John McSwain
-//  Live site: https://johnmcswain.github.io/crcp6310/week4/entropy_pressure_visualizer.html
-//  GitHub: https://github.com/johnmcswain/johnmcswain.github.io/blob/master/crcp6310/week4/p5_sketch.js
 // ────────────────────────────────────────────────────────────────────────────
 //  INSPIRATION
 //  This sketch is the inverse of a strange-attractor study. Its ancestor wove
@@ -81,6 +78,7 @@ let hudMouse = 0, hudFrame = 0, hudTime = 0;
 let userNoiseScale = 1.0;          // wheel zoom
 let flowSwirl = 0;                 // ← / →
 let ripples = [];
+let showHelp = false;              // H toggles the on-screen controls card
 
 // ── visual styles: the attractor-weave palettes, HSB [hue, sat, bri] ─────────
 // hues = per-particle thread colors (picked from the pool); glow = ring/ripple
@@ -174,6 +172,7 @@ function draw() {
   drawPressureField(entropy);
   drawRipples();
   drawHUD();
+  if (showHelp) drawHelp();
 }
 
 // ── CPU pressure (live PressureObserver, else fps-derived) ──────────────────
@@ -409,7 +408,37 @@ function drawHUD() {
   fill(185, 205, 255); textSize(11);
   text(`style ${style.name} · ${style.mode}${style.rings ? " · rings" : ""}`, x, y + 168);
   fill(120);
-  text("click restyle · space pulse · ↑↓ count · ←→ swirl · wheel zoom · R reset", x, y + 188);
+  text("click style · space pulse · ↑↓ count · ←→ swirl · wheel zoom · R reset · H help", x, y + 188);
+  pop();
+}
+
+// ── toggleable on-screen controls card (H) ──────────────────────────────────
+function drawHelp() {
+  push();
+  colorMode(RGB, 255, 255, 255, 255);
+  rectMode(CENTER);
+  const w = 430, h = 318, cx = width / 2, cy = height / 2;
+  noStroke(); fill(0, 210); rect(cx, cy, w, h, 14);
+  stroke(185, 205, 255, 90); noFill(); rect(cx, cy, w, h, 14);
+
+  const lx = cx - w / 2 + 30, dx = lx + 118;
+  let y = cy - h / 2 + 42;
+  noStroke();
+  fill(235); textSize(15); text("CONTROLS", lx, y); y += 30;
+  const row = (k, d) => { textSize(12); fill(150, 200, 255); text(k, lx, y); fill(218); text(d, dx, y); y += 23; };
+
+  fill(165); textSize(12); text("MOUSE", lx, y); y += 21;
+  row("hover", "pull toward cursor");
+  row("hold", "strong pull + stir (force ∝ speed)");
+  row("click", "change style + shockwave");
+  row("wheel", "zoom the noise field");
+
+  y += 8; fill(165); text("KEYBOARD", lx, y); y += 21;
+  row("↑ / ↓", "add / remove particles");
+  row("← / →", "flow swirl");
+  row("space", "pulse only (no style change)");
+  row("R", "reset swirl / zoom / ripples");
+  row("H", "toggle this help");
   pop();
 }
 
@@ -420,6 +449,7 @@ function keyPressed() {
   if (keyCode === LEFT_ARROW)  { flowSwirl = constrain(flowSwirl - 0.12, -PI, PI); return false; }
   if (keyCode === RIGHT_ARROW) { flowSwirl = constrain(flowSwirl + 0.12, -PI, PI); return false; }
   if (key === ' ')             { pulseAt(mouseX, mouseY); return false; }
+  if (key === 'h' || key === 'H') { showHelp = !showHelp; return false; }
   if (key === 'r' || key === 'R') { flowSwirl = 0; userNoiseScale = 1.0; ripples = []; }
 }
 function mousePressed() {
