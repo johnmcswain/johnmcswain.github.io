@@ -1,0 +1,771 @@
+<!doctype html>
+<!--
+================================================================================
+  FLOWING POLYGON ATTRACTORS
+  Strange attractors (Lorenz, Rössler, Aizawa, Thomas, Halvorsen) drawn as a
+  stream of polygons that flow along the trajectory. Pure p5.js, no build step.
+--------------------------------------------------------------------------------
+  Author : John McSwain (jimcswain@smu.edu)
+  Repo   : https://github.com/johnmcswain/johnmcswain.github.io/week5/polygon-attractors.html
+  Live   : https://johnmcswain.github.io/week5/polygon-attractors.html
+--------------------------------------------------------------------------------
+  RUN     : open this file in any modern browser. Nothing to install.
+  CONTROLS:
+    Scroll ........ zoom in / out        Double-click ... reset zoom
+    Drag .......... rotate the view      Sun/Moon ....... skiatron / dark theme
+    Attractor ..... choose the system    Theme .......... cycle palette (dark only)
+    Sliders ....... sides | fractal depth | stream count | flow | hue spin
+  THEMES  : dark = colourful palettes; light = monochrome skiatron (dark-trace CRT).
+================================================================================
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flowing Polygon Attractors</title>
+    <style>
+      :root {
+        --bg1: #121a26;
+        --bg2: #0a0e14;
+        --stage: #070a0f;
+        --panel: #11161f;
+        --line: #1d2632;
+        --slate: #8a98a8;
+        --bright: #dfe7ee;
+        --phosphor: #5af0c8;
+        --amber: #f5d76e;
+        --void: #0a0e14;
+        --mono: ui-monospace, Menlo, Consolas, monospace;
+        --sans: "Helvetica Neue", system-ui, sans-serif;
+      }
+      /* light theme = skiatron: monochrome dark-indigo trace on a phosphor-grey field */
+      body.light {
+        --bg1: #aeafa8;
+        --bg2: #9c9d96;
+        --stage: #a8a9a3;
+        --panel: #a4a59e;
+        --line: #454b5a;
+        --slate: #3b4150;
+        --bright: #232a36;
+        --phosphor: #232a36;
+        --amber: #232a36;
+        --void: #a8a9a3;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 28px 20px 48px;
+        font-family: var(--sans);
+        color: var(--bright);
+        background: radial-gradient(
+          120% 80% at 50% -10%,
+          var(--bg1),
+          var(--bg2) 60%
+        );
+        -webkit-font-smoothing: antialiased;
+        transition: color 0.2s;
+      }
+      .wrap {
+        max-width: 940px;
+        margin: 0 auto;
+      }
+      .titlebar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 18px;
+        margin-bottom: 20px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 13px;
+        letter-spacing: 0.34em;
+        text-transform: uppercase;
+        color: var(--slate);
+        font-weight: 600;
+      }
+      h1 b {
+        color: var(--phosphor);
+      }
+      .iconbtn {
+        width: 38px;
+        height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        line-height: 1;
+        color: var(--amber);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .iconbtn:hover {
+        border-color: var(--amber);
+      }
+      .iconbtn:focus-visible {
+        outline: none;
+        box-shadow:
+          0 0 0 2px var(--bg2),
+          0 0 0 4px var(--amber);
+      }
+      .stage {
+        position: relative;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        overflow: hidden;
+        background: var(--stage);
+      }
+      #holder canvas {
+        display: block;
+        width: 100% !important;
+        height: auto !important;
+        cursor: grab;
+      }
+      #holder canvas:active {
+        cursor: grabbing;
+      }
+      /* CRT overlay (skiatron only): faint vignette + scanlines, drawn above the canvas */
+      body.light .stage::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 2;
+        background:
+          radial-gradient(
+            120% 90% at 50% 50%,
+            transparent 58%,
+            rgba(30, 34, 44, 0.16)
+          ),
+          repeating-linear-gradient(
+            0deg,
+            rgba(25, 29, 40, 0.05) 0 1px,
+            transparent 1px 3px
+          );
+      }
+      #badge {
+        position: absolute;
+        left: 14px;
+        top: 12px;
+        z-index: 3;
+        font: 11px/1.6 var(--mono);
+        letter-spacing: 0.06em;
+        color: var(--slate);
+        pointer-events: none;
+      }
+      #badge b {
+        color: var(--amber);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+      #badge .poly {
+        color: var(--phosphor);
+      }
+      #ctr {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
+        align-items: center;
+      }
+      .pill {
+        font: 13px var(--mono);
+        color: var(--slate);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 3px;
+        padding: 8px 14px;
+        cursor: pointer;
+      }
+      .pill:hover {
+        color: var(--bright);
+      }
+      .pill.on {
+        color: var(--void);
+        background: var(--phosphor);
+        border-color: var(--phosphor);
+      }
+      .pill.theme {
+        color: var(--amber);
+        border-color: var(--line);
+        margin-left: auto;
+      }
+      .pill.disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .sliders {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 14px 24px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 16px;
+        margin-top: 14px;
+      }
+      .srow {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .lab {
+        display: flex;
+        justify-content: space-between;
+        font: 11px var(--mono);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--slate);
+      }
+      .lab b {
+        color: var(--amber);
+      }
+      input[type="range"] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 3px;
+        border-radius: 2px;
+        background: var(--line);
+        cursor: pointer;
+      }
+      body.light input[type="range"] {
+        background: #8b8d87;
+      } /* lighter track so the dark thumb stays visible */
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        background: var(--amber);
+        border: 3px solid var(--void);
+      }
+      input[type="range"]::-moz-range-thumb {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: var(--amber);
+        border: 3px solid var(--void);
+      }
+      .foot {
+        font: 11.5px/1.7 var(--mono);
+        color: var(--slate);
+        margin-top: 22px;
+        border-top: 1px solid var(--line);
+        padding-top: 16px;
+      }
+      .foot b {
+        color: var(--bright);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="titlebar">
+        <h1>Flowing <b>Polygon Attractors</b> · p5.js</h1>
+        <button
+          id="modeBtn"
+          class="iconbtn"
+          aria-label="Switch to skiatron theme"
+          title="Skiatron / dark theme"
+        >
+          &#9728;
+        </button>
+      </div>
+      <div class="stage">
+        <div id="holder"></div>
+        <div id="badge">
+          <b id="name">Lorenz</b> · scroll to zoom · drag to rotate<br /><span
+            class="poly"
+            id="poly"
+          ></span>
+        </div>
+      </div>
+      <div id="ctr"></div>
+      <div class="sliders">
+        <div class="srow">
+          <div class="lab"><span>polygon sides</span><b id="sidesv">5</b></div>
+          <input type="range" id="sides" min="3" max="8" step="1" value="5" />
+        </div>
+        <div class="srow">
+          <div class="lab"><span>fractal depth</span><b id="fracv">1</b></div>
+          <input type="range" id="frac" min="0" max="3" step="1" value="1" />
+        </div>
+        <div class="srow">
+          <div class="lab"><span>stream count</span><b id="densv">320</b></div>
+          <input
+            type="range"
+            id="dens"
+            min="60"
+            max="700"
+            step="20"
+            value="320"
+          />
+        </div>
+        <div class="srow">
+          <div class="lab"><span>flow speed</span><b id="flowv">1</b></div>
+          <input type="range" id="flow" min="0" max="40" step="1" value="1" />
+        </div>
+        <div class="srow">
+          <div class="lab">
+            <span>color wheel spin</span><b id="spinv">0.12</b>
+          </div>
+          <input
+            type="range"
+            id="spin"
+            min="0"
+            max="1.5"
+            step="0.02"
+            value="0.12"
+          />
+        </div>
+      </div>
+      <div class="foot">
+        <b>How it works.</b> Each system is integrated with RK4 at a fixed time
+        step, so moving the polygons at a constant rate makes them naturally
+        speed up where the flow is fast and slow where it is slow — the motion's
+        character comes from the attractor itself. Polygons are drawn with
+        beginShape / vertex / endShape; fractal depth runs a recursive Koch step
+        on each one. The skiatron (light) theme renders everything as a
+        monochrome dark trace; colour palettes apply in the dark theme.
+      </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+    <script>
+      "use strict";
+
+      // --- chaotic systems: each f returns the derivative (ẋ, ẏ, ż) at a point ---
+      const SYS = {
+        Lorenz: {
+          dt: 0.006,
+          s: [0.1, 0, 0],
+          f: (x, y, z) => [10 * (y - x), x * (28 - z) - y, x * y - (8 / 3) * z],
+        },
+        Rössler: {
+          dt: 0.02,
+          s: [0.1, 0, 0],
+          f: (x, y, z) => [-y - z, x + 0.2 * y, 0.2 + z * (x - 5.7)],
+        },
+        Aizawa: {
+          dt: 0.012,
+          s: [0.1, 0, 0],
+          f: (x, y, z) => [
+            (z - 0.7) * x - 3.5 * y,
+            3.5 * x + (z - 0.7) * y,
+            0.6 +
+              0.95 * z -
+              (z * z * z) / 3 -
+              (x * x + y * y) * (1 + 0.25 * z) +
+              0.1 * z * x * x * x,
+          ],
+        },
+        Thomas: {
+          dt: 0.05,
+          s: [1.1, 1.1, -0.5],
+          f: (x, y, z) => [
+            Math.sin(y) - 0.208 * x,
+            Math.sin(z) - 0.208 * y,
+            Math.sin(x) - 0.208 * z,
+          ],
+        },
+        Halvorsen: {
+          dt: 0.008,
+          s: [-1.48, -1.51, 2.04],
+          f: (x, y, z) => [
+            -1.89 * x - 4 * y - 4 * z - y * y,
+            -1.89 * y - 4 * z - 4 * x - z * z,
+            -1.89 * z - 4 * x - 4 * y - x * x,
+          ],
+        },
+      };
+
+      // Runge–Kutta 4 — one integration step of system f, from state s, over time dt
+      const rk4 = (f, s, dt) => {
+        const k1 = f(...s),
+          k2 = f(
+            s[0] + (dt / 2) * k1[0],
+            s[1] + (dt / 2) * k1[1],
+            s[2] + (dt / 2) * k1[2],
+          ),
+          k3 = f(
+            s[0] + (dt / 2) * k2[0],
+            s[1] + (dt / 2) * k2[1],
+            s[2] + (dt / 2) * k2[2],
+          ),
+          k4 = f(s[0] + dt * k3[0], s[1] + dt * k3[1], s[2] + dt * k3[2]);
+        return s.map(
+          (v, i) => v + (dt / 6) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]),
+        );
+      };
+
+      // fractal polygon: a regular n-gon, then `depth` recursive Koch passes
+      const TAU = Math.PI * 2;
+      const ngon = (n) =>
+        Array.from({ length: n }, (_, i) => {
+          const a = (i / n) * TAU - Math.PI / 2;
+          return [Math.cos(a), Math.sin(a)];
+        });
+      const koch = (pts) =>
+        pts.flatMap((p1, i) => {
+          // every edge -> 4 edges with an outward bump
+          const p2 = pts[(i + 1) % pts.length];
+          const a = [p1[0] + (p2[0] - p1[0]) / 3, p1[1] + (p2[1] - p1[1]) / 3];
+          const b = [
+            p1[0] + (2 / 3) * (p2[0] - p1[0]),
+            p1[1] + (2 / 3) * (p2[1] - p1[1]),
+          ];
+          const vx = b[0] - a[0],
+            vy = b[1] - a[1],
+            spin = (c, s) => [a[0] + vx * c - vy * s, a[1] + vx * s + vy * c];
+          let peak = spin(Math.cos(-TAU / 6), Math.sin(-TAU / 6));
+          if (
+            peak[0] ** 2 + peak[1] ** 2 <
+            ((a[0] + b[0]) / 2) ** 2 + ((a[1] + b[1]) / 2) ** 2
+          )
+            // flip if it pointed inward
+            peak = spin(Math.cos(TAU / 6), Math.sin(TAU / 6));
+          return [p1, a, peak, b];
+        });
+      const fractalPoly = (sides, depth) => {
+        let p = ngon(sides);
+        while (depth-- > 0) p = koch(p);
+        return p;
+      };
+
+      // colour palettes (dark theme) as HSB hue ranges; the end hue may exceed 360 and wrap
+      const THEMES = [
+        { name: "Aurora", h: [160, 280], sat: 85, bri: 92 },
+        { name: "Ember", h: [5, 55], sat: 92, bri: 96 },
+        { name: "Spectrum", h: [0, 340], sat: 82, bri: 96 },
+        { name: "Ice", h: [185, 215], sat: 50, bri: 100 },
+        { name: "Magma", h: [280, 400], sat: 90, bri: 95 },
+      ];
+      // skiatron (light theme) monochrome: dark trace blended toward the grey field by depth
+      const FIELD = [168, 169, 163],
+        TRACE = [35, 42, 54];
+
+      const $ = (id) => document.getElementById(id);
+      const holder = $("holder"),
+        badge = $("poly");
+
+      new p5((p) => {
+        let path = [],
+          poly = [],
+          cn = 0; // trajectory · current polygon · its vertex count
+        let want = 320,
+          count = 320,
+          sides = 5,
+          depth = 1; // requested vs budget-capped stream size, polygon shape
+        let phase = 0,
+          flow = 1,
+          spin = 0.12,
+          hue = 0,
+          theme = THEMES[0],
+          light = false;
+        let zoom = 1,
+          zTarget = 1,
+          rx = 0.35,
+          ry = 0,
+          drag = false,
+          mx = 0,
+          my = 0,
+          W,
+          H,
+          cx,
+          cy,
+          scl;
+        const BUDGET = 110000; // max polygon vertices per frame (keeps 60fps)
+
+        const fit = () => {
+          W = holder.clientWidth;
+          H = Math.round(W * 0.625);
+          cx = W / 2;
+          cy = H / 2;
+          scl = Math.min(W, H) * 0.38;
+        };
+        const mix = (k) => [
+          p.lerp(FIELD[0], TRACE[0], k),
+          p.lerp(FIELD[1], TRACE[1], k),
+          p.lerp(FIELD[2], TRACE[2], k),
+        ];
+
+        // rebuild the polygon and cap the stream count so we stay within the vertex budget
+        const build = () => {
+          poly = fractalPoly(sides, depth);
+          cn = poly.length;
+          count = Math.max(20, Math.min(want, Math.floor(BUDGET / cn)));
+          badge.textContent = `${count} polygons · ${cn} verts each`;
+        };
+
+        // integrate a system, normalise the path into [-1,1], then build the polygon
+        const load = (name) => {
+          $("name").textContent = name;
+          const { f, s, dt } = SYS[name];
+          let st = [...s];
+          for (let i = 0; i < 600; i++) st = rk4(f, st, dt); // discard the transient
+          const raw = [];
+          for (let i = 0; i < 22000; i++) {
+            raw.push(st);
+            st = rk4(f, st, dt);
+          }
+          const lo = [1e9, 1e9, 1e9],
+            hi = [-1e9, -1e9, -1e9];
+          raw.forEach((q) =>
+            q.forEach((v, a) => {
+              lo[a] = Math.min(lo[a], v);
+              hi[a] = Math.max(hi[a], v);
+            }),
+          );
+          const mid = lo.map((v, a) => (v + hi[a]) / 2),
+            half = Math.max(...hi.map((v, a) => v - lo[a])) / 2 || 1;
+          path = raw.map((q) => q.map((v, a) => (v - mid[a]) / half));
+          build();
+        };
+
+        const at = (f) => {
+          // interpolated point at a fractional, wrapping index
+          const n = path.length,
+            i = ((f % n) + n) % n,
+            j = Math.floor(i),
+            k = (j + 1) % n,
+            t = i - j;
+          return path[j].map((v, a) => v + (path[k][a] - v) * t);
+        };
+        const project = (q) => {
+          // rotate (Y then X), flatten -> [screenX, screenY, depth]
+          const cyy = Math.cos(ry),
+            syy = Math.sin(ry),
+            cxx = Math.cos(rx),
+            sxx = Math.sin(rx);
+          const X = q[0] * cyy + q[2] * syy,
+            Z = -q[0] * syy + q[2] * cyy,
+            Y = q[1],
+            s = scl * zoom;
+          return [cx + X * s, cy + (Y * cxx - Z * sxx) * s, Y * sxx + Z * cxx];
+        };
+        const reticle = () => {
+          // faint + registration marks (skiatron motif)
+          p.stroke(mix(0.4));
+          p.strokeWeight(1);
+          const m = 22,
+            g = 7;
+          [
+            [m, m],
+            [W - m, m],
+            [m, H - m],
+            [W - m, H - m],
+          ].forEach(([x, y]) => {
+            p.line(x - g, y, x + g, y);
+            p.line(x, y - g, x, y + g);
+          });
+        };
+
+        p.setup = () => {
+          fit();
+          p.createCanvas(W, H).parent(holder);
+          load("Lorenz");
+        };
+        p.windowResized = () => {
+          fit();
+          p.resizeCanvas(W, H);
+        };
+        const over = () =>
+          p.mouseX >= 0 && p.mouseX <= W && p.mouseY >= 0 && p.mouseY <= H;
+        p.mouseWheel = (e) => {
+          if (!over()) return;
+          zTarget = p.constrain(zTarget * (e.delta > 0 ? 0.9 : 1.1), 0.3, 9);
+          return false;
+        };
+        p.doubleClicked = () => {
+          if (over()) zTarget = 1;
+        };
+        p.mousePressed = () => {
+          if (over()) {
+            drag = true;
+            mx = p.mouseX;
+            my = p.mouseY;
+          }
+        };
+        p.mouseDragged = () => {
+          if (!drag) return;
+          ry += (p.mouseX - mx) * 0.008;
+          rx = p.constrain(rx + (p.mouseY - my) * 0.008, -1.45, 1.45);
+          mx = p.mouseX;
+          my = p.mouseY;
+        };
+        p.mouseReleased = () => (drag = false);
+
+        p.draw = () => {
+          zoom += (zTarget - zoom) * 0.12; // ease the zoom
+          if (!drag) ry += 0.003; // slow auto-rotate
+          phase += flow;
+          hue = (hue + spin) % 360; // advance the stream and the colour wheel
+
+          // colour space + background follow the active theme
+          if (light) {
+            p.colorMode(p.RGB, 255);
+            p.background(168, 169, 163);
+          } else {
+            p.colorMode(p.HSB, 360, 100, 100, 255);
+            p.background(218, 50, 7);
+          }
+
+          const n = path.length,
+            gap = n / count,
+            look = Math.max(2, n * 0.0015),
+            items = [];
+          for (let i = 0; i < count; i++) {
+            // place each polygon along the path
+            const f = phase + i * gap,
+              a = project(at(f)),
+              b = project(at(f + look));
+            items.push({
+              x: a[0],
+              y: a[1],
+              d: a[2],
+              ang: Math.atan2(b[1] - a[1], b[0] - a[0]),
+              t: (((f % n) + n) % n) / (n - 1),
+            });
+          }
+          items.sort((u, v) => u.d - v.d); // painter's algorithm: far ones first
+
+          p.strokeWeight(light ? 1 : 0.8);
+          for (const it of items) {
+            const r =
+              scl *
+              0.05 *
+              p.constrain(p.map(it.d, -1, 1, 0.55, 1.3), 0.4, 1.5) *
+              zoom;
+            p.push();
+            p.translate(it.x, it.y);
+            p.rotate(it.ang);
+            if (light) {
+              // skiatron: dark trace, fades to grey with depth
+              const k = p.constrain(p.map(it.d, -1, 1, 0.15, 0.95), 0.12, 1);
+              p.fill(mix(k * 0.3));
+              p.stroke(mix(k));
+            } else {
+              // dark theme: cycle the colour palette
+              const al = p.constrain(p.map(it.d, -1, 1, 55, 235), 40, 255),
+                h = (p.lerp(theme.h[0], theme.h[1], it.t) + hue) % 360;
+              p.fill(h, theme.sat, theme.bri, al * 0.6);
+              p.stroke(h, theme.sat, Math.min(100, theme.bri + 8), al);
+            }
+            p.beginShape();
+            poly.forEach((pt) => p.vertex(pt[0] * r, pt[1] * r));
+            p.endShape(p.CLOSE);
+            p.pop();
+          }
+          if (light) reticle();
+
+          p.noStroke();
+          if (light) p.fill(35, 42, 54);
+          else p.fill(p.color(210, 14, 62, 200));
+          p.textFont("monospace");
+          p.textSize(11);
+          p.textAlign(p.LEFT, p.BOTTOM);
+          p.text(
+            `zoom ${zoom.toFixed(1)}×  ·  flow ${flow}  ·  ${light ? "skiatron" : theme.name}`,
+            14,
+            H - 12,
+          );
+        };
+
+        // small API for the HTML controls below
+        window.API = {
+          load,
+          geom: (s, d, w) => {
+            sides = s;
+            depth = d;
+            want = w;
+            build();
+          },
+          count: (w) => {
+            want = w;
+            build();
+          },
+          flow: (v) => (flow = v),
+          spin: (v) => (spin = v),
+          theme: () => {
+            theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+            return theme.name;
+          },
+          mode: (v) => (light = v), // false = dark (colour) · true = skiatron (monochrome)
+        };
+      });
+
+      // --- wire up the controls ---
+      const sync = () =>
+        ["sides", "frac", "dens", "flow", "spin"].forEach(
+          (id) => ($(id + "v").textContent = $(id).value),
+        );
+      $("sides").oninput = () => {
+        sync();
+        API.geom(+$("sides").value, +$("frac").value, +$("dens").value);
+      };
+      $("frac").oninput = () => {
+        sync();
+        API.geom(+$("sides").value, +$("frac").value, +$("dens").value);
+      };
+      $("dens").oninput = () => {
+        sync();
+        API.count(+$("dens").value);
+      };
+      $("flow").oninput = () => {
+        sync();
+        API.flow(+$("flow").value);
+      };
+      $("spin").oninput = () => {
+        sync();
+        API.spin(+$("spin").value);
+      };
+
+      const ctr = $("ctr");
+      Object.keys(SYS).forEach((name, i) => {
+        const b = document.createElement("button");
+        b.className = "pill sys" + (i ? "" : " on");
+        b.textContent = name;
+        b.onclick = () => {
+          document
+            .querySelectorAll(".sys")
+            .forEach((x) => x.classList.remove("on"));
+          b.classList.add("on");
+          API.load(name);
+        };
+        ctr.appendChild(b);
+      });
+      const tb = document.createElement("button");
+      tb.className = "pill theme";
+      tb.textContent = "◑ Aurora";
+      tb.onclick = () => {
+        if (!tb.disabled) tb.textContent = "◑ " + API.theme();
+      };
+      ctr.appendChild(tb);
+
+      // theme toggle: sun = currently dark (click for skiatron); moon = skiatron (click for dark)
+      const modeBtn = $("modeBtn");
+      const setMode = (on) => {
+        document.body.classList.toggle("light", on);
+        modeBtn.innerHTML = on ? "&#9790;" : "&#9728;";
+        modeBtn.setAttribute(
+          "aria-label",
+          on ? "Switch to dark theme" : "Switch to skiatron theme",
+        );
+        tb.disabled = on;
+        tb.classList.toggle("disabled", on); // palette cycling is dark-theme only
+        API.mode(on);
+      };
+      modeBtn.onclick = () =>
+        setMode(!document.body.classList.contains("light"));
+
+      sync();
+    </script>
+  </body>
+</html>
