@@ -5,8 +5,8 @@
   stream of polygons flowing along the trajectory.
 --------------------------------------------------------------------------------
   Author : John McSwain (jimcswain@smu.edu)
-  Repo   : https://github.com/johnmcswain/johnmcswain.github.io/week5/polygon-attractors.html
-  Live   : https://johnmcswain.github.io/week5/polygon-attractors.html
+  Repo   : https://github.com/johnmcswain/johnmcswain.github.io/blob/master/crcp6310/week5/sketch.js
+  Live   : https://johnmcswain.github.io/crcp6310/week5/polygon-attractors.html
 --------------------------------------------------------------------------------
   RUN : drop this into the p5.js web editor, OR load it after p5.js from an
         index.html, e.g.
