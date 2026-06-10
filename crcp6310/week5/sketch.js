@@ -16,9 +16,8 @@
     Scroll ......... zoom in / out          Double-click ... reset zoom
     Drag ........... rotate the view        B .............. skiatron / dark theme
     1 – 5 .......... choose attractor        T .............. cycle palette (dark only)
-    [  ] ........... polygon sides           -  = ........... fractal depth
-    Up / Down ...... flow speed              Left / Right ... colour-wheel spin
-    ,  . ........... stream count
+    [  ] ........... polygon sides           Up / Down ...... flow speed (-3..3, 0 = still)
+    ,  . ........... stream count            Left / Right ... colour-wheel spin
   THEMES : dark = colourful palettes; skiatron = monochrome dark-trace CRT.
 ================================================================================
 */
@@ -44,7 +43,7 @@ const rk4 = (f,s,dt) => {
   return s.map((v,i)=> v + dt/6*(k1[i]+2*k2[i]+2*k3[i]+k4[i]));
 };
 
-// fractal polygon: a regular n-gon, then `depth` recursive Koch passes
+// polygon shape: a regular n-gon. (Koch fractal kept available; depth is fixed at 0.)
 const TAU2 = Math.PI*2;
 const ngon = n => Array.from({length:n}, (_,i) => { const a=i/n*TAU2-Math.PI/2; return [Math.cos(a),Math.sin(a)]; });
 const koch = pts => pts.flatMap((p1,i) => {                 // every edge -> 4 edges with an outward bump
@@ -57,7 +56,7 @@ const koch = pts => pts.flatMap((p1,i) => {                 // every edge -> 4 e
       peak=turn(Math.cos(TAU2/6), Math.sin(TAU2/6));
   return [p1, a, peak, b];
 });
-const fractalPoly = (sides,depth) => { let p=ngon(sides); while (depth-->0) p=koch(p); return p; };
+const polyShape = (sides,depth) => { let p=ngon(sides); while (depth-- > 0) p=koch(p); return p; };
 
 // colour palettes (dark theme) as HSB hue ranges; the end hue may exceed 360 and wrap
 const THEMES = [
@@ -71,13 +70,13 @@ const mix = k => [lerp(FIELD[0],TRACE[0],k), lerp(FIELD[1],TRACE[1],k), lerp(FIE
 
 // --- state ---
 let path=[], poly=[], cn=0;                 // trajectory · current polygon · its vertex count
-let sysName="Lorenz", sides=5, depth=1, want=320, count=320, themeIx=0;
-let phase=0, flow=1, spin=.12, hue=0, light=false;
+let sysName="Lorenz", sides=5, depth=0, want=320, count=320, themeIx=0;
+let phase=0, flow=0, spin=.12, hue=0, light=false;
 let zoom=1, zTarget=1, rx=.35, ry=0, drag=false, mx=0, my=0, cx, cy, scl;
 const BUDGET=110000;                         // max polygon vertices per frame (keeps 60fps)
 
 // rebuild the polygon and cap the stream count to the vertex budget
-function build(){ poly=fractalPoly(sides,depth); cn=poly.length; count=max(20,min(want,floor(BUDGET/cn))); }
+function build(){ poly=polyShape(sides,depth); cn=poly.length; count=max(20,min(want,floor(BUDGET/cn))); }
 
 // integrate a system, normalise the path into [-1,1], then build the polygon
 function load(name){ sysName=name;
@@ -108,7 +107,7 @@ function windowResized(){ resizeCanvas(sizeOf(), sizeOf()*.625); cx=width/2; cy=
 function draw(){
   zoom += (zTarget-zoom)*.12;                               // ease the zoom
   if (!drag) ry += .003;                                    // slow auto-rotate
-  phase += flow; hue = (hue+spin)%360;                      // advance the stream and the colour wheel
+  phase += flow; hue = (hue+spin)%360;                      // advance the stream (forward/back) and the colour wheel
 
   if (light) { colorMode(RGB,255); background(168,169,163); }            // skiatron grey field
   else       { colorMode(HSB,360,100,100,255); background(218,50,7); }   // dark field
@@ -155,12 +154,10 @@ function keyPressed(){
   else if (key==="b"||key==="B")   light=!light;                       // B    skiatron / dark theme
   else if (key==="[")  { sides=max(3,sides-1); build(); }              // [ ]  polygon sides
   else if (key==="]")  { sides=min(8,sides+1); build(); }
-  else if (key==="-")  { depth=max(0,depth-1); build(); }              // - =  fractal depth
-  else if (key==="=")  { depth=min(3,depth+1); build(); }
   else if (key===",")  { want=max(40,want-40);  build(); }             // , .  stream count
   else if (key===".")  { want=min(700,want+40); build(); }
-  else if (keyCode===UP_ARROW)    flow=min(40,flow+2);                 // ↑ ↓  flow speed
-  else if (keyCode===DOWN_ARROW)  flow=max(0,flow-2);
+  else if (keyCode===UP_ARROW)    flow=min(3,flow+.5);                 // ↑ ↓  flow speed (forward / backward)
+  else if (keyCode===DOWN_ARROW)  flow=max(-3,flow-.5);
   else if (keyCode===LEFT_ARROW)  spin=max(0,spin-.05);                // ← →  colour spin
   else if (keyCode===RIGHT_ARROW) spin=min(1.5,spin+.05);
 }
