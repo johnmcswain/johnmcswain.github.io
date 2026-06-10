@@ -69,7 +69,7 @@ const FIELD=[168,169,163], TRACE=[35,42,54];
 const mix = k => [lerp(FIELD[0],TRACE[0],k), lerp(FIELD[1],TRACE[1],k), lerp(FIELD[2],TRACE[2],k)];
 
 // --- state ---
-let path=[], poly=[], cn=0;                 // trajectory · current polygon · its vertex count
+let path=new Float64Array(0), pathN=0, poly=[], cn=0;  // trajectory (flat x,y,z) · point count · current polygon · its vertex count
 let sysName="Lorenz", sides=5, depth=0, want=320, count=320, themeIx=0;
 let phase=0, flow=0, spin=.12, hue=0, light=false;
 let zoom=1, zTarget=1, rx=.35, ry=0, drag=false, mx=0, my=0, cx, cy, scl;
@@ -86,16 +86,25 @@ function load(name){ sysName=name;
   const lo=[1e9,1e9,1e9], hi=[-1e9,-1e9,-1e9];
   raw.forEach(q=>q.forEach((v,a)=>{ lo[a]=Math.min(lo[a],v); hi[a]=Math.max(hi[a],v); }));
   const mid=lo.map((v,a)=>(v+hi[a])/2), half=Math.max(...hi.map((v,a)=>v-lo[a]))/2||1;
-  path=raw.map(q=>q.map((v,a)=>(v-mid[a])/half)); build();
+  const N=raw.length; path=new Float64Array(N*3); pathN=N;
+  for (let i=0;i<N;i++){ const q=raw[i], o=i*3;
+    path[o]=(q[0]-mid[0])/half; path[o+1]=(q[1]-mid[1])/half; path[o+2]=(q[2]-mid[2])/half; }
+  build();
 }
-const at = f => {                                           // interpolated point at a fractional, wrapping index
-  const n=path.length, i=((f%n)+n)%n, j=floor(i), k=(j+1)%n, t=i-j;
-  return path[j].map((v,a)=> v+(path[k][a]-v)*t); };
-function project(q){                                        // rotate (Y then X), flatten -> [screenX, screenY, depth]
-  const cyy=cos(ry),syy=sin(ry),cxx=cos(rx),sxx=sin(rx);
-  const X=q[0]*cyy+q[2]*syy, Z=-q[0]*syy+q[2]*cyy, Y=q[1], s=scl*zoom;
-  return [cx+X*s, cy+(Y*cxx-Z*sxx)*s, Y*sxx+Z*cxx];
-}
+// per-frame projection cache: rotation trig + scale change once per frame, not per point (set in draw)
+let _cyy=1,_syy=0,_cxx=1,_sxx=0,_scl=1;
+const A=[0,0,0], B=[0,0,0];                                 // reused projection scratch (no per-point allocation)
+let items=[];                                               // reused per-polygon pool (rebuilt only when count changes)
+
+// interpolate the trajectory at a fractional, wrapping index AND project it, writing [screenX, screenY, depth] into out
+const place = (f,out) => {
+  const n=pathN, i=((f%n)+n)%n, j=floor(i), k=(j+1)%n, t=i-j, j3=j*3, k3=k*3;
+  const x=path[j3]  +(path[k3]  -path[j3])  *t,
+        y=path[j3+1]+(path[k3+1]-path[j3+1])*t,
+        z=path[j3+2]+(path[k3+2]-path[j3+2])*t;
+  const X=x*_cyy+z*_syy, Z=-x*_syy+z*_cyy;                  // rotate (Y then X), flatten
+  out[0]=cx+X*_scl; out[1]=cy+(y*_cxx-Z*_sxx)*_scl; out[2]=y*_sxx+Z*_cxx;
+  return out; }
 function reticle(){                                         // faint + registration marks (skiatron motif)
   stroke(mix(.4)); strokeWeight(1); const m=22, g=7;
   [[m,m],[width-m,m],[m,height-m],[width-m,height-m]].forEach(([x,y])=>{ line(x-g,y,x+g,y); line(x,y-g,x,y+g); }); }
@@ -112,10 +121,15 @@ function draw(){
   if (light) { colorMode(RGB,255); background(168,169,163); }            // skiatron grey field
   else       { colorMode(HSB,360,100,100,255); background(218,50,7); }   // dark field
 
-  const th=THEMES[themeIx], n=path.length, gap=n/count, look=max(2,n*.0015), items=[];
-  for (let i=0;i<count;i++){                                // place each polygon along the path
-    const f=phase+i*gap, a=project(at(f)), b=project(at(f+look));
-    items.push({ x:a[0], y:a[1], d:a[2], ang:atan2(b[1]-a[1],b[0]-a[0]), t:((f%n+n)%n)/(n-1) });
+  _cyy=cos(ry); _syy=sin(ry); _cxx=cos(rx); _sxx=sin(rx); _scl=scl*zoom;   // cache rotation once/frame
+
+  const th=THEMES[themeIx], n=pathN, gap=n/count, look=max(2,n*.0015);
+  if (items.length!==count){                               // (re)size the pool only when the stream count changes
+    items.length=count; for (let i=0;i<count;i++) if(!items[i]) items[i]={x:0,y:0,d:0,ang:0,t:0};
+  }
+  for (let i=0;i<count;i++){                                // place each polygon along the path (overwrites pooled objects)
+    const f=phase+i*gap; place(f,A); place(f+look,B); const it=items[i];
+    it.x=A[0]; it.y=A[1]; it.d=A[2]; it.ang=atan2(B[1]-A[1],B[0]-A[0]); it.t=((f%n+n)%n)/(n-1);
   }
   items.sort((u,v)=>u.d-v.d);                               // painter's algorithm: far ones first
 
@@ -130,7 +144,7 @@ function draw(){
       const al=constrain(map(it.d,-1,1,55,235),40,255), h=(lerp(th.h[0],th.h[1],it.t)+hue)%360;
       fill(h,th.sat,th.bri,al*.6); stroke(h,th.sat,min(100,th.bri+8),al);
     }
-    beginShape(); for (const pt of poly) vertex(pt[0]*r, pt[1]*r); endShape(CLOSE);
+    beginShape(); for (let v=0;v<cn;v++) vertex(poly[v][0]*r, poly[v][1]*r); endShape(CLOSE);
     pop();
   }
   if (light) reticle();
