@@ -1,0 +1,932 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Latent Space — Process Transcript</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Hanken+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      (function () {
+        try {
+          if (
+            window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: light)").matches
+          ) {
+            document.documentElement.setAttribute("data-theme", "light");
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <style>
+      :root {
+        --bg: #13110a;
+        --surface: #1f1b07;
+        --line: #363100;
+        --olive-deep: #5e5600;
+        --olive: #877c00;
+        --gold-muted: #ab9c00;
+        --accent: #d9c700;
+        --text: #efe9cc;
+        --text-dim: #a89f6f;
+        --maxw: 820px;
+        --display: "Syne", sans-serif;
+        --body: "Hanken Grotesk", system-ui, sans-serif;
+        --mono: "JetBrains Mono", ui-monospace, monospace;
+      }
+      [data-theme="light"] {
+        --bg: #f6f2e2;
+        --surface: #ffffff;
+        --line: #e2d9af;
+        --olive-deep: #c7bc82;
+        --olive: #7a7100;
+        --gold-muted: #8c7e00;
+        --accent: #947700;
+        --text: #262200;
+        --text-dim: #6e6630;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--body);
+        font-size: 16px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+        transition:
+          background 0.3s ease,
+          color 0.3s ease;
+      }
+      .wrap {
+        max-width: var(--maxw);
+        margin: 0 auto;
+        padding: 0 28px;
+      }
+
+      .theme-toggle {
+        position: fixed;
+        top: 18px;
+        right: 18px;
+        z-index: 50;
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--text);
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 8px 14px;
+        cursor: pointer;
+        transition:
+          border-color 0.2s ease,
+          background 0.3s ease,
+          color 0.3s ease;
+      }
+      .theme-toggle:hover {
+        border-color: var(--accent);
+      }
+      .tt-dot {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        border: 1.5px solid var(--accent);
+        background: linear-gradient(90deg, var(--accent) 50%, transparent 50%);
+      }
+
+      .hero {
+        padding: 84px 0 40px;
+        border-bottom: 1px solid var(--line);
+      }
+      .back {
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--accent);
+        text-decoration: none;
+        border-bottom: 1px solid var(--olive-deep);
+        padding-bottom: 2px;
+        transition: border-color 0.2s;
+      }
+      .back:hover {
+        border-color: var(--accent);
+      }
+      .eyebrow {
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.32em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin: 30px 0 18px;
+      }
+      .hero h1 {
+        font-family: var(--display);
+        font-weight: 800;
+        font-size: clamp(2.6rem, 9vw, 4.6rem);
+        line-height: 0.95;
+        letter-spacing: -0.02em;
+      }
+      .hero h1 .em {
+        color: var(--accent);
+      }
+      .hero .sub {
+        margin-top: 18px;
+        color: var(--text-dim);
+        font-size: 1.02rem;
+        max-width: 56ch;
+      }
+
+      .turn {
+        padding: 30px 0;
+        border-top: 1px solid var(--line);
+      }
+      .turn:first-of-type {
+        border-top: none;
+      }
+      .who {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        margin-bottom: 14px;
+        display: inline-block;
+      }
+      .turn.user .who {
+        color: var(--accent);
+      }
+      .turn.claude .who {
+        color: var(--olive);
+      }
+      .turn.user .msg {
+        border-left: 2px solid var(--accent);
+        padding-left: 18px;
+      }
+      .msg > *:first-child {
+        margin-top: 0;
+      }
+      .msg p {
+        margin: 0 0 13px;
+      }
+      .msg p:last-child {
+        margin-bottom: 0;
+      }
+      .msg h3 {
+        font-family: var(--display);
+        font-weight: 600;
+        font-size: 1.16rem;
+        letter-spacing: -0.01em;
+        margin: 24px 0 9px;
+        color: var(--text);
+      }
+      .msg h4 {
+        font-family: var(--body);
+        font-weight: 600;
+        font-size: 1rem;
+        margin: 18px 0 6px;
+        color: var(--text);
+      }
+      .msg strong {
+        font-weight: 500;
+        color: var(--text);
+      }
+      .msg em {
+        color: var(--text-dim);
+        font-style: italic;
+      }
+      .msg ul,
+      .msg ol {
+        margin: 0 0 14px;
+        padding-left: 22px;
+      }
+      .msg li {
+        margin: 0 0 7px;
+      }
+      .ann {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        color: var(--olive);
+        opacity: 0.85;
+        margin: 0 0 14px;
+      }
+      .msg code {
+        font-family: var(--mono);
+        font-size: 0.86em;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 1px 5px;
+      }
+      .msg pre {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 14px 16px;
+        overflow-x: auto;
+        margin: 14px 0;
+      }
+      .msg pre code {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.6;
+        color: var(--text);
+        background: none;
+        border: none;
+        padding: 0;
+        white-space: pre;
+        display: block;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 14px 0;
+        font-family: var(--mono);
+        font-size: 13px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 7px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      th {
+        color: var(--olive);
+        font-weight: 500;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        font-size: 11px;
+      }
+      .sw {
+        display: inline-block;
+        width: 13px;
+        height: 13px;
+        border-radius: 3px;
+        vertical-align: -2px;
+        margin-right: 8px;
+        border: 1px solid rgba(0, 0, 0, 0.2);
+      }
+
+      footer {
+        padding: 38px 0 64px;
+        color: var(--text-dim);
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        border-top: 1px solid var(--line);
+        margin-top: 8px;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          transition: none !important;
+        }
+        html {
+          scroll-behavior: auto;
+        }
+      }
+      @media (max-width: 640px) {
+        .hero {
+          padding-top: 70px;
+        }
+      }
+      a:focus-visible,
+      button:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+        border-radius: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <button
+      id="themeToggle"
+      class="theme-toggle"
+      aria-label="Switch color theme"
+    >
+      <span class="tt-dot" aria-hidden="true"></span
+      ><span class="tt-label">Dark</span>
+    </button>
+
+    <header class="hero">
+      <div class="wrap">
+        <a class="back" href="index.html">&larr; Back to submission</a>
+        <div class="eyebrow">Process transcript</div>
+        <h1>Latent <span class="em">Space</span></h1>
+        <p class="sub">
+          A working session designing &ldquo;Solenne&rdquo; &mdash; writing
+          image-generation prompts for an original cel-shaded fighting-game
+          character, an anchor image, and the latent/variant prompts for
+          Midjourney (Niji 7) and Higgsfield.
+        </p>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <article class="turn user">
+        <span class="who">John</span>
+        <div class="msg">
+          <p>
+            I need help creating a video game character that will be generated
+            by either Midjourney or Higgsfield.ai. I need help writing the text
+            prompt to create an anchor image I can use to generate 5-8 latent
+            space variants of that anchor image.
+          </p>
+          <p>
+            I want a pixel perfect character, with the quality of the characters
+            in Marvel vs Capcom 2, BlazBlue Calamity Trigger, and DNF Duel (Arc
+            System Works).
+          </p>
+          <p>Let's iterate and generate the prompt.</p>
+        </div>
+      </article>
+
+      <article class="turn claude">
+        <span class="who">Claude</span>
+        <div class="msg">
+          <p class="ann">
+            [searched the web to confirm current Higgsfield and Midjourney
+            character-consistency capabilities]
+          </p>
+          <p>
+            I know these three references well, and there's a real technical
+            fork hiding in them that we should settle before writing anything.
+          </p>
+          <h3>The references aren't one style &mdash; they're two</h3>
+          <ul>
+            <li>
+              <strong>Marvel vs Capcom 2</strong> is
+              <em>true pixel art</em> &mdash; hand-pixeled sprites, limited
+              palette, a visible pixel grid, chunky comic-book coloring.
+              Circa-2000 sprite craft.
+            </li>
+            <li>
+              <strong>BlazBlue: Calamity Trigger</strong> is
+              <em>ultra-high-res hand-drawn 2D</em> &mdash; smooth anime
+              sprites, bold clean linework, soft cel shading. No visible pixels
+              at all.
+            </li>
+            <li>
+              <strong>DNF Duel</strong> is
+              <em>3D-rendered-to-look-2D</em> &mdash; the Guilty Gear Xrd
+              pipeline: 3D models with hand-tuned normals, thick deliberate
+              outlines, painterly textures, dramatic rim light.
+            </li>
+          </ul>
+          <p>
+            So &ldquo;pixel perfect&rdquo; plus those three is internally
+            contradictory &mdash; two of the three are deliberately
+            <em>not</em> pixels. My read is you mean &ldquo;crisp, clean,
+            artifact-free, high-fidelity,&rdquo; and that the BlazBlue/DNF
+            cel-shaded look is your real target.
+          </p>
+          <p>
+            One caveat: diffusion models render the cel-shaded anime-fighter
+            look superbly, but they're genuinely bad at true pixel art &mdash;
+            they fake it with smeared pseudo-pixels that aren't on a real grid.
+            If you actually want MvC2-grade sprites, that's a dedicated pixel
+            pipeline or a downscale/cleanup pass, not a one-shot prompt.
+          </p>
+          <h3>Platform steer</h3>
+          <p>
+            For this aesthetic, Midjourney is the stronger tool. Higgsfield's
+            consistency engine (Soul ID) is built around training a persistent
+            identity from real photos &mdash; tuned for photoreal
+            AI-influencer/video work, and it will tug a stylized cel-shaded 2D
+            character toward realism. Midjourney V7 with Niji 7 (their anime
+            model, released Jan 2026) is squarely in the target style.
+          </p>
+          <h3>What makes a good anchor for latent variants</h3>
+          <p>
+            Built for clarity, not drama: full-body, front or 3/4 view, even
+            neutral-but-characterful pose, flat plain background, even lighting,
+            and 3&ndash;4 strong distinctive identifiers (signature color,
+            silhouette, weapon/costume motif, hair shape) &mdash; those are what
+            the model latches onto across generations.
+          </p>
+          <h3>A skeleton to react to (cel-shaded)</h3>
+          <pre><code>full-body character sheet of [CHARACTER — archetype + build],
+[signature costume + 2–3 distinctive details], [color story],
+anime fighting game aesthetic, Arc System Works style, BlazBlue and DNF Duel,
+cel-shaded, bold clean linework, hand-painted textures, dramatic rim lighting,
+neutral standing pose, plain flat [color] background, sharp crisp edges, high detail
+--niji 7 --ar 2:3 --s 250</code></pre>
+          <p>Interactive questions asked:</p>
+          <ol>
+            <li>
+              Which render style are we actually targeting? &mdash; Cel-shaded
+              hi-res 2D (BlazBlue / DNF) &middot; True pixel sprite (MvC2)
+              &middot; Hybrid &mdash; advise me
+            </li>
+            <li>
+              Primary platform to tune the syntax for? &mdash; Midjourney + Niji
+              7 (my rec) &middot; Higgsfield &middot; Both / undecided
+            </li>
+            <li>
+              The character concept itself &mdash; I have one, I'll describe it
+              &middot; Propose a few concepts for me &middot; Let's build it
+              together from a vibe
+            </li>
+          </ol>
+        </div>
+      </article>
+
+      <article class="turn user">
+        <span class="who">John</span>
+        <div class="msg">
+          <ul>
+            <li>
+              Render style:
+              <strong>Cel-shaded hi-res 2D (BlazBlue / DNF)</strong>
+            </li>
+            <li>Platform: <strong>Both / undecided</strong></li>
+            <li>
+              Character concept: <strong>Propose a few concepts for me</strong>
+            </li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="turn claude">
+        <span class="who">Claude</span>
+        <div class="msg">
+          <p>
+            Four original concepts, each built silhouette-first with a single
+            instant-read hook and 3&ndash;4 hard visual identifiers.
+          </p>
+          <h4>1. The Duelist &mdash; &ldquo;Verge&rdquo;</h4>
+          <p>
+            Technical/precision archetype. Lean, upright, fencer posture.
+            High-collar split-tail coat, a single thin needle-rapier, one ornate
+            gauntlet. Cool palette: slate blue and bone white with a thread of
+            cold cyan. Hook: every line is clean and deliberate &mdash;
+            recognizable at 16 pixels.
+          </p>
+          <h4>2. The Bruiser &mdash; &ldquo;Slagheart&rdquo;</h4>
+          <p>
+            Grappler/heavy. Massive triangular upper-body mass, low center of
+            gravity. Welded scrap-plate, exposed musculature, a furnace-glow
+            seam down the chest. Warm palette: rust orange, charcoal, ember red.
+            Hook: the internal-furnace glow leaks heat &mdash; a built-in light
+            source for variants.
+          </p>
+          <h4>3. The Rhythm Trickster &mdash; &ldquo;Cadence&rdquo;</h4>
+          <p>
+            Mobile/mix-up. Wiry, asymmetric, perpetually mid-motion. Cropped
+            jacket with a waveform stitched on one sleeve, headphone-collar rig,
+            twin tuning-fork batons. Neon-on-dark: magenta and acid-green over
+            near-black. Hook: sound-made-visible &mdash; pulse rings and
+            frequency motifs.
+          </p>
+          <h4>4. The Zoner &mdash; &ldquo;Vellum&rdquo;</h4>
+          <p>
+            Mystic/space-control. Tall, draped, deceptively still. Layered
+            ceremonial robes pooling past the feet, a floating ring of inscribed
+            paper talismans, blindfold or lowered hood. Ethereal palette: deep
+            indigo, parchment cream, antique gold. Hook: the orbiting
+            talisman-ring is a portable identifier.
+          </p>
+          <p>Pick one, splice two, or tell me which hook grabs you.</p>
+        </div>
+      </article>
+
+      <article class="turn user">
+        <span class="who">John</span>
+        <div class="msg">
+          <p>
+            I'd like to go with a female protagonist. Maybe something a little
+            less masculine than a fencer. But respectfully strong, and passively
+            attractive.
+          </p>
+        </div>
+      </article>
+
+      <article class="turn claude">
+        <span class="who">Claude</span>
+        <div class="msg">
+          <h4>
+            Primary: &ldquo;Solenne&rdquo; &mdash; the kinetic martial artist
+          </h4>
+          <p>
+            The honest, balanced protagonist type, built around grace rather
+            than the duelist's point-precision. Athletic and grounded &mdash;
+            real strength in the shoulders, arms, and stance, but proportioned
+            naturally. Medium-tall, easy confident posture, weight settled and
+            ready.
+          </p>
+          <p>
+            Costume is practical-but-elegant: a wrapped tunic cinched with a
+            wide sash, fitted wrapped trousers, hand wraps, split-toe footing.
+            Fully covered and built for movement &mdash; appeal from line and
+            poise, not exposure. The one indulgence is a single asymmetric
+            trailing sash panel that flows behind her.
+          </p>
+          <p>
+            Color story: warm and protagonist-friendly &mdash; terracotta red
+            and cream with a single jade-green accent.
+          </p>
+          <p>
+            Four hard identifiers: the trailing accent sash, a distinctive
+            braided/tied-up hairstyle, the hand wraps plus one pendant or
+            arm-band, and a clean strong silhouette.
+          </p>
+          <p>
+            On &ldquo;respectfully strong, passively attractive&rdquo; &mdash;
+            appeal designed through an expressive, determined-but-warm face,
+            graceful ready posture, and elegant linework, with strength reading
+            as genuine capability. The dignified-heroine register, not
+            fanservice.
+          </p>
+          <p>
+            Lever: if she carries a weapon, a bo staff or glaive keeps the grace
+            and adds reach without the fencer vibe. Otherwise she's an unarmed
+            striker.
+          </p>
+        </div>
+      </article>
+
+      <article class="turn user">
+        <span class="who">John</span>
+        <div class="msg"><p>yes, please!</p></div>
+      </article>
+
+      <article class="turn claude">
+        <span class="who">Claude</span>
+        <div class="msg">
+          <h3>Midjourney / Niji 7 &mdash; anchor prompt</h3>
+          <pre><code>full-body character sheet of Solenne, a confident young woman martial artist,
+athletic grounded build, toned shoulders and arms, natural proportions,
+warm determined expression, dark hair in a distinctive braided tied-up style,
+wearing a wrapped terracotta-red tunic cinched with a wide cream sash,
+fitted wrapped trousers, hand wraps, split-toe footwear,
+a single asymmetric sash panel trailing behind her, jade-green accent details,
+a small pendant, relaxed ready fighting stance,
+anime fighting game aesthetic, Arc System Works style, BlazBlue and DNF Duel,
+cel-shaded, bold clean linework, hand-painted textures,
+even soft studio lighting, plain flat light-grey background,
+sharp crisp edges, high detail, full body head to toe
+--niji 7 --ar 2:3 --s 200</code></pre>
+          <p>
+            <code>--s</code> controls stylization &mdash; ~350 for a more
+            painterly DNF feel, ~100 if it drifts. Pick the cleanest silhouette,
+            upscale it &mdash; that's your anchor.
+          </p>
+          <p>
+            Variant workflow (V7) &mdash; as originally drafted (later
+            corrected): keep the style block identical, change only the pose
+            line, attach the anchor with
+            <code>--oref &lt;URL&gt; --ow 500 --sref &lt;URL&gt;</code>.
+            <em
+              >(Note: this approach was revised later in the chat &mdash; Omni
+              Reference is V7-only and not supported on Niji 7.)</em
+            >
+          </p>
+          <h3>Higgsfield &mdash; anchor prompt</h3>
+          <pre><code>2D anime fighting game character art, cel-shaded illustration, Arc System Works
+style, in the style of BlazBlue and DNF Duel — full-body character sheet of a
+confident young woman martial artist named Solenne. Athletic grounded build,
+toned arms, natural proportions, warm determined expression. Dark hair in a
+distinctive braided tied-up style. Wrapped terracotta-red tunic with a wide cream
+sash, fitted wrapped trousers, hand wraps, split-toe footwear, a single asymmetric
+sash panel trailing behind her, jade-green accents, small pendant. Relaxed ready
+fighting stance. Bold clean linework, flat cel shading, hand-painted textures,
+plain flat light-grey background, sharp crisp edges. NOT photorealistic, NOT 3D render.</code></pre>
+          <p>
+            Higgsfield's consistency stack is tuned for photoreal faces, so the
+            explicit &ldquo;NOT photorealistic / NOT 3D&rdquo; tail and heavy
+            style front-loading counter that pull.
+          </p>
+          <h3>Recommendation</h3>
+          <p>
+            Run the same anchor through both. Niji 7 should hold the cel-shaded
+            identity better for stills. Higgsfield earns its place at the
+            animation step &mdash; generate the clean anchor in Niji, then bring
+            it into Higgsfield as the reference for movement.
+          </p>
+        </div>
+      </article>
+
+      <article class="turn user">
+        <span class="who">John</span>
+        <div class="msg">
+          <p>can we mess with the chromatics (color scheme)?</p>
+          <pre><code>#AB9C00
+#877C00
+#5E5600
+#363100
+#D9C700 (primary)</code></pre>
+        </div>
+      </article>
+
+      <article class="turn claude">
+        <span class="who">Claude</span>
+        <div class="msg">
+          <p>
+            These five are a monochromatic colorway: one hue (gold-olive,
+            ~53&deg;) walked across the value range from near-black
+            <code>#363100</code> up to a vivid <code>#D9C700</code> primary. A
+            &ldquo;golden champion&rdquo; identity &mdash; strong select-screen
+            recognition. The risk with monochrome is value flattening; the fix
+            is to let <code>#363100</code> carry the linework and deepest
+            shadows, <code>#D9C700</code> carry the highlights and signature
+            sash, keep her skin natural and the background neutral cool grey.
+          </p>
+          <p>Tone &rarr; costume-zone mapping (dark &rarr; light):</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Hex</th>
+                <th>Role</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <span class="sw" style="background: #363100"></span>#363100
+                </td>
+                <td>Hair, lines, shadow</td>
+              </tr>
+              <tr>
+                <td>
+                  <span class="sw" style="background: #5e5600"></span>#5E5600
+                </td>
+                <td>Wraps, footwear</td>
+              </tr>
+              <tr>
+                <td>
+                  <span class="sw" style="background: #877c00"></span>#877C00
+                </td>
+                <td>Trousers, cinch</td>
+              </tr>
+              <tr>
+                <td>
+                  <span class="sw" style="background: #ab9c00"></span>#AB9C00
+                </td>
+                <td>Tunic body</td>
+              </tr>
+              <tr>
+                <td>
+                  <span class="sw" style="background: #d9c700"></span>#D9C700
+                </td>
+                <td>Sash, highlights (primary)</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            <code>#363100</code> and <code>#5E5600</code> do the heavy lifting
+            as the darks &mdash; without them the brighter three flatten into a
+            single gold smear.
+          </p>
+          <h3>Midjourney / Niji 7 &mdash; re-skinned</h3>
+          <pre><code>full-body character sheet of Solenne, a confident young woman martial artist,
+athletic grounded build, toned shoulders and arms, natural proportions,
+warm determined expression, natural skin tone,
+near-black olive-brown hair in a distinctive braided tied-up style (#363100),
+wearing a wrapped antique-gold tunic (#AB9C00) cinched with a darker olive-gold sash (#877C00),
+fitted olive-gold wrapped trousers, deep-olive hand wraps and split-toe footwear (#5E5600),
+a single asymmetric vivid golden-yellow sash panel trailing behind her (#D9C700, brightest accent),
+small dark pendant, relaxed ready fighting stance,
+monochromatic gold and olive colorway, single-hue tonal yellow palette,
+anime fighting game aesthetic, Arc System Works style, BlazBlue and DNF Duel,
+cel-shaded, bold clean linework, hand-painted textures,
+even soft studio lighting, plain flat cool light-grey background,
+sharp crisp edges, high detail, full body head to toe
+--niji 7 --ar 2:3 --s 200</code></pre>
+          <p>
+            The phrase doing the most work is
+            <code
+              >monochromatic gold and olive colorway, single-hue tonal yellow
+              palette</code
+            >
+            &mdash; it stops the model inventing a contrasting color. Keep the
+            background cool light-grey so the warm gold pops hardest.
+          </p>
+          <h3>Higgsfield &mdash; re-skinned</h3>
+          <pre><code>2D anime fighting game character art, cel-shaded illustration, Arc System Works
+style, in the style of BlazBlue and DNF Duel — full-body character sheet of a
+confident young woman martial artist named Solenne. Athletic grounded build,
+toned arms, natural proportions, warm determined expression, natural skin tone.
+Strictly monochromatic gold-and-olive color scheme, single hue across the whole
+figure. Near-black olive-brown hair in a distinctive braided tied-up style.
+Antique-gold wrapped tunic, darker olive-gold sash, olive-gold wrapped trousers,
+deep-olive hand wraps and split-toe footwear, and one vivid golden-yellow sash
+panel trailing behind her as the single brightest accent. Small dark pendant.
+Relaxed ready fighting stance. Bold clean linework, flat cel shading, hand-painted
+textures, cool flat light-grey background, sharp crisp edges.
+NOT photorealistic, NOT 3D render, no colors outside the gold-olive family.</code></pre>
+          <h3>Optional lever</h3>
+          <p>
+            A fully monochrome character can read flat in personality &mdash;
+            fighting-game leads often get one tiny non-palette
+            &ldquo;spark&rdquo; (irises, a thread in the sash). A cool spark
+            (teal or violet) is the complement and pops against gold. Optional,
+            and it breaks the strict five-color rule.
+          </p>
+        </div>
+      </article>
+
+      <article class="turn user">
+        <span class="who">John</span>
+        <div class="msg">
+          <p>now i need latent space variations of the prompts</p>
+        </div>
+      </article>
+
+      <article class="turn claude">
+        <span class="who">Claude</span>
+        <div class="msg">
+          <p>Two genuinely different operations:</p>
+          <ul>
+            <li>
+              True latent neighbors &mdash; hold prompt and seed roughly fixed,
+              perturb the latent. Same character/pose, small organic
+              differences. For picking the best anchor.
+            </li>
+            <li>
+              Identity-held content variants &mdash; hold the character fixed
+              via reference, change pose/angle/expression. The 5&ndash;8 sheet a
+              game needs.
+            </li>
+          </ul>
+          <h3>Path A &mdash; true latent neighbors</h3>
+          <p>
+            Midjourney: grab the anchor's seed (envelope react, or
+            <code>/show</code>), re-run the exact prompt with
+            <code>--seed &lt;N&gt; --chaos 8</code> (4&ndash;12 walks the
+            immediate neighborhood). Or hit Vary (Subtle) / Vary (Strong) on the
+            upscaled anchor.
+          </p>
+          <p>
+            Higgsfield: use built-in variation/remix on the anchor, or re-run
+            with the character-reference upload and identical pose text. Wider
+            spread than MJ.
+          </p>
+          <h3>Path B &mdash; the variant set</h3>
+          <p>Constant tail defined once; only <code>[POSE]</code> changes:</p>
+          <pre><code>[POSE],
+monochromatic gold and olive colorway, single-hue tonal yellow palette,
+anime fighting game aesthetic, Arc System Works style, BlazBlue and DNF Duel,
+cel-shaded, bold clean linework, hand-painted textures,
+even soft studio lighting, plain flat cool light-grey background,
+sharp crisp edges, high detail
+--oref &lt;anchor-URL&gt; --ow 500 --sref &lt;anchor-URL&gt; --niji 7 --ar 2:3</code></pre>
+          <p>
+            <em>(This --oref/--ow form was corrected in the next turn.)</em>
+          </p>
+          <p>Eight <code>[POSE]</code> lines:</p>
+          <pre><code>1. full-body Solenne in a low ready fighting stance, fists raised, weight settled
+2. full-body Solenne mid spinning roundhouse kick, dynamic motion, trailing sash flaring out
+3. full-body Solenne in a relaxed victory pose, one hand on hip, confident half-smile
+4. full-body Solenne in a defensive guard crouch, forearms braced to block, low stance
+5. full-body Solenne mid hit-stagger, recoiling backward off-balance, sash whipping forward
+6. full-body Solenne from a three-quarter rear angle, turning, showing the back of the costume and trailing sash
+7. full-body Solenne in a clean side-profile stance, strong readable silhouette
+8. head-and-shoulders portrait of Solenne, expression sheet — focused, fierce shout, calm</code></pre>
+          <h3>Bonus &mdash; the alt color (&ldquo;player 2&rdquo;)</h3>
+          <p>Keep every pose and the style block, swap the colorway clause:</p>
+          <pre><code>monochromatic slate-and-teal colorway, single-hue cool palette,
+near-black teal hair, slate-blue tunic, deep teal wraps,
+one vivid cyan sash panel as the single brightest accent</code></pre>
+        </div>
+      </article>
+
+      <article class="turn user">
+        <span class="who">John</span>
+        <div class="msg">
+          <p>
+            I'm able to upload an image, so i'm not using --oref or --sref, but
+            I'm getting a 'Version niji 7 doesn't support --ow' message from
+            midjourney.
+          </p>
+        </div>
+      </article>
+
+      <article class="turn claude">
+        <span class="who">Claude</span>
+        <div class="msg">
+          <p class="ann">
+            [searched the web to confirm Niji 7 / V7 reference-parameter
+            support]
+          </p>
+          <p>
+            I had the reference mechanism wrong for Niji, and the error
+            pinpoints why. <code>--oref</code>, <code>--ow</code>, and the old
+            <code>--cref</code> are Omni Reference, which is V7-only, and Niji 7
+            doesn't support character/object reference at all &mdash; so there's
+            no true character-lock on Niji 7. Scrap the Omni Reference variant
+            kit for the Niji path.
+          </p>
+          <h3>What actually works on Niji 7</h3>
+          <p>
+            The uploaded image acts as an image prompt, dialed with
+            <code>--iw</code> (image weight), not <code>--ow</code>. On Niji 7
+            that runs 0&ndash;2 (default 1); at <code>--iw 2</code> you hold
+            pose, vibe, and colors most tightly. Niji 7 also supports
+            <code>--sref</code> (style reference).
+          </p>
+          <p>
+            The catch: with no identity lock, the text must carry consistency
+            &mdash; put her full fixed description (hair, costume, palette) in
+            every prompt.
+          </p>
+          <p>Corrected variant template (upload anchor as image prompt):</p>
+          <pre><code>full-body [POSE] of Solenne, confident young woman martial artist, athletic grounded build,
+natural skin tone, near-black olive-brown hair in a braided tied-up style,
+antique-gold wrapped tunic, olive-gold sash and trousers, deep-olive hand wraps,
+one vivid golden-yellow trailing sash panel, small dark pendant,
+monochromatic gold and olive colorway, anime fighting game aesthetic,
+Arc System Works style, cel-shaded, bold clean linework, plain flat cool light-grey background
+--iw 2 --niji 7 --ar 2:3</code></pre>
+          <p>
+            Same <code>[POSE]</code> swaps as before; optionally add
+            <code>--sref &lt;anchor-URL&gt;</code> to lock the style.
+          </p>
+          <h3>The fork (consistency vs. aesthetic)</h3>
+          <ul>
+            <li>
+              Stay on Niji 7: best anime look, identity wobbles. Mitigate with
+              <code>--iw 2</code>, full description every time, cherry-pick.
+            </li>
+            <li>
+              Switch variants to V7 + Omni Reference: real character lock.
+              (Correction: <code>--ow</code> default is 100, practical range
+              ~50&ndash;250; above 400&ndash;500 degrades &mdash;
+              &ldquo;500&rdquo; was too hot.) V7's base look is less
+              anime-specialized.
+            </li>
+            <li>
+              Hybrid (recommended): generate the anchor in Niji 7, run variants
+              in V7 with <code>--oref &lt;niji-anchor&gt;</code>. Omni Reference
+              accepts external images, so the Niji look carries into V7's
+              stronger consistency. One model switch between anchor and
+              variants.
+            </li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="turn user">
+        <span class="who">John</span>
+        <div class="msg">
+          <p>
+            Produce the markdown transcript of this entire chat in markdown
+            format.
+          </p>
+        </div>
+      </article>
+
+      <article class="turn claude">
+        <span class="who">Claude</span>
+        <div class="msg">
+          <p>
+            <em
+              >(This transcript &mdash; originally produced as markdown, now
+              also rendered as this HTML page.)</em
+            >
+          </p>
+        </div>
+      </article>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        Latent Space &middot; process transcript &middot; John McSwain
+      </div>
+    </footer>
+
+    <script>
+      var root = document.documentElement;
+      var btn = document.getElementById("themeToggle");
+      function syncLabel() {
+        var light = root.getAttribute("data-theme") === "light";
+        btn.querySelector(".tt-label").textContent = light ? "Light" : "Dark";
+        btn.setAttribute(
+          "aria-label",
+          "Switch to " + (light ? "dark" : "light") + " theme",
+        );
+      }
+      syncLabel();
+      btn.addEventListener("click", function () {
+        if (root.getAttribute("data-theme") === "light") {
+          root.removeAttribute("data-theme");
+        } else {
+          root.setAttribute("data-theme", "light");
+        }
+        syncLabel();
+      });
+    </script>
+  </body>
+</html>
