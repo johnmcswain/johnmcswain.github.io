@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+================================================================================
+  SEISMA — a living seismic mandala                                (mandala.html)
+================================================================================
+  Self-contained: all markup, styles, and the sketch are inline. Only the p5.js
+  library is loaded from CDN. A generative mandala that plants live USGS
+  earthquakes on a golden-angle (phyllotaxis) spiral. Magnitude -> size,
+  depth -> color (via a selectable color-theory harmony). Seed shapes unify
+  Celtic knotwork with the torus: elaborate seeds are 2-D projections of (p,q)
+  torus knots, drawn beside torus rings.
+
+  (For the p5.js Web Editor, use the companion sketch.js instead of this file.)
+
+  DATA SOURCES  (button top-left / D)
+    LIVE       real USGS feed supplies the randomness (refreshes ~60s)
+    SYNTHETIC  a designed, rotationally symmetric specimen showing every shape
+
+  CONTROLS
+    <- ->  symmetry (1..12)        F  magnitude feed        P  time window
+    C      color harmony           [ ] hold to scrub hue    D  data source
+    R      reseed                  Space  pause spin         S  save PNG
+    hover  event details           click  open USGS event page
+
+  Performance: pixelDensity 1, cached torus-knot polylines, size-based LOD,
+  precomputed seed positions, move-gated hover, lite path above 1,400 seeds.
+
+--------------------------------------------------------------------------------
+  Author : John McSwain (jimcswain@smu.edu)
+  Repo   : https://github.com/johnmcswain/johnmcswain.github.io/blob/master/crcp6310/week6/sketch.js
+  Live   : https://johnmcswain.github.io/crcp6310/week6/mandala.html
+================================================================================
+-->
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>SEISMA — a living seismic mandala</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;1,9..144,400;1,9..144,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+<style>
+  :root{
+    --abyss:#0a0d13; --char:#11151e; --ash:#7c8597; --bone:#e9e4d6;
+    --ember:#ff8a4c; --box:rgba(233,228,214,0.16);
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; background:var(--abyss); overflow:hidden; }
+  body{ font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace; color:var(--bone); }
+  canvas{ display:block; }
+  .overlay{ position:fixed; inset:0; pointer-events:none; z-index:10; }
+  .masthead{ position:absolute; top:22px; left:24px; }
+  .eyebrow{ font-size:10.5px; letter-spacing:0.34em; text-transform:uppercase; color:var(--ash); }
+  .eyebrow .dot{ color:var(--ember); }
+  .title{ font-family:"Fraunces",Georgia,serif; font-style:italic; font-weight:400;
+    font-size:46px; line-height:0.92; letter-spacing:0.01em; margin-top:4px; }
+  .strap{ font-size:11px; color:var(--ash); margin-top:6px; letter-spacing:0.04em; }
+  .panel{ position:absolute; bottom:22px; left:24px; font-size:11.5px; line-height:1.7; max-width:320px; }
+  .row{ display:flex; gap:10px; }
+  .k{ color:var(--ash); min-width:84px; text-transform:uppercase; letter-spacing:0.12em; font-size:10px; padding-top:2px; }
+  .v{ color:var(--bone); }
+  .v.big{ font-family:"Fraunces",serif; font-style:italic; font-size:16px; }
+  .legend{ margin-top:14px; }
+  .ramp{ height:7px; width:200px; border-radius:4px; margin:5px 0 3px; background:#888; }
+  .rampscale{ display:flex; justify-content:space-between; width:200px; color:var(--ash); font-size:9.5px; letter-spacing:0.08em; }
+  .hover{ position:absolute; top:84px; right:24px; text-align:right; min-width:220px; opacity:0; transition:opacity .18s ease; }
+  .hover.on{ opacity:1; }
+  .hover .mag{ font-family:"Fraunces",serif; font-style:italic; font-size:40px; line-height:1; }
+  .hover .place{ font-size:11.5px; color:var(--bone); margin-top:6px; }
+  .hover .meta{ font-size:10.5px; color:var(--ash); margin-top:4px; letter-spacing:0.04em; }
+  .controls{ position:absolute; bottom:22px; right:24px; text-align:right; font-size:10.5px; color:var(--ash); line-height:1.85; letter-spacing:0.03em; }
+  .controls b{ color:var(--bone); font-weight:500; }
+  .controls .feed{ color:var(--ember); }
+  .status{ position:absolute; top:50px; right:24px; font-size:10px; color:var(--ash); letter-spacing:0.14em; text-transform:uppercase; opacity:.75; }
+  .status.live::before{ content:"\25CF  "; color:#5fd38a; }
+  .status.offline::before{ content:"\25CF  "; color:var(--ember); }
+  .status.loading::before{ content:"\25CB  "; }
+  .status.synth::before{ content:"\25C7  "; color:#7aa7ff; }
+  .btn{ pointer-events:auto; cursor:pointer; font-family:inherit; font-size:10px;
+    letter-spacing:0.2em; text-transform:uppercase; color:var(--bone);
+    background:rgba(20,24,32,0.5); border:1px solid var(--box);
+    padding:6px 11px; border-radius:5px; transition:all .15s ease; }
+  .btn:hover{ border-color:var(--ember); color:var(--ember); }
+  .harmonybtn{ position:absolute; top:18px; right:24px; min-width:96px; }
+  .databtn{ position:absolute; top:108px; left:24px; min-width:104px; }
+  @media (max-width:640px){
+    .title{ font-size:34px; } .legend,.controls .extra{ display:none; }
+    .panel{ font-size:10.5px; } .hover .mag{ font-size:30px; }
+  }
+</style>
+</head>
+<body>
+<div class="overlay">
+  <div class="masthead">
+    <div class="eyebrow">USGS <span class="dot">&middot;</span> live seismic feed</div>
+    <div class="title">Seisma</div>
+    <div class="strap">a mandala of the restless earth</div>
+  </div>
+  <button class="btn databtn" id="databtn">DATA: LIVE</button>
+  <button class="btn harmonybtn" id="harmonybtn">TRIAD</button>
+  <div class="status loading" id="status">connecting</div>
+  <div class="hover" id="hover">
+    <div class="mag" id="h-mag">&mdash;</div>
+    <div class="place" id="h-place"></div>
+    <div class="meta" id="h-meta"></div>
+  </div>
+  <div class="panel">
+    <div class="row"><span class="k">Source</span><span class="v big" id="s-src">&mdash;</span></div>
+    <div class="row"><span class="k">Feed</span><span class="v" id="s-feed">&mdash;</span></div>
+    <div class="row"><span class="k">Events</span><span class="v" id="s-count">&mdash;</span></div>
+    <div class="row"><span class="k">Strongest</span><span class="v" id="s-max">&mdash;</span></div>
+    <div class="row"><span class="k">Symmetry</span><span class="v" id="s-sym">&mdash;</span></div>
+    <div class="row"><span class="k">Palette</span><span class="v" id="s-pal">&mdash;</span></div>
+    <div class="row"><span class="k">Updated</span><span class="v" id="s-upd">&mdash;</span></div>
+    <div class="legend">
+      <div class="row"><span class="k">Depth</span></div>
+      <div class="ramp"></div>
+      <div class="rampscale"><span>0 km</span><span>shallow &rarr; deep</span><span>700</span></div>
+      <div class="row" style="margin-top:6px"><span class="k">Size</span><span class="v" style="font-size:10.5px">= magnitude</span></div>
+    </div>
+  </div>
+  <div class="controls">
+    <div><b>&larr; &rarr;</b> symmetry</div>
+    <div class="extra"><b>F</b> magnitude <span class="feed" id="c-mag">all</span></div>
+    <div class="extra"><b>P</b> window <span class="feed" id="c-per">day</span></div>
+    <div class="extra"><b>C</b> palette &middot; <b>[ ]</b> hue (hold to scrub)</div>
+    <div class="extra"><b>D</b> data source &middot; <b>R</b> reseed &middot; <b>Space</b> spin &middot; <b>S</b> save</div>
+  </div>
+</div>
+<script>
+'use strict';
+
+/* DOM helpers — guarded so the sketch also runs headless in the p5.js editor */
+function $(id){ return document.getElementById(id); }
+function setText(id, v){ const e = $(id); if(e) e.textContent = v; }
+
+/* ---------------- constants ---------------- */
+const GOLDEN    = Math.PI * (3 - Math.sqrt(5));        // ~137.5 degrees
+const TAU       = Math.PI * 2;
+const MAG_KEYS  = ['all', '2.5', '4.5', 'significant'];
+const MAG_LABEL = { all:'all', ['2.5']:'M2.5+', ['4.5']:'M4.5+', significant:'major' };
+const PERIODS   = ['hour', 'day', 'week', 'month'];
+const SIZE_EXP  = 2.05, SIZE_MUL = 1.7, SIZE_MIN = 2.5, SIZE_MAX = 84;
+const GLOW      = 0.1;                                  // bloom strength (90% reduced)
+const DENSE_AT  = 1400;                                 // switch to lite drawing above this
+
+/* ---------------- state ---------------- */
+let quakes = [], shown = [], liveQuakes = [], specimen = null;
+let magIdx = 0, perIdx = 1;
+let symmetry = 1, seedVal = 1234;
+let globalRot = 0, paused = false, motion = 1;
+let hovered = null, lastUpdated = 0, reduceMotion = false;
+let harmony = 0, BASE_HUE = 38;
+let dataMode = 'live';                                  // 'live' | 'synthetic'
+let liveState = 'loading';
+
+/* ---------------- color harmonies ---------------- */
+function hsv(h, s, v){
+  h = ((h % 360) + 360) % 360;
+  const c = v*s, x = c*(1 - Math.abs(((h/60)%2)-1)), m = v-c;
+  let r,g,b;
+  if(h<60){r=c;g=x;b=0;} else if(h<120){r=x;g=c;b=0;} else if(h<180){r=0;g=c;b=x;}
+  else if(h<240){r=0;g=x;b=c;} else if(h<300){r=x;g=0;b=c;} else {r=c;g=0;b=x;}
+  return [(r+m)*255, (g+m)*255, (b+m)*255];
+}
+function rampHue(anchors, t){
+  const seg = Math.min(Math.max(t,0),1) * (anchors.length-1);
+  const i = Math.floor(seg), f = seg - i;
+  const a = anchors[Math.min(i, anchors.length-1)], b = anchors[Math.min(i+1, anchors.length-1)];
+  return a + (b-a)*f;
+}
+function lerpN(a,b,t){ return a + (b-a)*t; }
+const HARMONY = {
+  triad:      t => hsv(rampHue([BASE_HUE, BASE_HUE+120, BASE_HUE+240], t), 0.85, lerpN(1.0,0.70,t)),
+  tetrad:     t => hsv(rampHue([BASE_HUE, BASE_HUE+90, BASE_HUE+180, BASE_HUE+270], t), 0.82, lerpN(1.0,0.70,t)),
+  analogous:  t => hsv(rampHue([BASE_HUE-30, BASE_HUE, BASE_HUE+30, BASE_HUE+60], t), 0.80, lerpN(1.0,0.72,t)),
+  compound:   t => hsv( t<0.5 ? lerpN(BASE_HUE-10,BASE_HUE+10,t/0.5) : lerpN(BASE_HUE+170,BASE_HUE+190,(t-0.5)/0.5), 0.82, lerpN(1.0,0.72,t)),
+  shades:     t => hsv(BASE_HUE, 0.90, lerpN(1.0,0.22,t)),
+  monochrome: t => hsv(BASE_HUE, lerpN(0.32,0.95,t), lerpN(1.0,0.50,t)),
+};
+const HARMONY_KEYS = ['triad','tetrad','analogous','compound','shades','monochrome'];
+function depthColor(depth){ return HARMONY[HARMONY_KEYS[harmony]](Math.min(Math.max(depth,0),700)/700); }
+
+/* ---------------- shape vocabulary ---------------- */
+function torusRing(rO, rI, ticks){
+  noFill(); circle(0,0,rO*2); circle(0,0,rI*2);
+  for(let i=0;i<ticks;i++){ const a=i*TAU/ticks; line(Math.cos(a)*rI,Math.sin(a)*rI,Math.cos(a)*rO,Math.sin(a)*rO); }
+}
+function ripple(r, rings){
+  noFill();
+  for(let i=1;i<=rings;i++){ strokeWeight(map(i,1,rings,1.6,0.4)); circle(0,0,r*2*i/rings); }
+}
+/* cached (p,q) torus-knot polylines (unit radius, ratio = tube/R), keyed + LOD'd */
+const knotCache = {};
+function knotPts(p, q, ratio, steps){
+  const key = p+'_'+q+'_'+ratio+'_'+steps;
+  let pts = knotCache[key];
+  if(!pts){
+    pts = new Float32Array((steps+1)*2);
+    for(let i=0;i<=steps;i++){ const th=i/steps*TAU, rad=1+ratio*Math.cos(q*th);
+      pts[i*2]=Math.cos(p*th)*rad; pts[i*2+1]=Math.sin(p*th)*rad; }
+    knotCache[key] = pts;
+  }
+  return pts;
+}
+function emit(pts, scl){ beginShape(); for(let i=0;i<pts.length;i+=2) vertex(pts[i]*scl, pts[i+1]*scl); endShape(); }
+function lodSteps(scl){ return scl<16 ? 56 : scl<32 ? 84 : 120; }
+
+/* glow helpers: faint halo -> body -> bright inner strand (woven ribbon) */
+function ringGlow(rO,rI,ticks,a,r,g,b,w,lite){
+  noFill();
+  if(!lite){ stroke(r,g,b,a*0.22*GLOW); strokeWeight(w*3.2); torusRing(rO,rI,ticks); }
+  stroke(r,g,b,a); strokeWeight(w); torusRing(rO,rI,ticks);
+}
+function knotGlow(p,q,ratio,scl,a,r,g,b,w,lite){
+  const pts = knotPts(p,q,ratio,lodSteps(scl));
+  noFill();
+  if(!lite){ stroke(r,g,b,a*0.22*GLOW); strokeWeight(w*3.2); emit(pts,scl); }
+  stroke(r,g,b,a); strokeWeight(w); emit(pts,scl);
+  if(!lite){ stroke(lerpN(r,255,0.6),lerpN(g,255,0.6),lerpN(b,255,0.6),a*0.6); strokeWeight(Math.max(0.6,w*0.4)); emit(pts,scl); }
+}
+
+/* ---------------- p5 lifecycle ---------------- */
+function setup(){
+  createCanvas(windowWidth, windowHeight);
+  pixelDensity(1);                                       // perf: no HiDPI oversampling
+  reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(reduceMotion) motion = 0;
+  const cv = document.querySelector('canvas'); if(cv) cv.style.cursor = 'crosshair';
+  const hb = $('harmonybtn'); if(hb){ hb.textContent = HARMONY_KEYS[harmony].toUpperCase(); hb.addEventListener('click', cycleHarmony); }
+  const db = $('databtn');    if(db){ db.textContent = 'DATA: LIVE'; db.addEventListener('click', toggleData); }
+  updateRamp();
+  fetchFeed();
+  setInterval(fetchFeed, 60000);
+}
+function windowResized(){ resizeCanvas(windowWidth, windowHeight); layout(); }
+
+function draw(){
+  // hold-to-scrub base hue ([ = 219, ] = 221)
+  if(keyIsDown(219) || keyIsDown(221)){
+    BASE_HUE = (BASE_HUE + (keyIsDown(221)?1.6:0) - (keyIsDown(219)?1.6:0) + 360) % 360;
+    recolor(); updateRamp();
+    setText('s-pal', HARMONY_KEYS[harmony] + ' \u00b7 ' + Math.round(BASE_HUE) + '\u00b0');
+  }
+
+  background(10,13,19);
+  push();
+  translate(width/2, height/2);
+  if(!paused && !reduceMotion) globalRot += 0.0011;
+  rotate(globalRot);
+
+  drawChart();
+
+  const lite = shown.length > DENSE_AT;
+  const step = TAU / symmetry;
+  blendMode(ADD);
+  for(let s=0;s<symmetry;s++){
+    push(); rotate(s*step);
+    for(let i=0;i<shown.length;i++) drawSeed(shown[i], lite);
+    pop();
+  }
+  blendMode(BLEND);
+
+  noStroke(); fill(233,228,214,30); circle(0,0,6);
+  pop();
+
+  // perf: only re-test hover on mouse-move, with a periodic catch-up for rotation
+  if(mouseX!==pmouseX || mouseY!==pmouseY || frameCount%6===0) detectHover();
+}
+
+function drawChart(){
+  const maxR = Math.min(width,height)*0.47;
+  noFill(); stroke(233,228,214,12); strokeWeight(1);
+  for(let i=1;i<=6;i++) circle(0,0,maxR*2*i/6);
+  if(symmetry>1){
+    stroke(233,228,214,8);
+    for(let i=0;i<symmetry;i++){ const a=i*TAU/symmetry; line(0,0,Math.cos(a)*maxR,Math.sin(a)*maxR); }
+  }
+}
+
+function drawSeed(q, lite){
+  push();
+  translate(q.px, q.py);
+  if(!lite && q.spinSpeed) rotate(q.spin + frameCount*q.spinSpeed*motion);
+  const c=q.col, r=c[0], g=c[1], b=c[2];
+  let a = q.alpha;
+  if(q.recent && !reduceMotion) a *= 0.55 + 0.45*Math.sin(frameCount*0.07 + q.phase);
+  if(q===hovered) a = Math.min(255, a*1.45);
+  const s = q.size;
+
+  if(q.mag < 2.5){
+    noStroke();
+    if(lite){ fill(r,g,b,a); circle(0,0,Math.max(1.3,s*0.6)); }
+    else { fill(r,g,b,a*0.14); circle(0,0,s*1.7);
+      noFill(); stroke(r,g,b,a); strokeWeight(0.8); circle(0,0,s*0.95); }
+  } else if(q.mag < 4.5){
+    ringGlow(s, s*0.5, 8, a, r,g,b, 1.0, lite);
+  } else if(q.mag < 6){
+    knotGlow(q.kp, q.kq, 0.378, s*0.9, a, r,g,b, 1.1, lite);
+    if(!lite){ noFill(); stroke(r,g,b,a*0.22); strokeWeight(0.7); circle(0,0,(s*0.9+s*0.34)*2.1); }
+  } else {
+    noFill(); stroke(r,g,b,a*0.5); ripple(s*1.9,3);
+    ringGlow(s*1.15, s*0.72, 12, a*0.85, r,g,b, 0.9, lite);
+    knotGlow(q.kp, q.kq, 0.421, s*0.95, a, r,g,b, 1.3, lite);
+  }
+  if(q===hovered){ noFill(); stroke(r,g,b,210); strokeWeight(1.2); circle(0,0,s*2.6+10); }
+  pop();
+}
+
+/* ---------------- layout ---------------- */
+function maxSeedsFor(p){ return ({hour:700, day:1000, week:1600, month:2600})[p] || 1000; }
+
+function assignKnot(q){
+  if(q.kp) return;                                       // already set (specimen)
+  if(q.mag>=6){ const k=random([[3,5],[5,3],[3,4],[4,3]]); q.kp=k[0]; q.kq=k[1]; }
+  else if(q.mag>=4.5){ const k=random([[2,3],[3,2],[2,5],[5,2]]); q.kp=k[0]; q.kq=k[1]; }
+}
+
+function layout(){
+  randomSeed(seedVal);
+  if(dataMode === 'synthetic'){ layoutSpecimen(); updatePanel(); return; }
+
+  // LIVE: phyllotaxis spiral with density-aware sizing
+  shown = quakes.slice(0, maxSeedsFor(PERIODS[perIdx]));  // newest-first
+  const n = Math.max(shown.length, 1);
+  const c = (Math.min(width,height)*0.46) / Math.sqrt(n);
+  const sizeScale = Math.min(Math.max(c/24, 0.14), 1.0);  // shrink as density rises
+  const now = Date.now();
+  for(let i=0;i<shown.length;i++){
+    const q = shown[i];
+    const ang = i*GOLDEN + random(-0.04,0.04);
+    const rad = c*Math.sqrt(i+0.5);
+    q.px = Math.cos(ang)*rad; q.py = Math.sin(ang)*rad;  // precomputed screen position
+    const base = Math.min(SIZE_MAX, SIZE_MIN + Math.pow(Math.max(q.mag,0.1),SIZE_EXP)*SIZE_MUL);
+    q.size = Math.max(1.5, base*sizeScale);
+    q.col = depthColor(q.depth);
+    q.kp = 0; assignKnot(q);
+    q.spin = random(TAU);
+    q.spinSpeed = random(-0.004,0.004);
+    q.phase = random(TAU);
+    q.recent = (now - q.time) < 3600*1000;
+    const ageH = (now - q.time)/3600000;
+    q.alpha = Math.min(Math.max(map(ageH,0,72,235,95),95),235);
+  }
+  updatePanel();
+}
+
+/* SYNTHETIC: concentric, evenly spaced rings -> rotational symmetry + every shape */
+function buildSpecimen(){
+  const out = [];
+  const ring = (radFrac, count, mag, sizeFrac, variants, phase) => {
+    for(let j=0;j<count;j++){
+      const v = variants ? variants[j % variants.length] : null;
+      out.push({ mag, depth:(j/Math.max(count,1))*700, place:'specimen', time:Date.now(),
+        ang:(j/count)*TAU + (phase||0), radFrac, sizeFrac, kp:v?v[0]:0, kq:v?v[1]:0 });
+    }
+  };
+  ring(0.00, 1,  6.8, 0.120, [[3,5]], 0);                              // centerpiece knot
+  ring(0.30, 8,  5.0, 0.072, [[2,3],[3,2],[2,5],[5,2]], 0);            // moderate knot variants
+  ring(0.50, 8,  6.6, 0.085, [[3,5],[5,3],[3,4],[4,3]], Math.PI/8);    // strong knot variants
+  ring(0.68, 16, 3.5, 0.045, null, 0);                                 // torus rings
+  ring(0.85, 24, 1.5, 0.020, null, Math.PI/24);                        // torus dots
+  return out;
+}
+function layoutSpecimen(){
+  shown = quakes;
+  const maxR = Math.min(width,height)*0.44;
+  for(const q of shown){
+    const rad = q.radFrac*maxR;
+    q.px = Math.cos(q.ang)*rad; q.py = Math.sin(q.ang)*rad;
+    q.size = Math.max(2, q.sizeFrac*maxR);
+    q.col = depthColor(q.depth);
+    q.spin = 0; q.spinSpeed = 0;                          // crisp, static symmetry
+    q.phase = random(TAU);
+    q.recent = false; q.alpha = 215;
+  }
+}
+
+function recolor(){ for(let i=0;i<shown.length;i++) shown[i].col = depthColor(shown[i].depth); }
+
+/* ---------------- hover ---------------- */
+function detectHover(){
+  const mx = mouseX - width/2, my = mouseY - height/2, step = TAU/symmetry;
+  let best = null, bestD = 1e9;
+  for(let s=0;s<symmetry;s++){
+    const ang = -(globalRot + s*step), ca = Math.cos(ang), sa = Math.sin(ang);
+    const rx = mx*ca - my*sa, ry = mx*sa + my*ca;
+    for(let i=0;i<shown.length;i++){
+      const q = shown[i];
+      const dx = rx - q.px, dy = ry - q.py;
+      const d = dx*dx + dy*dy, hit = (q.size+9)*(q.size+9);
+      if(d < hit && d < bestD){ bestD = d; best = q; }
+    }
+  }
+  hovered = best;
+  const el = $('hover'); if(!el) return;
+  if(best){
+    el.classList.add('on');
+    const hm = $('h-mag');
+    if(hm){ hm.textContent = best.mag.toFixed(1); hm.style.color = 'rgb(' + best.col.map(Math.round).join(',') + ')'; }
+    setText('h-place', best.place || 'unknown locale');
+    setText('h-meta', best.depth.toFixed(0) + ' km deep \u00b7 ' + ago(best.time));
+  } else el.classList.remove('on');
+}
+
+/* ---------------- data ---------------- */
+async function fetchFeed(){
+  const mag = MAG_KEYS[magIdx], per = PERIODS[perIdx];
+  const url = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/' + mag + '_' + per + '.geojson';
+  if(dataMode === 'live') setStatus('loading');
+  try{
+    const res = await fetch(url); if(!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    liveQuakes = data.features
+      .filter(f => f.properties.mag !== null && f.geometry)
+      .map(f => ({ mag:f.properties.mag, place:f.properties.place, time:f.properties.time,
+        depth:f.geometry.coordinates[2] ?? 0, url:f.properties.url }))
+      .sort((a,b) => b.time - a.time);
+    lastUpdated = (data.metadata && data.metadata.generated) || Date.now();
+    setStatus('live');
+  }catch(e){
+    liveQuakes = offlineQuakes(per); lastUpdated = Date.now(); setStatus('offline');
+  }
+  if(dataMode === 'live'){ quakes = liveQuakes; layout(); }
+}
+function offlineQuakes(per){
+  const span = ({hour:3.6e6, day:8.64e7, week:6.05e8, month:2.6e9})[per];
+  const now = Date.now(), out = [], n = per==='month'?900 : per==='week'?500 : 240;
+  for(let i=0;i<n;i++){
+    const m = Math.max(-0.5, 7.5*Math.pow(Math.random(),3.2));
+    out.push({ mag:m, place:'synthetic event', time:now - Math.random()*span,
+      depth:Math.pow(Math.random(),2)*300, url:'#' });
+  }
+  return out.sort((a,b)=>b.time-a.time);
+}
+
+/* ---------------- panel + status ---------------- */
+function updateRamp(){
+  const ramp = document.querySelector('.ramp'); if(!ramp) return;
+  const stops = [];
+  for(let i=0;i<=6;i++){ const t=i/6, c=depthColor(t*700).map(Math.round);
+    stops.push('rgb('+c[0]+','+c[1]+','+c[2]+') '+Math.round(t*100)+'%'); }
+  ramp.style.background = 'linear-gradient(90deg, ' + stops.join(',') + ')';
+}
+function updatePanel(){
+  const cap = maxSeedsFor(PERIODS[perIdx]);
+  setText('s-src',  dataMode==='live' ? 'USGS live' : 'synthetic');
+  setText('s-feed', MAG_LABEL[MAG_KEYS[magIdx]] + ' / ' + PERIODS[perIdx]);
+  setText('s-count', quakes.length + (dataMode==='live' && quakes.length>cap ? ' (showing '+cap+')' : ''));
+  setText('s-sym', symmetry + '-fold');
+  setText('s-pal', HARMONY_KEYS[harmony] + ' \u00b7 ' + Math.round(BASE_HUE) + '\u00b0');
+  setText('c-mag', MAG_LABEL[MAG_KEYS[magIdx]]);
+  setText('c-per', PERIODS[perIdx]);
+  setText('s-upd', lastUpdated ? ago(lastUpdated) : '—');
+  const top = quakes.reduce((a,b)=>(b.mag>((a&&a.mag)??-9)?b:a), null);
+  setText('s-max', top ? 'M'+top.mag.toFixed(1)+' \u00b7 '+shortPlace(top.place) : '—');
+}
+function setStatus(s){ liveState = s; refreshStatus(); }
+function refreshStatus(){
+  const el = $('status'); if(!el) return;
+  if(dataMode === 'synthetic'){ el.className='status synth'; el.textContent='synthetic specimen'; return; }
+  el.className = 'status ' + liveState;
+  el.textContent = liveState==='live' ? 'live' : liveState==='offline' ? 'offline · cached' : 'loading';
+}
+function shortPlace(p){ if(!p) return ''; const i = p.indexOf('of '); return i>=0 ? p.slice(i+3) : p; }
+function ago(t){
+  const s = (Date.now()-t)/1000;
+  if(s<90)     return Math.round(s)+'s ago';
+  if(s<5400)   return Math.round(s/60)+'m ago';
+  if(s<172800) return Math.round(s/3600)+'h ago';
+  return Math.round(s/86400)+'d ago';
+}
+
+/* ---------------- controls ---------------- */
+function cycleHarmony(){
+  harmony = (harmony+1) % HARMONY_KEYS.length;
+  setText('harmonybtn', HARMONY_KEYS[harmony].toUpperCase());
+  recolor(); updateRamp(); updatePanel();
+}
+function toggleData(){
+  dataMode = dataMode==='live' ? 'synthetic' : 'live';
+  if(dataMode === 'synthetic'){ if(!specimen) specimen = buildSpecimen(); quakes = specimen; }
+  else { if(liveQuakes.length){ quakes = liveQuakes; } else { fetchFeed(); } }
+  setText('databtn', dataMode==='live' ? 'DATA: LIVE' : 'DATA: SYNTH');
+  layout(); refreshStatus(); updatePanel();
+}
+function keyPressed(){
+  if(keyCode === RIGHT_ARROW) symmetry = Math.min(12, symmetry+1);
+  else if(keyCode === LEFT_ARROW) symmetry = Math.max(1, symmetry-1);
+  else if(key==='f'||key==='F'){ magIdx=(magIdx+1)%MAG_KEYS.length; if(dataMode==='live') fetchFeed(); }
+  else if(key==='p'||key==='P'){ perIdx=(perIdx+1)%PERIODS.length; if(dataMode==='live') fetchFeed(); }
+  else if(key==='c'||key==='C'){ cycleHarmony(); }
+  else if(key==='d'||key==='D'){ toggleData(); }
+  else if(key==='r'||key==='R'){ seedVal=Math.floor(Math.random()*99999); layout(); }
+  else if(key===' '){ paused=!paused; }
+  else if(key==='s'||key==='S'){ saveCanvas('seisma','png'); return false; }
+  updatePanel();
+}
+function mousePressed(){ if(hovered && hovered.url && hovered.url!=='#') window.open(hovered.url,'_blank'); }
+</script>
+</body>
+</html>
