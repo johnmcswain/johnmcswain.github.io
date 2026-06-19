@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Kept — Project Journal</title>
+<style>
+  :root {
+    --bg: #E7ECEF;
+    --surface: #F7F9FA;
+    --ink: #27333A;
+    --ink-soft: #5F6F79;
+    --accent: #6F94A0;
+    --line: #D2DBE0;
+    --display: 'Iowan Old Style','Palatino Linotype',Palatino,'Book Antiqua',Georgia,serif;
+    --body: system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  * { margin: 0; box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    padding: 0 22px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+
+  /* ---- header ---- */
+  header { text-align: center; padding: 72px 0 18px; animation: fade 1.1s ease both; }
+  .ring { width: 116px; height: 116px; margin: 0 auto 26px; display: block; }
+  .ring .breathe { transform-origin: 60px 60px; animation: breathe 7s ease-in-out infinite; }
+  .wordmark { font-family: var(--display); font-size: 52px; letter-spacing: -0.02em; line-height: 1; }
+  .lede { font-family: var(--display); font-size: 21px; color: var(--ink-soft); font-style: italic; margin-top: 16px; }
+  .meta { text-transform: uppercase; letter-spacing: 0.18em; font-size: 11px; color: var(--accent);
+    font-weight: 600; margin-top: 22px; }
+  .intro { color: var(--ink-soft); font-size: 16px; max-width: 56ch; margin: 30px auto 0; text-align: center; }
+
+  /* ---- the question / pull-quote ---- */
+  .hmw { margin: 48px 0 8px; padding: 26px 28px; background: var(--surface);
+    border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 14px; }
+  .hmw .k { text-transform: uppercase; letter-spacing: 0.16em; font-size: 11px; color: var(--accent);
+    font-weight: 600; display: block; margin-bottom: 12px; }
+  .hmw p { font-family: var(--display); font-size: 21px; line-height: 1.45; color: var(--ink); }
+
+  /* ---- timeline ---- */
+  .timeline { margin: 64px 0; }
+  .phase { position: relative; padding-left: 38px; padding-bottom: 46px; }
+  .phase::before { content: ""; position: absolute; left: 6px; top: 8px; bottom: -2px; width: 1px; background: var(--line); }
+  .phase:last-child::before { display: none; }
+  .phase::after { content: ""; position: absolute; left: 0; top: 6px; width: 13px; height: 13px;
+    border-radius: 50%; border: 2px solid var(--accent); background: var(--bg); box-sizing: border-box; }
+  .phase.kept::after { background: var(--accent); }
+  .eyebrow { text-transform: uppercase; letter-spacing: 0.16em; font-size: 11px; color: var(--accent); font-weight: 600; }
+  .phase h2 { font-family: var(--display); font-size: 27px; letter-spacing: -0.01em; line-height: 1.2;
+    margin: 8px 0 14px; font-weight: 600; }
+  .phase p { color: var(--ink-soft); font-size: 16px; margin-bottom: 14px; }
+  .phase p strong { color: var(--ink); font-weight: 600; }
+
+  /* ---- cards ---- */
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 20px 22px; margin: 18px 0 6px; }
+  .card h3 { font-family: var(--display); font-size: 16px; font-weight: 600; margin-bottom: 14px; }
+  .rows { list-style: none; display: flex; flex-direction: column; gap: 13px; }
+  .rows li { display: flex; gap: 12px; font-size: 14.5px; color: var(--ink-soft); line-height: 1.45; }
+  .rows .name { color: var(--ink); font-weight: 600; min-width: 92px; flex: none; }
+  .dot { width: 9px; height: 9px; min-width: 9px; max-width: 9px; min-height: 9px; max-height: 9px;
+    aspect-ratio: 1/1; border-radius: 50%; background: var(--accent); margin-top: 7px; flex: none; }
+  .dot.open { background: transparent; border: 1.5px solid var(--accent); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { font-size: 12.5px; color: var(--ink-soft); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 999px; padding: 6px 12px; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px 18px; list-style: none; }
+  .grid li { font-size: 14.5px; color: var(--ink-soft); display: flex; gap: 10px; line-height: 1.4; }
+  .grid .n { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 600; flex: none; }
+  @media (max-width: 540px) { .grid { grid-template-columns: 1fr; } .rows .name { min-width: 0; } }
+
+  /* ---- footer ---- */
+  footer { text-align: center; padding: 28px 0 80px; border-top: 1px solid var(--line); }
+  footer .close { font-family: var(--display); font-size: 19px; font-style: italic; color: var(--ink-soft); }
+  .cta { display: inline-flex; align-items: center; gap: 9px; margin-top: 22px; padding: 13px 22px;
+    background: var(--ink); color: var(--surface); border-radius: 13px; text-decoration: none;
+    font-size: 15px; font-weight: 500; transition: transform .25s ease; }
+  .cta:hover { transform: translateY(-1px); }
+  .cta .arrow { color: var(--accent); }
+  .fineprint { color: var(--ink-soft); font-size: 12px; margin-top: 20px; opacity: .85; }
+  a { color: var(--accent); }
+  a:focus-visible, .cta:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  @keyframes breathe { 0%,100% { transform: scale(0.94); opacity: .82; } 50% { transform: scale(1.06); opacity: 1; } }
+  @keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+      <g class="breathe">
+        <circle cx="60" cy="60" r="46" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.22"/>
+        <circle cx="60" cy="60" r="34" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.32"/>
+        <circle cx="60" cy="60" r="22" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.45"/>
+        <circle cx="60" cy="60" r="4" fill="var(--accent)"/>
+      </g>
+    </svg>
+    <div class="wordmark">Kept</div>
+    <p class="lede">Designing a calm place to keep your word.</p>
+    <div class="meta">CRCP 6320 · Project 1 · Process journal</div>
+    <p class="intro">A record of how this project moved from a single question to a working, shippable
+    prototype — what we framed, what the research said, what we built, and what we deliberately left for later.</p>
+  </header>
+
+  <div class="hmw">
+    <span class="k">The question we settled on</span>
+    <p>Some people struggle to stick to what matters to them when life gets busy and no one’s checking.
+    How might we make it easier for someone to keep everyday promises to themselves, in the context of a normal day?</p>
+  </div>
+
+  <div class="timeline">
+
+    <section class="phase">
+      <div class="eyebrow">Phase 01</div>
+      <h2>Finding the right question</h2>
+      <p>We started with the <strong>How Might We</strong> format and explored several problem areas before
+      narrowing to the one that felt both meaningful and achievable: the small promises people make to
+      themselves and quietly drop when life gets busy. The goal was a question specific enough to act on,
+      yet open enough that many different designs could answer it.</p>
+    </section>
+
+    <section class="phase">
+      <div class="eyebrow">Phase 02</div>
+      <h2>From solo to together</h2>
+      <p>The app would begin in a private, solo mode and let people invite others in through graded modes.
+      The key insight reframed the whole thing: <strong>the modes don’t change what you do — they change who’s
+      present when you mark a promise kept.</strong> And presence is always invited, never forced.</p>
+      <div class="card">
+        <h3>The five modes, by how much they expose you</h3>
+        <ul class="rows">
+          <li><span class="name">Solo</span><span>Just you. The private default.</span></li>
+          <li><span class="name">Anon</span><span>Strangers working on the same kind of promise — company without identity.</span></li>
+          <li><span class="name">Witness</span><span>One trusted person sees a single quiet dot, and can’t comment.</span></li>
+          <li><span class="name">Reciprocal</span><span>Two people hold each other, symmetrically.</span></li>
+          <li><span class="name">Circle</span><span>A small trusted group with one weekly ritual.</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="phase">
+      <div class="eyebrow">Phase 03</div>
+      <h2>Grounding it in evidence</h2>
+      <p>We wrote a design document to test the idea against research. Conventional to-do apps overwhelm
+      people, collide with hard limits on working memory, and aren’t built for social reinforcement — and most
+      lifestyle apps <strong>lose around 70% of users within 100 days</strong>. That framed both the problem and
+      the principles.</p>
+      <div class="card">
+        <h3>Design principles</h3>
+        <ul class="rows">
+          <li><span class="dot"></span><span><strong>One promise at a time.</strong> No lists, no dashboard — the constraint is the design.</span></li>
+          <li><span class="dot"></span><span><strong>Invited, never forced.</strong> The app earns the right to suggest a more social mode.</span></li>
+          <li><span class="dot"></span><span><strong>Break = reflect, not punish.</strong> A missed promise opens a short, gentle question.</span></li>
+          <li><span class="dot"></span><span><strong>Calm by default.</strong> No streaks, no shame, no notification noise.</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>What we leaned on</h3>
+        <div class="chips">
+          <span class="chip">Cowan’s 4±1 / the Hrair limit</span>
+          <span class="chip">Implementation intentions</span>
+          <span class="chip">The Zeigarnik effect</span>
+          <span class="chip">The observer effect</span>
+          <span class="chip">The Köhler effect</span>
+          <span class="chip">Self-determination theory</span>
+          <span class="chip">Over-justification</span>
+          <span class="chip">Calm technology</span>
+        </div>
+      </div>
+      <p>In the market, <strong>Finch</strong> became the north star — calm, emotionally warm, and non-punitive —
+      while stakes-driven apps like Beeminder and stickK were the cautionary tale: external pressure can crowd
+      out the very meaning that makes a personal promise worth keeping.</p>
+    </section>
+
+    <section class="phase">
+      <div class="eyebrow">Phase 04</div>
+      <h2>Ten ways in</h2>
+      <p>From one question we brainstormed ten distinct design responses — not ten features, but ten different
+      shapes a solution could take.</p>
+      <div class="card">
+        <ul class="grid">
+          <li><span class="n">01</span><span>One Promise at a Time</span></li>
+          <li><span class="n">02</span><span>Morning Vow, Evening Verdict</span></li>
+          <li><span class="n">03</span><span>The Living Artifact</span></li>
+          <li><span class="n">04</span><span>Quiet Witness</span></li>
+          <li><span class="n">05</span><span>The Mutual Pact</span></li>
+          <li><span class="n">06</span><span>Anonymous solidarity</span></li>
+          <li><span class="n">07</span><span>The Round</span></li>
+          <li><span class="n">08</span><span>The Wager</span></li>
+          <li><span class="n">09</span><span>Implementation intentions</span></li>
+          <li><span class="n">10</span><span>Break = reflect</span></li>
+        </ul>
+      </div>
+      <p>The two flagship ideas — most distinctive, hardest to copy — were <strong>the Living Artifact</strong>
+      (generative feedback instead of streaks) and <strong>the Quiet Witness</strong>.</p>
+    </section>
+
+    <section class="phase">
+      <div class="eyebrow">Phase 05</div>
+      <h2>The Week 5 submission</h2>
+      <p>We assembled the formal deliverable: a one-paragraph problem statement, the How Might We question, and
+      a clear scope — what was in, and what was deliberately deferred. It was produced as both a Word document
+      and a LaTeX version with a linked reference list, ready for Overleaf.</p>
+    </section>
+
+    <section class="phase">
+      <div class="eyebrow">Phase 06</div>
+      <h2>Building Kept</h2>
+      <p>Then a working, responsive prototype in this Mist palette. Five places to be:</p>
+      <div class="card">
+        <ul class="rows">
+          <li><span class="name">Welcome</span><span>A simulated, calm sign-in.</span></li>
+          <li><span class="name">Today</span><span>One promise, with the Living Artifact breathing behind it.</span></li>
+          <li><span class="name">Make one</span><span>Guided “When ___, I will ___” phrasing, kept small and today-sized.</span></li>
+          <li><span class="name">Timeline</span><span>Kept and missed promises, rendered calmly — never as failure.</span></li>
+          <li><span class="name">Settings</span><span>Live customization, plus the social modes marked “coming soon.”</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="phase">
+      <div class="eyebrow">Phase 07</div>
+      <h2>Making it move</h2>
+      <p>We turned the prototype into a runnable project, then made the Witness real: a small relay so that
+      marking a promise kept on one device quietly fills a single dot on another — the principle held intact,
+      <strong>the witness sees a dot and cannot comment</strong>.</p>
+    </section>
+
+    <section class="phase">
+      <div class="eyebrow">Phase 08</div>
+      <h2>Refining the details</h2>
+      <p>We fixed a stretched-dot rendering quirk and a text-encoding bug, then replaced the placeholder tones
+      with a six-mood ambient score that crossfades with the app’s state:</p>
+      <div class="card">
+        <div class="chips">
+          <span class="chip">ambient introduction</span>
+          <span class="chip">soft piano</span>
+          <span class="chip">deep reflection</span>
+          <span class="chip">sustained promise</span>
+          <span class="chip">quiet realization</span>
+          <span class="chip">seamless outro</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="phase kept">
+      <div class="eyebrow">Phase 09</div>
+      <h2>Shipping it</h2>
+      <p>Finally, we built it as a static site with relative paths so it runs from anywhere, and published it to
+      GitHub Pages — a real link to send, test, and present.</p>
+    </section>
+
+  </div>
+
+  <footer>
+    <p class="close">A prototype, in progress.</p>
+    <a class="cta" href="https://johnmcswain.github.io/crcp6320/project_1/">
+      View the live prototype <span class="arrow">→</span>
+    </a>
+    <p class="fineprint">Kept · a calm place to keep your word. Nothing in the prototype is saved between sessions.</p>
+  </footer>
+
+</div>
+</body>
+</html>
