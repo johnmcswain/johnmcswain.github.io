@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+================================================================================
+  SEISMA · five mandalas of the restless earth                    (mandala.html)
+  CRCP 6310 — Midterm: extend a prior project into five iterative variations
+================================================================================
+  Extends the Week-6 seismic mandala. The same live USGS earthquake feed is read
+  through a sequence of ORNAMENTAL TRADITIONS: one planet's tremors, drawn in
+  five of humanity's decorative languages. Press 1..N (or the MOTIF button) to
+  move through the variations; the piece dips and re-blooms as it changes hand.
+
+  The data, the phyllotaxis layout, the depth->color harmonies, the
+  density-aware sizing and all controls stay fixed across the five — only the
+  SEED MOTIF changes. That makes the set a controlled study: same earth, same
+  spiral, five traditions.
+
+  THE FIVE (iterative order)
+    1  CELTIC      torus knots + rings           (the inherited anchor)
+    2  BOTANICAL   superformula florets           (the spiral revealed as botany)
+    3  FLUID       Perlin flow blobs              (the restless earth as molten, not woven)
+    4  GIRIH       Islamic star strapwork         (compass-and-rule construction)
+    5  AUTOMATA    Conway's Game of Life            (the earth as emergent rule)
+
+  ENGAGEMENT — seismic sonification (opt-in; press M or the SOUND button).
+  Each seed can also SOUND: a gentle sequence walks the newest events near the
+  center, magnitude->pitch and depth->filter, and the ACTIVE MOTIF picks the
+  timbre — so the sound iterates across the variations alongside the visuals.
+  (Audio stays silent until you turn it on, per browser autoplay rules.)
+
+  DATA SOURCES  (button top-left / D)
+    LIVE       real USGS feed supplies the events (refreshes ~60s)
+    SYNTHETIC  a designed, rotationally symmetric specimen showing every shape
+
+  CONTROLS
+    1..N  motif (variation)        <- ->  symmetry (1..12)     C  color harmony
+    F  magnitude feed              P  time window               [ ] hold-scrub hue
+    D  data source                 M  sound on/off              R  reseed
+    Space  pause spin              S  save PNG
+    hover  event details           click  open USGS event page
+
+  Performance: pixelDensity 1, cached knot + superformula polylines, size-based
+  LOD, precomputed seed positions, move-gated hover, lite path above 1,400 seeds.
+
+  (For the p5.js Web Editor, use the companion sketch.js instead of this file.)
+--------------------------------------------------------------------------------
+  Author : John McSwain (jimcswain@smu.edu)
+  Repo   : https://github.com/johnmcswain/johnmcswain.github.io  (update midterm path)
+  Live   : https://johnmcswain.github.io/crcp6310/midterm/mandala.html  (confirm path)
+================================================================================
+-->
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>SEISMA — five mandalas of the restless earth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;1,9..144,400;1,9..144,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+<style>
+  :root{
+    --abyss:#0a0d13; --char:#11151e; --ash:#7c8597; --bone:#e9e4d6;
+    --ember:#ff8a4c; --box:rgba(233,228,214,0.16);
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; background:var(--abyss); overflow:hidden; }
+  body{ font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace; color:var(--bone); }
+  canvas{ display:block; }
+  .overlay{ position:fixed; inset:0; pointer-events:none; z-index:10; }
+  .masthead{ position:absolute; top:22px; left:24px; }
+  .eyebrow{ font-size:10.5px; letter-spacing:0.34em; text-transform:uppercase; color:var(--ash); }
+  .eyebrow .dot{ color:var(--ember); }
+  .title{ font-family:"Fraunces",Georgia,serif; font-style:italic; font-weight:400;
+    font-size:46px; line-height:0.92; letter-spacing:0.01em; margin-top:4px; }
+  .strap{ font-size:11px; color:var(--ash); margin-top:6px; letter-spacing:0.04em; }
+  .panel{ position:absolute; bottom:22px; left:24px; font-size:11.5px; line-height:1.7; max-width:320px; }
+  .row{ display:flex; gap:10px; }
+  .k{ color:var(--ash); min-width:84px; text-transform:uppercase; letter-spacing:0.12em; font-size:10px; padding-top:2px; }
+  .v{ color:var(--bone); }
+  .v.big{ font-family:"Fraunces",serif; font-style:italic; font-size:16px; }
+  .legend{ margin-top:14px; }
+  .ramp{ height:7px; width:200px; border-radius:4px; margin:5px 0 3px; background:#888; }
+  .rampscale{ display:flex; justify-content:space-between; width:200px; color:var(--ash); font-size:9.5px; letter-spacing:0.08em; }
+  .hover{ position:absolute; top:84px; right:24px; text-align:right; min-width:220px; opacity:0; transition:opacity .18s ease; }
+  .hover.on{ opacity:1; }
+  .hover .mag{ font-family:"Fraunces",serif; font-style:italic; font-size:40px; line-height:1; }
+  .hover .place{ font-size:11.5px; color:var(--bone); margin-top:6px; }
+  .hover .meta{ font-size:10.5px; color:var(--ash); margin-top:4px; letter-spacing:0.04em; }
+  .controls{ position:absolute; bottom:22px; right:24px; text-align:right; font-size:10.5px; color:var(--ash); line-height:1.85; letter-spacing:0.03em; }
+  .controls b{ color:var(--bone); font-weight:500; }
+  .controls .feed{ color:var(--ember); }
+  .status{ position:absolute; top:50px; right:24px; font-size:10px; color:var(--ash); letter-spacing:0.14em; text-transform:uppercase; opacity:.75; }
+  .status.live::before{ content:"\25CF  "; color:#5fd38a; }
+  .status.offline::before{ content:"\25CF  "; color:var(--ember); }
+  .status.loading::before{ content:"\25CB  "; }
+  .status.synth::before{ content:"\25C7  "; color:#7aa7ff; }
+  .btn{ pointer-events:auto; cursor:pointer; font-family:inherit; font-size:10px;
+    letter-spacing:0.2em; text-transform:uppercase; color:var(--bone);
+    background:rgba(20,24,32,0.5); border:1px solid var(--box);
+    padding:6px 11px; border-radius:5px; transition:all .15s ease; }
+  .btn:hover{ border-color:var(--ember); color:var(--ember); }
+  .harmonybtn{ position:absolute; top:18px; right:24px; min-width:96px; }
+  .databtn{ position:absolute; top:108px; left:24px; min-width:128px; }
+  .motifbtn{ position:absolute; top:148px; left:24px; min-width:128px; }
+  .soundbtn{ position:absolute; top:188px; left:24px; min-width:128px; }
+  .soundbtn.on{ border-color:var(--ember); color:var(--ember); }
+  /* the active tradition, named in the display face, centered low on the canvas */
+  .motiflabel{ position:absolute; left:0; right:0; bottom:54px; text-align:center;
+    font-family:"Fraunces",Georgia,serif; font-style:italic; font-weight:400;
+    font-size:30px; letter-spacing:0.02em; color:var(--bone); opacity:0.9;
+    text-transform:lowercase; }
+  @media (max-width:640px){
+    .title{ font-size:34px; } .legend,.controls .extra{ display:none; }
+    .panel{ font-size:10.5px; } .hover .mag{ font-size:30px; }
+    .motiflabel{ font-size:22px; }
+  }
+</style>
+</head>
+<body>
+<div class="overlay">
+  <div class="masthead">
+    <div class="eyebrow">USGS <span class="dot">&middot;</span> live seismic feed</div>
+    <div class="title">Seisma</div>
+    <div class="strap">five mandalas of the restless earth</div>
+  </div>
+  <button class="btn databtn" id="databtn">DATA: LIVE</button>
+  <button class="btn motifbtn" id="motifbtn">1 &middot; CELTIC</button>
+  <button class="btn soundbtn" id="soundbtn">SOUND: OFF</button>
+  <button class="btn harmonybtn" id="harmonybtn">TRIAD</button>
+  <div class="status loading" id="status">connecting</div>
+  <div class="motiflabel" id="motiflabel">celtic</div>
+  <div class="hover" id="hover">
+    <div class="mag" id="h-mag">&mdash;</div>
+    <div class="place" id="h-place"></div>
+    <div class="meta" id="h-meta"></div>
+  </div>
+  <div class="panel">
+    <div class="row"><span class="k">Variation</span><span class="v big" id="s-motif">&mdash;</span></div>
+    <div class="row"><span class="k">Source</span><span class="v" id="s-src">&mdash;</span></div>
+    <div class="row"><span class="k">Feed</span><span class="v" id="s-feed">&mdash;</span></div>
+    <div class="row"><span class="k">Events</span><span class="v" id="s-count">&mdash;</span></div>
+    <div class="row"><span class="k">Strongest</span><span class="v" id="s-max">&mdash;</span></div>
+    <div class="row"><span class="k">Symmetry</span><span class="v" id="s-sym">&mdash;</span></div>
+    <div class="row"><span class="k">Palette</span><span class="v" id="s-pal">&mdash;</span></div>
+    <div class="row"><span class="k">Updated</span><span class="v" id="s-upd">&mdash;</span></div>
+    <div class="legend">
+      <div class="row"><span class="k">Depth</span></div>
+      <div class="ramp"></div>
+      <div class="rampscale"><span>0 km</span><span>shallow &rarr; deep</span><span>700</span></div>
+      <div class="row" style="margin-top:6px"><span class="k">Size</span><span class="v" style="font-size:10.5px">= magnitude</span></div>
+    </div>
+  </div>
+  <div class="controls">
+    <div><b>1 &ndash; N</b> variation &middot; <b>&larr; &rarr;</b> symmetry</div>
+    <div class="extra"><b>F</b> magnitude <span class="feed" id="c-mag">all</span></div>
+    <div class="extra"><b>P</b> window <span class="feed" id="c-per">day</span></div>
+    <div class="extra"><b>C</b> palette &middot; <b>[ ]</b> hue (hold to scrub)</div>
+    <div class="extra"><b>M</b> sound &middot; <b>D</b> data &middot; <b>R</b> reseed &middot; <b>Space</b> spin &middot; <b>S</b> save</div>
+  </div>
+</div>
+<script>
+'use strict';
+
+/* DOM helpers — guarded so the sketch also runs headless in the p5.js editor */
+function $(id){ return document.getElementById(id); }
+function setText(id, v){ const e = $(id); if(e) e.textContent = v; }
+
+/* ---------------- constants ---------------- */
+const GOLDEN    = Math.PI * (3 - Math.sqrt(5));        // ~137.5 degrees
+const TAU       = Math.PI * 2;
+const MAG_KEYS  = ['all', '2.5', '4.5', 'significant'];
+const MAG_LABEL = { all:'all', ['2.5']:'M2.5+', ['4.5']:'M4.5+', significant:'major' };
+const PERIODS   = ['hour', 'day', 'week', 'month'];
+const SIZE_EXP  = 2.05, SIZE_MUL = 1.7, SIZE_MIN = 2.5, SIZE_MAX = 84;
+const GLOW      = 0.1;                                  // bloom strength (90% reduced)
+const DENSE_AT  = 1400;                                 // switch to lite drawing above this
+
+/* ---------------- state ---------------- */
+let quakes = [], shown = [], liveQuakes = [], specimen = null;
+let magIdx = 0, perIdx = 1;
+let symmetry = 1, seedVal = 1234;
+let globalRot = 0, paused = false, motion = 1;
+let hovered = null, lastUpdated = 0, reduceMotion = false;
+let harmony = 0, BASE_HUE = 38;
+let dataMode = 'live';                                  // 'live' | 'synthetic'
+let liveState = 'loading';
+
+/* motif + transition state (the five iterative variations live behind one interface) */
+let motifIdx = 0;                                      // index into MOTIF_ORDER
+let switchT = 0;                                        // 0..1 transition dip timer (1 = mid-switch)
+let pendingMotif = -1;                                  // motif to apply at the bottom of the dip
+
+/* sonification state (opt-in; created on first user gesture) */
+let audio = null, master = null, fxDelay = null;
+let soundOn = false, nextNoteT = 0, voiceCursor = 0;
+const BPM = 184;                                        // gentle pulse
+const PENTA = [0, 3, 5, 7, 10];                         // minor pentatonic scale degrees
+
+/* ---------------- color harmonies ---------------- */
+function hsv(h, s, v){
+  h = ((h % 360) + 360) % 360;
+  const c = v*s, x = c*(1 - Math.abs(((h/60)%2)-1)), m = v-c;
+  let r,g,b;
+  if(h<60){r=c;g=x;b=0;} else if(h<120){r=x;g=c;b=0;} else if(h<180){r=0;g=c;b=x;}
+  else if(h<240){r=0;g=x;b=c;} else if(h<300){r=x;g=0;b=c;} else {r=c;g=0;b=x;}
+  return [(r+m)*255, (g+m)*255, (b+m)*255];
+}
+function rampHue(anchors, t){
+  const seg = Math.min(Math.max(t,0),1) * (anchors.length-1);
+  const i = Math.floor(seg), f = seg - i;
+  const a = anchors[Math.min(i, anchors.length-1)], b = anchors[Math.min(i+1, anchors.length-1)];
+  return a + (b-a)*f;
+}
+function lerpN(a,b,t){ return a + (b-a)*t; }
+const HARMONY = {
+  triad:      t => hsv(rampHue([BASE_HUE, BASE_HUE+120, BASE_HUE+240], t), 0.85, lerpN(1.0,0.70,t)),
+  tetrad:     t => hsv(rampHue([BASE_HUE, BASE_HUE+90, BASE_HUE+180, BASE_HUE+270], t), 0.82, lerpN(1.0,0.70,t)),
+  analogous:  t => hsv(rampHue([BASE_HUE-30, BASE_HUE, BASE_HUE+30, BASE_HUE+60], t), 0.80, lerpN(1.0,0.72,t)),
+  compound:   t => hsv( t<0.5 ? lerpN(BASE_HUE-10,BASE_HUE+10,t/0.5) : lerpN(BASE_HUE+170,BASE_HUE+190,(t-0.5)/0.5), 0.82, lerpN(1.0,0.72,t)),
+  shades:     t => hsv(BASE_HUE, 0.90, lerpN(1.0,0.22,t)),
+  monochrome: t => hsv(BASE_HUE, lerpN(0.32,0.95,t), lerpN(1.0,0.50,t)),
+};
+const HARMONY_KEYS = ['triad','tetrad','analogous','compound','shades','monochrome'];
+function depthColor(depth){ return HARMONY[HARMONY_KEYS[harmony]](Math.min(Math.max(depth,0),700)/700); }
+
+/* ---------------- shared shape vocabulary (used by motif modules) ---------------- */
+function torusRing(rO, rI, ticks){
+  noFill(); circle(0,0,rO*2); circle(0,0,rI*2);
+  for(let i=0;i<ticks;i++){ const a=i*TAU/ticks; line(Math.cos(a)*rI,Math.sin(a)*rI,Math.cos(a)*rO,Math.sin(a)*rO); }
+}
+function ripple(r, rings){
+  noFill();
+  for(let i=1;i<=rings;i++){ strokeWeight(map(i,1,rings,1.6,0.4)); circle(0,0,r*2*i/rings); }
+}
+/* cached polylines keyed + LOD'd. Used for torus knots AND superformula florets. */
+const polyCache = {};
+function knotPts(p, q, ratio, steps){
+  const key = 'k_'+p+'_'+q+'_'+ratio+'_'+steps;
+  let pts = polyCache[key];
+  if(!pts){
+    pts = new Float32Array((steps+1)*2);
+    for(let i=0;i<=steps;i++){ const th=i/steps*TAU, rad=1+ratio*Math.cos(q*th);
+      pts[i*2]=Math.cos(p*th)*rad; pts[i*2+1]=Math.sin(p*th)*rad; }
+    polyCache[key] = pts;
+  }
+  return pts;
+}
+/* superformula (Gielis) unit curve — m petals, exponents n1..n3; cached like the knots */
+function superPts(m, n1, n2, n3, steps){
+  const key = 's_'+m+'_'+n1+'_'+n2+'_'+n3+'_'+steps;
+  let pts = polyCache[key];
+  if(!pts){
+    pts = new Float32Array((steps+1)*2);
+    let maxr = 1e-6;
+    for(let i=0;i<=steps;i++){
+      const th = i/steps*TAU;
+      const a = Math.pow(Math.abs(Math.cos(m*th/4)), n2);
+      const b = Math.pow(Math.abs(Math.sin(m*th/4)), n3);
+      const r = Math.pow(a + b, -1/n1);
+      pts[i*2] = Math.cos(th)*r; pts[i*2+1] = Math.sin(th)*r;
+      if(r > maxr) maxr = r;
+    }
+    for(let i=0;i<pts.length;i++) pts[i] /= maxr;       // normalize to unit radius
+    polyCache[key] = pts;
+  }
+  return pts;
+}
+function emit(pts, scl, close){ beginShape(); for(let i=0;i<pts.length;i+=2) vertex(pts[i]*scl, pts[i+1]*scl); endShape(close ? CLOSE : undefined); }
+function lodSteps(scl){ return scl<16 ? 56 : scl<32 ? 84 : 120; }
+
+/* glow helpers: faint halo -> body -> bright inner strand (woven ribbon) */
+function ringGlow(rO,rI,ticks,a,r,g,b,w,lite){
+  noFill();
+  if(!lite){ stroke(r,g,b,a*0.22*GLOW); strokeWeight(w*3.2); torusRing(rO,rI,ticks); }
+  stroke(r,g,b,a); strokeWeight(w); torusRing(rO,rI,ticks);
+}
+function knotGlow(p,q,ratio,scl,a,r,g,b,w,lite){
+  const pts = knotPts(p,q,ratio,lodSteps(scl));
+  noFill();
+  if(!lite){ stroke(r,g,b,a*0.22*GLOW); strokeWeight(w*3.2); emit(pts,scl); }
+  stroke(r,g,b,a); strokeWeight(w); emit(pts,scl);
+  if(!lite){ stroke(lerpN(r,255,0.6),lerpN(g,255,0.6),lerpN(b,255,0.6),a*0.6); strokeWeight(Math.max(0.6,w*0.4)); emit(pts,scl); }
+}
+
+/* =====================================================================
+   MOTIF-RENDERER INTERFACE
+   ---------------------------------------------------------------------
+   Each motif is a self-contained module exposing one uniform contract:
+     name       short id (also the on-canvas label)
+     defaultSym symmetry the tradition opens in (its "native" k-fold)
+     prepare(q) deterministic per-seed setup from q.idx + q.mag (no random();
+                so re-running on a motif switch is idempotent and stable)
+     draw(q,lite) render one seed at the local origin (caller has already
+                translated/rotated/colored); reads q.col, q.size, q.alpha
+     voice(q)   sonification descriptor {deg, oct, type, cutoff, dur}
+   The engine never branches on which motif is active — it dispatches
+   through this registry. Adding a sixth motif is one module here plus one
+   entry in MOTIF_ORDER; nothing else in the file changes.
+   ===================================================================== */
+const MOTIFS = {};
+
+/* ---- 1 · CELTIC — torus knots + rings (the inherited anchor, unchanged) ---- */
+MOTIFS.celtic = {
+  name: 'celtic',
+  defaultSym: 6,
+  prepare(q){
+    if(q.kp) return;                                    // already set (specimen)
+    // deterministic knot pick from index (was random([...]) before the refactor)
+    if(q.mag>=6){      const v=[[3,5],[5,3],[3,4],[4,3]][q.idx&3]; q.kp=v[0]; q.kq=v[1]; }
+    else if(q.mag>=4.5){ const v=[[2,3],[3,2],[2,5],[5,2]][q.idx&3]; q.kp=v[0]; q.kq=v[1]; }
+  },
+  draw(q, lite){
+    const c=q.col, r=c[0], g=c[1], b=c[2];
+    let a = q.alpha;
+    if(q.recent && !reduceMotion) a *= 0.55 + 0.45*Math.sin(frameCount*0.07 + q.phase);
+    if(q===hovered) a = Math.min(255, a*1.45);
+    const s = q.size;
+    if(q.mag < 2.5){
+      noStroke();
+      if(lite){ fill(r,g,b,a); circle(0,0,Math.max(1.3,s*0.6)); }
+      else { fill(r,g,b,a*0.14); circle(0,0,s*1.7);
+        noFill(); stroke(r,g,b,a); strokeWeight(0.8); circle(0,0,s*0.95); }
+    } else if(q.mag < 4.5){
+      ringGlow(s, s*0.5, 8, a, r,g,b, 1.0, lite);
+    } else if(q.mag < 6){
+      knotGlow(q.kp, q.kq, 0.378, s*0.9, a, r,g,b, 1.1, lite);
+      if(!lite){ noFill(); stroke(r,g,b,a*0.22); strokeWeight(0.7); circle(0,0,(s*0.9+s*0.34)*2.1); }
+    } else {
+      noFill(); stroke(r,g,b,a*0.5); ripple(s*1.9,3);
+      ringGlow(s*1.15, s*0.72, 12, a*0.85, r,g,b, 0.9, lite);
+      knotGlow(q.kp, q.kq, 0.421, s*0.95, a, r,g,b, 1.3, lite);
+    }
+    if(q===hovered){ noFill(); stroke(r,g,b,210); strokeWeight(1.2); circle(0,0,s*2.6+10); }
+  },
+  voice(q){
+    // woven, plucked: triangle, mid register, brightness from shallowness
+    return { deg:q.idx, oct: q.mag>=6?2 : q.mag>=4.5?3 : 4, type:'triangle',
+             cutoff: lerpN(2600, 700, Math.min(q.depth,700)/700), dur: 0.42 };
+  }
+};
+
+/* ---- 2 · BOTANICAL — superformula florets (phyllotaxis revealed as botany) ---- */
+MOTIFS.botanical = {
+  name: 'botanical',
+  defaultSym: 1,                                        // the spiral itself is the symmetry
+  prepare(q){
+    // magnitude -> petal count + bloom complexity; jitter from index (deterministic)
+    const band = q.mag<2.5?0 : q.mag<4.5?1 : q.mag<6?2 : 3;
+    q.b_m  = [5, 6, 8, 12][band] + (q.idx % 3);         // petals
+    q.b_n1 = [0.6, 0.45, 0.35, 0.3][band];              // sharper points as mag rises
+    q.b_n2 = [1.7, 1.2, 0.9, 0.7][band];
+    q.b_n3 = q.b_n2;
+    q.b_core = band;                                    // inner-floret rings
+  },
+  draw(q, lite){
+    const c=q.col, r=c[0], g=c[1], b=c[2];
+    let a = q.alpha;
+    if(q.recent && !reduceMotion) a *= 0.55 + 0.45*Math.sin(frameCount*0.07 + q.phase);
+    if(q===hovered) a = Math.min(255, a*1.45);
+    const s = q.size * 1.15;
+    const pts = superPts(q.b_m, q.b_n1, q.b_n2, q.b_n3, lodSteps(s));
+    // soft filled petal body (glows under ADD blend), then a crisp outline
+    noStroke(); fill(r,g,b,a*0.13); emit(pts, s, true);
+    if(!lite){ noFill(); stroke(r,g,b,a*0.22*GLOW); strokeWeight(2.6); emit(pts, s, true); }
+    noFill(); stroke(r,g,b,a); strokeWeight(1.0); emit(pts, s, true);
+    // inner florets: a few shrinking, counter-rotated copies = seed-head depth
+    if(!lite){
+      for(let k=1;k<=q.b_core;k++){
+        const f = 1 - k*0.24; if(f<=0.12) break;
+        push(); rotate(k*0.4 + (motion?frameCount*0.002*(k%2?1:-1):0));
+        stroke(lerpN(r,255,0.4),lerpN(g,255,0.4),lerpN(b,255,0.4), a*0.5);
+        strokeWeight(0.8); emit(pts, s*f, true); pop();
+      }
+    }
+    noStroke(); fill(lerpN(r,255,0.5),lerpN(g,255,0.5),lerpN(b,255,0.5), a*0.8); circle(0,0,Math.max(1.4,s*0.12));
+    if(q===hovered){ noFill(); stroke(r,g,b,210); strokeWeight(1.2); circle(0,0,s*2.4+10); }
+  },
+  voice(q){
+    // airier: sine, a register up, brighter overall
+    return { deg:q.idx+2, oct: q.mag>=6?3 : q.mag>=4.5?4 : 5, type:'sine',
+             cutoff: lerpN(3400, 1100, Math.min(q.depth,700)/700), dur: 0.5 };
+  }
+};
+
+/* ---- 3 · SACRED — Flower-of-Life circle packings (botany abstracted to compass geometry) ---- */
+/* Fluid blob: a closed organic outline whose radius churns with evolving Perlin
+   noise. Recomputed ONCE per seed per frame (guarded by frameCount) and reused
+   across all symmetry copies, so the cost is one noise pass + a couple of emits
+   per seed regardless of k-fold. The mean deviation from a circle is stored as
+   q.morph — the live "shape condition" the sonification reads for pitch. */
+function computeBlob(q){
+  if(q._mframe === frameCount) return;                  // already done this frame
+  q._mframe = frameCount;
+  const steps = q.f_steps;
+  if(!q._blob || q._blob.length !== steps) q._blob = new Float32Array(steps);
+  const t = (reduceMotion ? 0 : frameCount * 0.012);    // flow speed (frozen if reduced-motion)
+  let agg = 0;
+  for(let i=0;i<steps;i++){
+    const ang = i/steps*TAU;
+    // sample 2-D noise around a ring -> smooth, seamless lobes that flow over time
+    const nx = q.f_ox + Math.cos(ang)*q.f_freq;
+    const ny = q.f_oy + Math.sin(ang)*q.f_freq;
+    const dev = (noise(nx + t, ny + t*0.7) - 0.5) * 2;  // ~ -1..1
+    const rdev = q.f_rough*dev;                          // actual radial deviation
+    q._blob[i] = 1 + rdev;                               // radius multiplier
+    agg += Math.abs(rdev);
+  }
+  q.morph = agg/steps;                                  // mean radial deviation = visible agitation
+}
+
+/* ---- 3 · FLUID — Perlin flow blobs (the restless earth as molten, not woven) ---- */
+MOTIFS.fluid = {
+  name: 'fluid',
+  defaultSym: 3,                                        // gentle organic mandala; arrows change it live
+  prepare(q){
+    // magnitude -> turbulence + outline detail; index -> a unique noise field per seed
+    const band = q.mag<2.5?0 : q.mag<4.5?1 : q.mag<6?2 : 3;
+    q.f_rough = [0.18, 0.30, 0.46, 0.62][band];         // deformation amount (bigger quake = more violent)
+    q.f_freq  = [0.9, 1.2, 1.6, 2.1][band];             // spatial frequency (more, finer lobes)
+    q.f_steps = [22, 30, 42, 54][band];                 // outline resolution by band
+    q.f_ox = (q.idx % 97) * 0.37;                        // deterministic per-seed noise offsets
+    q.f_oy = (q.idx % 89) * 0.53 + 11.0;
+    q.morph = 0.3;                                       // seed value until first draw
+  },
+  draw(q, lite){
+    computeBlob(q);
+    const c=q.col, r=c[0], g=c[1], b=c[2];
+    let a = q.alpha;
+    if(q.recent && !reduceMotion) a *= 0.55 + 0.45*Math.sin(frameCount*0.07 + q.phase);
+    if(q===hovered) a = Math.min(255, a*1.45);
+    const s = q.size * 1.25, steps = q.f_steps, blob = q._blob;
+    const blobShape = (scl)=>{ beginShape();
+      for(let i=0;i<steps;i++){ const ang=i/steps*TAU, rr=blob[i]*scl; vertex(Math.cos(ang)*rr, Math.sin(ang)*rr); }
+      endShape(CLOSE); };
+    // soft molten body (glows under ADD), optional halo, then a fluid rim
+    noStroke(); fill(r,g,b,a*0.13); blobShape(s);
+    if(!lite){ noFill(); stroke(r,g,b,a*0.22*GLOW); strokeWeight(2.8); blobShape(s); }
+    noFill(); stroke(r,g,b,a); strokeWeight(1.0); blobShape(s);
+    // bright nucleus scaled by current agitation — a visible echo of the pitch mapping
+    noStroke(); fill(lerpN(r,255,0.55),lerpN(g,255,0.55),lerpN(b,255,0.55), a*0.85);
+    circle(0,0, Math.max(1.4, s*(0.12 + 0.18*q.morph)));
+    if(q===hovered){ noFill(); stroke(r,g,b,210); strokeWeight(1.2); circle(0,0,s*2.4+10); }
+  },
+  voice(q){
+    // pitch tracks the live shape: visible agitation -> scale degree + continuous
+    // detune. Register comes from magnitude, so a big quake churns low and restless.
+    const ag = Math.min(1, (q.morph ?? 0.06) / 0.25);   // normalized 0..1
+    return { deg: Math.round(ag*6), oct: q.mag>=6?2 : q.mag>=4.5?3 : 4, type:'sine',
+             cutoff: lerpN(2600, 700, Math.min(q.depth,700)/700),
+             detune: (ag - 0.5) * 220,                  // +-110 cents glide with the shape
+             dur: 0.55 };
+  }
+};
+
+/* {n/k} star-polygon path (unit circle, skip-k vertex order). gcd(n,k)=1 gives a
+   single unicursal closed star = one cached polyline. The classic Islamic orders. */
+function starPts(n, k){
+  const key = 'st_'+n+'_'+k;
+  let pts = polyCache[key];
+  if(!pts){
+    const order = []; let j = 0;
+    do { order.push(j); j = (j+k)%n; } while(j !== 0);
+    order.push(0);                                      // close the path
+    pts = new Float32Array(order.length*2);
+    for(let i=0;i<order.length;i++){ const a = order[i]/n*TAU - Math.PI/2;
+      pts[i*2] = Math.cos(a); pts[i*2+1] = Math.sin(a); }
+    polyCache[key] = pts;
+  }
+  return pts;
+}
+
+/* ---- 4 · GIRIH — Islamic star strapwork (compass-and-rule construction) ---- */
+MOTIFS.girih = {
+  name: 'girih',
+  defaultSym: 5,                                        // echoes the pentagonal/decagonal girih tradition
+  prepare(q){
+    // magnitude -> star order; the four classic single-path stars
+    const band = q.mag<2.5?0 : q.mag<4.5?1 : q.mag<6?2 : 3;
+    const sk = [[5,2],[8,3],[10,3],[12,5]][band];
+    q.gi_n = sk[0]; q.gi_k = sk[1];
+  },
+  draw(q, lite){
+    const c=q.col, r=c[0], g=c[1], b=c[2];
+    let a = q.alpha;
+    if(q.recent && !reduceMotion) a *= 0.55 + 0.45*Math.sin(frameCount*0.07 + q.phase);
+    if(q===hovered) a = Math.min(255, a*1.45);
+    const s = q.size * 1.05;
+    const star = starPts(q.gi_n, q.gi_k);
+    // faint outer frame (the regular n-gon the star is inscribed in)
+    if(!lite){ noFill(); stroke(r,g,b,a*0.16); strokeWeight(0.7);
+      beginShape(); for(let i=0;i<q.gi_n;i++){ const ang=i/q.gi_n*TAU - Math.PI/2; vertex(Math.cos(ang)*s*1.04, Math.sin(ang)*s*1.04); } endShape(CLOSE); }
+    // strapwork ribbon: halo -> body -> bright inner strand (interlace reading)
+    noFill();
+    if(!lite){ stroke(r,g,b,a*0.22*GLOW); strokeWeight(3.2); emit(star, s, true); }
+    stroke(r,g,b,a); strokeWeight(1.2); emit(star, s, true);
+    if(!lite){ stroke(lerpN(r,255,0.6),lerpN(g,255,0.6),lerpN(b,255,0.6), a*0.6);
+      strokeWeight(0.5); emit(star, s, true); }
+    noStroke(); fill(lerpN(r,255,0.5),lerpN(g,255,0.5),lerpN(b,255,0.5), a*0.8); circle(0,0,Math.max(1.4,s*0.12));
+    if(q===hovered){ noFill(); stroke(r,g,b,210); strokeWeight(1.2); circle(0,0,s*2.6+10); }
+  },
+  voice(q){
+    // rigid, crystalline: square through a tight filter, STRICTLY quantized (no detune).
+    // star order picks the degree, so each star order rings at its own pitch.
+    return { deg:q.gi_n, oct: q.mag>=6?2 : q.mag>=4.5?3 : 4, type:'square',
+             cutoff: lerpN(2000, 600, Math.min(q.depth,700)/700), dur: 0.4 };
+  }
+};
+
+/* draw a point cloud in ONE shape call (POINTS) — a whole automaton at one draw
+   call instead of one per cell, the key to not flooding the renderer. */
+function emitPoints(pts, scl){ beginShape(POINTS); for(let i=0;i<pts.length;i+=2) vertex(pts[i]*scl, pts[i+1]*scl); endShape(); }
+
+/* CONWAY'S GAME OF LIFE on a small polar grid (C angular x R radial). Standard
+   B3/S23 rule, Moore (8) neighborhood with angular wraparound and bounded radius.
+   Small grids collapse to still-lifes or die, so each seed keeps itself alive: it
+   reseeds (from its own mulberry32 PRNG) when it goes static, empties, or reaches
+   a max age — with the age offset per seed so the field never reseeds in sync.
+   Double-buffered (q._S / q._S2), stepped in place; one POINTS cloud of live cells. */
+const CA_STEP_FRAMES = 18;                              // ~3 generations/sec at 60fps (calm)
+function caRng(q){                                      // mulberry32, advances q._rng
+  let t = (q._rng = (q._rng + 0x6D2B79F5) >>> 0);
+  t = Math.imul(t ^ (t>>>15), t | 1);
+  t ^= t + Math.imul(t ^ (t>>>7), t | 61);
+  return ((t ^ (t>>>14)) >>> 0) / 4294967296;
+}
+function caSeed(q){                                     // sprinkle a fresh live pattern
+  const S=q._S, n=S.length;
+  for(let i=0;i<n;i++) S[i] = caRng(q) < 0.42 ? 1 : 0;
+  q._sinceSeed = 0;
+}
+function caStep(q){
+  const C=q.ca_C, R=q.ca_R, S=q._S, T=q._S2; let pop=0, same=true;
+  for(let r=0;r<R;r++){
+    for(let a=0;a<C;a++){
+      let n=0;
+      for(let dr=-1;dr<=1;dr++){ const rr=r+dr; if(rr<0||rr>=R) continue;
+        for(let da=-1;da<=1;da++){ if(!dr && !da) continue; n += S[rr*C+((a+da+C)%C)]; } }
+      const i=r*C+a, live=S[i];
+      const v = (live ? (n===2||n===3) : (n===3)) ? 1 : 0;
+      T[i]=v; pop+=v; if(v!==live) same=false;
+    }
+  }
+  q._S = T; q._S2 = S;                                  // swap buffers
+  q._sinceSeed++;
+  if(pop===0 || same || q._sinceSeed >= q.ca_maxGen) caSeed(q);   // keep it alive
+}
+function caBuild(q){
+  const C=q.ca_C, R=q.ca_R, S=q._S, out=[]; let on=0;
+  for(let r=0;r<R;r++){
+    const rad = R>1 ? lerpN(0.30, 0.82, r/(R-1)) : 0.55;
+    for(let a=0;a<C;a++){ if(S[r*C+a]){ const ang=a/C*TAU; out.push(Math.cos(ang)*rad, Math.sin(ang)*rad); on++; } }
+  }
+  q._capts = Float32Array.from(out);
+  q.ca_pop = on/(C*R);
+}
+
+/* ---- 5 · AUTOMATA — Conway's Game of Life (the earth as emergent rule) ---- */
+/* Conceptual close: Conway's Life is the canonical demonstration that complex,
+   lifelike behaviour emerges from simple local rules — and CA models like
+   Olami–Feder–Christensen model seismic self-organized criticality, so each quake
+   is shown as a small living automaton. */
+MOTIFS.automata = {
+  name: 'automata',
+  defaultSym: 4,
+  prepare(q){
+    const band = q.mag<2.5?0 : q.mag<4.5?1 : q.mag<6?2 : 3;
+    q.ca_C      = [12, 16, 20, 24][band];               // angular cells
+    q.ca_R      = [4, 4, 5, 6][band];                   // radial rings
+    q.ca_maxGen = [40, 48, 56, 64][band];               // reseed after this many static-free gens
+    q._S  = new Uint8Array(q.ca_C * q.ca_R);
+    q._S2 = new Uint8Array(q.ca_C * q.ca_R);
+    q._rng = ((q.idx * 2654435761) >>> 0) || 1;          // per-seed PRNG seed
+    caSeed(q);
+    for(let i=0;i<3;i++) caStep(q);                      // warm up to mid-evolution
+    q._sinceSeed = q.idx % q.ca_maxGen;                  // desync reseeds across the field
+    q._stepPhase = q.idx % CA_STEP_FRAMES;               // stagger steps
+    q._lastStep = -1;
+    caBuild(q);
+  },
+  draw(q, lite){
+    // advance the automaton (time-gated, staggered, once per seed per frame)
+    if(!lite && !reduceMotion && q._lastStep !== frameCount &&
+       (frameCount + q._stepPhase) % CA_STEP_FRAMES === 0){
+      caStep(q); caBuild(q); q._lastStep = frameCount;
+    }
+    const c=q.col, r=c[0], g=c[1], b=c[2];
+    let a = q.alpha;
+    if(q.recent && !reduceMotion) a *= 0.55 + 0.45*Math.sin(frameCount*0.07 + q.phase);
+    if(q===hovered) a = Math.min(255, a*1.45);
+    const s = q.size * 0.95;
+    const cellW = Math.max(1.6, s/q.ca_R*0.62);          // cell dot size ~ ring spacing
+    if(!lite){ stroke(r,g,b,a*0.25*GLOW); strokeWeight(cellW*2.4); emitPoints(q._capts, s); }
+    stroke(r,g,b,a); strokeWeight(cellW); emitPoints(q._capts, s);
+    noStroke(); fill(lerpN(r,255,0.55),lerpN(g,255,0.55),lerpN(b,255,0.55), a*0.85); circle(0,0,Math.max(1.4,s*0.12));
+    if(q===hovered){ noFill(); stroke(r,g,b,210); strokeWeight(1.2); circle(0,0,s*2.6+10); }
+  },
+  voice(q){
+    // digital pluck; LIVE population drives pitch, so the tone breathes as Life evolves
+    const ag = Math.min(1, Math.max(0, ((q.ca_pop ?? 0.2) - 0.08) / 0.24));
+    return { deg: Math.round(ag*6), oct: q.mag>=6?2 : q.mag>=4.5?3 : 4, type:'sawtooth',
+             cutoff: lerpN(2800, 800, Math.min(q.depth,700)/700), dur: 0.34 };
+  }
+};
+
+/* the iterative order — woven → grown → molten → constructed → emergent */
+const MOTIF_ORDER = ['celtic', 'botanical', 'fluid', 'girih', 'automata'];
+function activeMotif(){ return MOTIFS[MOTIF_ORDER[motifIdx]]; }
+
+/* ---------------- p5 lifecycle ---------------- */
+function setup(){
+  createCanvas(windowWidth, windowHeight);
+  pixelDensity(1);                                       // perf: no HiDPI oversampling
+  reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(reduceMotion) motion = 0;
+  const cv = document.querySelector('canvas'); if(cv) cv.style.cursor = 'crosshair';
+  const hb = $('harmonybtn'); if(hb){ hb.textContent = HARMONY_KEYS[harmony].toUpperCase(); hb.addEventListener('click', cycleHarmony); }
+  const db = $('databtn');    if(db){ db.textContent = 'DATA: LIVE'; db.addEventListener('click', toggleData); }
+  const mb = $('motifbtn');   if(mb){ mb.addEventListener('click', ()=>requestMotif((motifIdx+1)%MOTIF_ORDER.length)); }
+  const sb = $('soundbtn');   if(sb){ sb.addEventListener('click', toggleSound); }
+  symmetry = activeMotif().defaultSym;
+  updateRamp(); refreshMotifUI();
+  fetchFeed();
+  setInterval(fetchFeed, 60000);
+}
+function windowResized(){ resizeCanvas(windowWidth, windowHeight); layout(); }
+
+function draw(){
+  // hold-to-scrub base hue ([ = 219, ] = 221)
+  if(keyIsDown(219) || keyIsDown(221)){
+    BASE_HUE = (BASE_HUE + (keyIsDown(221)?1.6:0) - (keyIsDown(219)?1.6:0) + 360) % 360;
+    recolor(); updateRamp();
+    setText('s-pal', HARMONY_KEYS[harmony] + ' \u00b7 ' + Math.round(BASE_HUE) + '\u00b0');
+  }
+
+  background(10,13,19);
+
+  // transition dip: ease seed-layer alpha down, swap motif at the bottom, ease back up
+  let layerMul = 1;
+  if(switchT > 0){
+    switchT = Math.max(0, switchT - 0.05);
+    const x = switchT;                                   // 1 -> 0
+    layerMul = 1 - 0.85*Math.sin(x*Math.PI);             // dips to ~0.15 at midpoint
+    if(pendingMotif >= 0 && switchT <= 0.5){             // apply at the bottom of the dip
+      motifIdx = pendingMotif; pendingMotif = -1;
+      symmetry = activeMotif().defaultSym;
+      reprepare(); refreshMotifUI(); updatePanel();
+    }
+  }
+
+  push();
+  translate(width/2, height/2);
+  if(!paused && !reduceMotion) globalRot += 0.0011;
+  rotate(globalRot);
+
+  drawChart();
+
+  const motif = activeMotif();
+  const lite = shown.length > DENSE_AT;
+  const step = TAU / symmetry;
+  blendMode(ADD);
+  for(let s=0;s<symmetry;s++){
+    push(); rotate(s*step);
+    for(let i=0;i<shown.length;i++){
+      const q = shown[i];
+      const savedA = q.alpha; q.alpha *= layerMul;       // apply transition dip
+      push(); translate(q.px, q.py);
+      if(!lite && q.spinSpeed) rotate(q.spin + frameCount*q.spinSpeed*motion);
+      motif.draw(q, lite);
+      pop();
+      q.alpha = savedA;
+    }
+    pop();
+  }
+  blendMode(BLEND);
+
+  noStroke(); fill(233,228,214,30); circle(0,0,6);
+  pop();
+
+  if(soundOn) scheduleNotes();
+
+  // perf: only re-test hover on mouse-move, with a periodic catch-up for rotation
+  if(mouseX!==pmouseX || mouseY!==pmouseY || frameCount%6===0) detectHover();
+}
+
+function drawChart(){
+  const maxR = Math.min(width,height)*0.47;
+  noFill(); stroke(233,228,214,12); strokeWeight(1);
+  for(let i=1;i<=6;i++) circle(0,0,maxR*2*i/6);
+  if(symmetry>1){
+    stroke(233,228,214,8);
+    for(let i=0;i<symmetry;i++){ const a=i*TAU/symmetry; line(0,0,Math.cos(a)*maxR,Math.sin(a)*maxR); }
+  }
+}
+
+/* ---------------- layout ---------------- */
+function maxSeedsFor(p){ return ({hour:700, day:1000, week:1600, month:2600})[p] || 1000; }
+
+function layout(){
+  randomSeed(seedVal);
+  if(dataMode === 'synthetic'){ layoutSpecimen(); updatePanel(); return; }
+
+  // LIVE: phyllotaxis spiral with density-aware sizing
+  shown = quakes.slice(0, maxSeedsFor(PERIODS[perIdx]));  // newest-first
+  const n = Math.max(shown.length, 1);
+  const c = (Math.min(width,height)*0.46) / Math.sqrt(n);
+  const sizeScale = Math.min(Math.max(c/24, 0.14), 1.0);  // shrink as density rises
+  const now = Date.now();
+  const motif = activeMotif();
+  for(let i=0;i<shown.length;i++){
+    const q = shown[i];
+    q.idx = i;                                            // stable index for deterministic motif prep
+    const ang = i*GOLDEN + random(-0.04,0.04);
+    const rad = c*Math.sqrt(i+0.5);
+    q.px = Math.cos(ang)*rad; q.py = Math.sin(ang)*rad;  // precomputed screen position
+    const base = Math.min(SIZE_MAX, SIZE_MIN + Math.pow(Math.max(q.mag,0.1),SIZE_EXP)*SIZE_MUL);
+    q.size = Math.max(1.5, base*sizeScale);
+    q.col = depthColor(q.depth);
+    q.kp = 0; motif.prepare(q);
+    q.spin = random(TAU);
+    q.spinSpeed = random(-0.004,0.004);
+    q.phase = random(TAU);
+    q.recent = (now - q.time) < 3600*1000;
+    const ageH = (now - q.time)/3600000;
+    q.alpha = Math.min(Math.max(map(ageH,0,72,235,95),95),235);
+  }
+  updatePanel();
+}
+
+/* re-run only the active motif's per-seed prep — cheap, called on a motif switch */
+function reprepare(){ const m = activeMotif(); for(let i=0;i<shown.length;i++){ shown[i].kp = 0; m.prepare(shown[i]); } }
+
+/* SYNTHETIC: concentric, evenly spaced rings -> rotational symmetry + every shape */
+function buildSpecimen(){
+  const out = [];
+  const ring = (radFrac, count, mag, sizeFrac, variants, phase) => {
+    for(let j=0;j<count;j++){
+      const v = variants ? variants[j % variants.length] : null;
+      out.push({ mag, depth:(j/Math.max(count,1))*700, place:'specimen', time:Date.now(),
+        ang:(j/count)*TAU + (phase||0), radFrac, sizeFrac, kp:v?v[0]:0, kq:v?v[1]:0 });
+    }
+  };
+  ring(0.00, 1,  6.8, 0.120, [[3,5]], 0);                              // centerpiece knot
+  ring(0.30, 8,  5.0, 0.072, [[2,3],[3,2],[2,5],[5,2]], 0);            // moderate knot variants
+  ring(0.50, 8,  6.6, 0.085, [[3,5],[5,3],[3,4],[4,3]], Math.PI/8);    // strong knot variants
+  ring(0.68, 16, 3.5, 0.045, null, 0);                                 // torus rings
+  ring(0.85, 24, 1.5, 0.020, null, Math.PI/24);                        // torus dots
+  return out;
+}
+function layoutSpecimen(){
+  shown = quakes;
+  const maxR = Math.min(width,height)*0.44;
+  const motif = activeMotif();
+  for(let idx=0; idx<shown.length; idx++){
+    const q = shown[idx];
+    q.idx = idx;
+    const rad = q.radFrac*maxR;
+    q.px = Math.cos(q.ang)*rad; q.py = Math.sin(q.ang)*rad;
+    q.size = Math.max(2, q.sizeFrac*maxR);
+    q.col = depthColor(q.depth);
+    q.spin = 0; q.spinSpeed = 0;                          // crisp, static symmetry
+    q.phase = random(TAU);
+    q.recent = false; q.alpha = 215;
+    motif.prepare(q);
+  }
+}
+
+function recolor(){ for(let i=0;i<shown.length;i++) shown[i].col = depthColor(shown[i].depth); }
+
+/* ---------------- hover ---------------- */
+function detectHover(){
+  const mx = mouseX - width/2, my = mouseY - height/2, step = TAU/symmetry;
+  let best = null, bestD = 1e9;
+  for(let s=0;s<symmetry;s++){
+    const ang = -(globalRot + s*step), ca = Math.cos(ang), sa = Math.sin(ang);
+    const rx = mx*ca - my*sa, ry = mx*sa + my*ca;
+    for(let i=0;i<shown.length;i++){
+      const q = shown[i];
+      const dx = rx - q.px, dy = ry - q.py;
+      const d = dx*dx + dy*dy, hit = (q.size+9)*(q.size+9);
+      if(d < hit && d < bestD){ bestD = d; best = q; }
+    }
+  }
+  hovered = best;
+  const el = $('hover'); if(!el) return;
+  if(best){
+    el.classList.add('on');
+    const hm = $('h-mag');
+    if(hm){ hm.textContent = best.mag.toFixed(1); hm.style.color = 'rgb(' + best.col.map(Math.round).join(',') + ')'; }
+    setText('h-place', best.place || 'unknown locale');
+    setText('h-meta', best.depth.toFixed(0) + ' km deep \u00b7 ' + ago(best.time));
+  } else el.classList.remove('on');
+}
+
+/* ---------------- sonification (opt-in, gesture-gated Web Audio) ---------------- */
+/* Each step advances a cursor through the seeds (newest first, near the center)
+   and sounds one event; the ACTIVE MOTIF chooses the timbre, so the audio
+   iterates across the five variations exactly as the visuals do. Echoes the
+   logistic->melody sequencer: magnitude->pitch, depth->filter cutoff. */
+function ensureAudio(){
+  if(audio) return true;
+  try{
+    audio = new (window.AudioContext || window.webkitAudioContext)();
+    master = audio.createGain(); master.gain.value = 0.16;
+    fxDelay = audio.createDelay(1.0); fxDelay.delayTime.value = 0.30;
+    const fb = audio.createGain(); fb.gain.value = 0.28;
+    const wet = audio.createGain(); wet.gain.value = 0.25;
+    fxDelay.connect(fb); fb.connect(fxDelay);
+    fxDelay.connect(wet); wet.connect(master);
+    master.connect(audio.destination);
+    nextNoteT = audio.currentTime + 0.1;
+    return true;
+  }catch(e){ audio = null; return false; }
+}
+function degToFreq(deg, oct){
+  // map a scale-degree index onto the minor pentatonic across octaves, A-based
+  const n = PENTA.length;
+  const step = ((deg % n) + n) % n;
+  const semis = PENTA[step] + 12*(oct - 4);              // oct 4 ~= around A3..A4
+  return 220 * Math.pow(2, semis/12);
+}
+function playVoice(v, t){
+  const osc = audio.createOscillator();
+  const g = audio.createGain();
+  const lp = audio.createBiquadFilter();
+  osc.type = v.type; osc.frequency.value = degToFreq(v.deg, v.oct);
+  if(v.detune) osc.detune.value = v.detune;             // cents — bends pitch with the shape state
+  lp.type = 'lowpass'; lp.frequency.value = v.cutoff; lp.Q.value = 0.7;
+  const dur = v.dur;
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(0.9, t + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+  osc.connect(lp); lp.connect(g); g.connect(master); g.connect(fxDelay);
+  osc.start(t); osc.stop(t + dur + 0.05);
+}
+function scheduleNotes(){
+  if(!audio || !shown.length) return;
+  const stepDur = 60 / BPM / 2;
+  const motif = activeMotif();
+  // sonify the inner, newest seeds so the sequence stays musical rather than a wall of sound
+  const pool = Math.min(shown.length, 64);
+  while(nextNoteT < audio.currentTime + 0.12){
+    const q = shown[voiceCursor % pool];
+    if(q && q.mag >= 2.0) playVoice(motif.voice(q), nextNoteT);  // skip the micro-quakes
+    voiceCursor++;
+    nextNoteT += stepDur;
+  }
+}
+function toggleSound(){
+  if(!soundOn){
+    if(!ensureAudio()) return;
+    if(audio.state === 'suspended') audio.resume();
+    soundOn = true;
+  } else {
+    soundOn = false;
+  }
+  refreshMotifUI();
+}
+
+/* ---------------- data ---------------- */
+async function fetchFeed(){
+  const mag = MAG_KEYS[magIdx], per = PERIODS[perIdx];
+  const url = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/' + mag + '_' + per + '.geojson';
+  if(dataMode === 'live') setStatus('loading');
+  try{
+    const res = await fetch(url); if(!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    liveQuakes = data.features
+      .filter(f => f.properties.mag !== null && f.geometry)
+      .map(f => ({ mag:f.properties.mag, place:f.properties.place, time:f.properties.time,
+        depth:f.geometry.coordinates[2] ?? 0, url:f.properties.url }))
+      .sort((a,b) => b.time - a.time);
+    lastUpdated = (data.metadata && data.metadata.generated) || Date.now();
+    setStatus('live');
+  }catch(e){
+    liveQuakes = offlineQuakes(per); lastUpdated = Date.now(); setStatus('offline');
+  }
+  if(dataMode === 'live'){ quakes = liveQuakes; layout(); }
+}
+function offlineQuakes(per){
+  const span = ({hour:3.6e6, day:8.64e7, week:6.05e8, month:2.6e9})[per];
+  const now = Date.now(), out = [], n = per==='month'?900 : per==='week'?500 : 240;
+  for(let i=0;i<n;i++){
+    const m = Math.max(-0.5, 7.5*Math.pow(Math.random(),3.2));
+    out.push({ mag:m, place:'synthetic event', time:now - Math.random()*span,
+      depth:Math.pow(Math.random(),2)*300, url:'#' });
+  }
+  return out.sort((a,b)=>b.time-a.time);
+}
+
+/* ---------------- panel + status ---------------- */
+function updateRamp(){
+  const ramp = document.querySelector('.ramp'); if(!ramp) return;
+  const stops = [];
+  for(let i=0;i<=6;i++){ const t=i/6, c=depthColor(t*700).map(Math.round);
+    stops.push('rgb('+c[0]+','+c[1]+','+c[2]+') '+Math.round(t*100)+'%'); }
+  ramp.style.background = 'linear-gradient(90deg, ' + stops.join(',') + ')';
+}
+function updatePanel(){
+  const cap = maxSeedsFor(PERIODS[perIdx]);
+  setText('s-src',  dataMode==='live' ? 'USGS live' : 'synthetic');
+  setText('s-feed', MAG_LABEL[MAG_KEYS[magIdx]] + ' / ' + PERIODS[perIdx]);
+  setText('s-count', quakes.length + (dataMode==='live' && quakes.length>cap ? ' (showing '+cap+')' : ''));
+  setText('s-sym', symmetry + '-fold');
+  setText('s-pal', HARMONY_KEYS[harmony] + ' \u00b7 ' + Math.round(BASE_HUE) + '\u00b0');
+  setText('s-motif', activeMotif().name + ' \u00b7 ' + (motifIdx+1) + '/' + MOTIF_ORDER.length);
+  setText('c-mag', MAG_LABEL[MAG_KEYS[magIdx]]);
+  setText('c-per', PERIODS[perIdx]);
+  setText('s-upd', lastUpdated ? ago(lastUpdated) : '\u2014');
+  const top = quakes.reduce((a,b)=>(b.mag>((a&&a.mag)??-9)?b:a), null);
+  setText('s-max', top ? 'M'+top.mag.toFixed(1)+' \u00b7 '+shortPlace(top.place) : '\u2014');
+}
+function refreshMotifUI(){
+  const m = activeMotif();
+  setText('motifbtn', (motifIdx+1)+' \u00b7 '+m.name.toUpperCase());
+  setText('motiflabel', m.name);
+  const sb = $('soundbtn'); if(sb){ sb.textContent = soundOn ? 'SOUND: ON' : 'SOUND: OFF'; sb.classList.toggle('on', soundOn); }
+}
+function setStatus(s){ liveState = s; refreshStatus(); }
+function refreshStatus(){
+  const el = $('status'); if(!el) return;
+  if(dataMode === 'synthetic'){ el.className='status synth'; el.textContent='synthetic specimen'; return; }
+  el.className = 'status ' + liveState;
+  el.textContent = liveState==='live' ? 'live' : liveState==='offline' ? 'offline \u00b7 cached' : 'loading';
+}
+function shortPlace(p){ if(!p) return ''; const i = p.indexOf('of '); return i>=0 ? p.slice(i+3) : p; }
+function ago(t){
+  const s = (Date.now()-t)/1000;
+  if(s<90)     return Math.round(s)+'s ago';
+  if(s<5400)   return Math.round(s/60)+'m ago';
+  if(s<172800) return Math.round(s/3600)+'h ago';
+  return Math.round(s/86400)+'d ago';
+}
+
+/* ---------------- controls ---------------- */
+function cycleHarmony(){
+  harmony = (harmony+1) % HARMONY_KEYS.length;
+  setText('harmonybtn', HARMONY_KEYS[harmony].toUpperCase());
+  recolor(); updateRamp(); updatePanel();
+}
+function toggleData(){
+  dataMode = dataMode==='live' ? 'synthetic' : 'live';
+  if(dataMode === 'synthetic'){ specimen = buildSpecimen(); quakes = specimen; }  // rebuild so motif prep is fresh
+  else { if(liveQuakes.length){ quakes = liveQuakes; } else { fetchFeed(); } }
+  setText('databtn', dataMode==='live' ? 'DATA: LIVE' : 'DATA: SYNTH');
+  layout(); refreshStatus(); updatePanel();
+}
+/* request a motif switch — begins the transition dip; the swap happens mid-dip */
+function requestMotif(idx){
+  if(idx === motifIdx || switchT > 0) return;
+  pendingMotif = idx; switchT = 1;
+}
+function keyPressed(){
+  if(keyCode === RIGHT_ARROW) symmetry = Math.min(12, symmetry+1);
+  else if(keyCode === LEFT_ARROW) symmetry = Math.max(1, symmetry-1);
+  else if(key>='1' && key<=String(MOTIF_ORDER.length)){ requestMotif(parseInt(key,10)-1); }
+  else if(key==='f'||key==='F'){ magIdx=(magIdx+1)%MAG_KEYS.length; if(dataMode==='live') fetchFeed(); }
+  else if(key==='p'||key==='P'){ perIdx=(perIdx+1)%PERIODS.length; if(dataMode==='live') fetchFeed(); }
+  else if(key==='c'||key==='C'){ cycleHarmony(); }
+  else if(key==='d'||key==='D'){ toggleData(); }
+  else if(key==='m'||key==='M'){ toggleSound(); }
+  else if(key==='r'||key==='R'){ seedVal=Math.floor(Math.random()*99999); layout(); }
+  else if(key===' '){ paused=!paused; }
+  else if(key==='s'||key==='S'){ saveCanvas('seisma','png'); return false; }
+  updatePanel();
+}
+function mousePressed(){
+  if(hovered && hovered.url && hovered.url!=='#'){ window.open(hovered.url,'_blank'); }
+}
+
+</script>
+</body>
+</html>
