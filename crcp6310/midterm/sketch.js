@@ -39,8 +39,8 @@
     hover gated to mouse-move; single-pass "lite" draw above 1,400 seeds.
 --------------------------------------------------------------------------------
   Author : John McSwain (jimcswain@smu.edu)
-  Repo   : https://github.com/johnmcswain/johnmcswain.github.io  (update midterm path)
-  Live   : https://johnmcswain.github.io/crcp6310/midterm/mandala.html  (confirm path)
+  Repo   : https://github.com/johnmcswain/johnmcswain.github.io/blob/master/crcp6310/midterm/sketch.js
+  Live   : https://johnmcswain.github.io/crcp6310/midterm/mandala.html
 ================================================================================
 */
 
@@ -74,6 +74,7 @@ let liveState = 'loading';
 let motifIdx = 0;                                      // index into MOTIF_ORDER
 let switchT = 0;                                        // 0..1 transition dip timer (1 = mid-switch)
 let pendingMotif = -1;                                  // motif to apply at the bottom of the dip
+let userSetSym = false;                                 // once true, the user's fold count persists across motif switches
 
 /* sonification state (opt-in; created on first user gesture) */
 let audio = null, master = null, fxDelay = null;
@@ -527,7 +528,7 @@ function draw(){
     layerMul = 1 - 0.85*Math.sin(x*Math.PI);             // dips to ~0.15 at midpoint
     if(pendingMotif >= 0 && switchT <= 0.5){             // apply at the bottom of the dip
       motifIdx = pendingMotif; pendingMotif = -1;
-      symmetry = activeMotif().defaultSym;
+      if(!userSetSym) symmetry = activeMotif().defaultSym;   // user's fold count persists once set
       reprepare(); refreshMotifUI(); updatePanel();
     }
   }
@@ -835,8 +836,8 @@ function requestMotif(idx){
   pendingMotif = idx; switchT = 1;
 }
 function keyPressed(){
-  if(keyCode === RIGHT_ARROW) symmetry = Math.min(12, symmetry+1);
-  else if(keyCode === LEFT_ARROW) symmetry = Math.max(1, symmetry-1);
+  if(keyCode === RIGHT_ARROW){ symmetry = Math.min(12, symmetry+1); userSetSym = true; }
+  else if(keyCode === LEFT_ARROW){ symmetry = Math.max(1, symmetry-1); userSetSym = true; }
   else if(key>='1' && key<=String(MOTIF_ORDER.length)){ requestMotif(parseInt(key,10)-1); }
   else if(key==='f'||key==='F'){ magIdx=(magIdx+1)%MAG_KEYS.length; if(dataMode==='live') fetchFeed(); }
   else if(key==='p'||key==='P'){ perIdx=(perIdx+1)%PERIODS.length; if(dataMode==='live') fetchFeed(); }
