@@ -151,12 +151,14 @@ let ph = [], ps = [], pb = [];       // raw HSB channels (HUD, physarum LUT)
 let colCore = [], colGlow = [], colWalker = [];   // cached p5.Color objects
 let fadeColor = null;                // cached trail-fade color
 let paletteDirty = true;
+let paletteVersion = 0;              // bumps on ANY palette change (hue or scheme)
 
 function markPaletteDirty() { paletteDirty = true; }
 
 function buildPalette() {
   if (!paletteDirty) return;
   paletteDirty = false;
+  paletteVersion++;
   const cols = HARMONIES[harmonyIndex].fn(K, baseHue);
   ph = cols.map(c => c.h);
   ps = cols.map(c => c.s);
@@ -709,7 +711,7 @@ const physarum = {
   G: 180,                     // trail-field resolution (biggest perf lever)
   stepLen: 0.0022, sensorDist: 0.013, sensorAngle: 0.45,
   rotate: 0.55, deposit: 1.0, decay: 0.90,
-  field: null, tmp: null, lut: null, lutHue: null,
+  field: null, tmp: null, lut: null, lutVersion: -1,
   gfx: null, head: null, foods: [],
 
   enter() {
@@ -719,7 +721,7 @@ const physarum = {
       this.field = new Float32Array(G * G);
       this.tmp   = new Float32Array(G * G);
       this.lut   = new Float32Array(768);
-      this.lutHue = null;
+      this.lutVersion = -1;
     } else {
       this.field.fill(0);
     }
@@ -811,14 +813,32 @@ const physarum = {
 
   render() {
     const G = this.G, f = this.field, gp = this.gfx, lut = this.lut;
-    // rebuild the 256-entry hue LUT only when the base hue changes
-    if (this.lutHue !== baseHue) {
-      this.lutHue = baseHue;
+    // Rebuild the 256-entry LUT whenever the palette changes (hue OR scheme):
+    // a gradient from near-black through the harmony's colors, ordered
+    // dark -> bright, interpolated in RGB (so complementary pairs don't
+    // sweep the hue wheel between stops). Trail intensity then reads as
+    // position within the harmony: faint tendrils in its darker members,
+    // bright vein cores in its brightest.
+    if (this.lutVersion !== paletteVersion) {
+      this.lutVersion = paletteVersion;
+      const stops = [[8, 8, 12]];                       // near-black floor
+      // Order stops by PERCEIVED luminance of the actual RGB (Rec. 709),
+      // not HSB brightness — a b:100 blue is darker to the eye than a
+      // b:84 yellow-green, and a non-monotonic ramp reads as flicker.
+      const rgb = colCore.map(c => [red(c), green(c), blue(c)]);
+      const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+      const order = Array.from({ length: K }, (_, k) => k)
+        .sort((a, b) => lum(rgb[a]) - lum(rgb[b]) || (a - b));
+      for (const k of order) stops.push(rgb[k]);
+      const segs = stops.length - 1;
       for (let l = 0; l < 256; l++) {
-        const t = l / 255;
-        const c = color(baseHue, constrain(90 - 70 * t, 0, 100),
-                                  constrain(14 + 92 * t, 0, 100));
-        lut[l * 3] = red(c); lut[l * 3 + 1] = green(c); lut[l * 3 + 2] = blue(c);
+        const t  = (l / 255) * segs;
+        const i0 = Math.min(segs - 1, t | 0);
+        const fr = t - i0;
+        const a = stops[i0], b = stops[i0 + 1];
+        lut[l * 3]     = a[0] + (b[0] - a[0]) * fr;
+        lut[l * 3 + 1] = a[1] + (b[1] - a[1]) * fr;
+        lut[l * 3 + 2] = a[2] + (b[2] - a[2]) * fr;
       }
     }
     gp.loadPixels();
