@@ -1,0 +1,2057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hype Cult — a calm fitness companion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   Hype Cult — standalone rebuild
+   Perf notes:
+   - All transitions name explicit properties (never `all`)
+   - All animations are transform/opacity only (compositor-friendly)
+   - Waveforms animate scaleY, not height (no layout thrash)
+   - Screens use `content-visibility` + are display-gated
+   ============================================================ */
+:root{
+  --accent:#8f9e78;
+  --accent-rgb:143,158,120;
+  --accent-12:rgba(143,158,120,.15);
+  --bg:#f1e9df; --card:#fbf7f1; --soft:#f6efe6; --chipbg:#efe6da;
+  --ink:#2c2925; --ink2:#33302b; --body:#3a352f;
+  --sec:#6f665b; --mut:#8a8073; --mut2:#9a9082; --mut3:#a99f90;
+  --faint:#b0a596; --faint2:#c2b7a7; --line:rgba(51,48,43,.08);
+  --clay:#d99f7e; --rest:#cabfae;
+  --sansf:'Hanken Grotesk',system-ui,sans-serif;
+  --seriff:'Newsreader',Georgia,serif;
+  --shadow-card:0 1px 2px rgba(51,48,43,.04),0 14px 34px -22px rgba(51,48,43,.22);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  background:radial-gradient(120% 120% at 50% 0%, #efe4d6 0%, #e3d7c8 70%);
+  font-family:var(--sansf); color:var(--ink2);
+  display:flex; align-items:center; justify-content:center;
+  padding:20px 12px; -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit; -webkit-tap-highlight-color:transparent}
+canvas{display:block}
+
+/* ---------- keyframes (transform/opacity only) ---------- */
+@keyframes hcFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes hcWave{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}
+@keyframes hcBreathe{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.04);opacity:1}}
+@keyframes hcPulseDot{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.5);opacity:.45}}
+@keyframes hcRecPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+@keyframes screenIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes overlayUp{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
+
+/* ---------- device frame ---------- */
+.device{
+  width:min(402px, 100vw - 20px);
+  height:min(874px, 100dvh - 32px);
+  background:#0d0c0b; border-radius:56px; padding:9px;
+  box-shadow:0 34px 80px -28px rgba(40,32,24,.55), 0 2px 8px rgba(40,32,24,.25);
+  position:relative;
+}
+.device::after{ /* home indicator */
+  content:""; position:absolute; left:50%; bottom:18px; transform:translateX(-50%);
+  width:132px; height:5px; border-radius:3px; background:rgba(44,41,37,.28);
+  z-index:80; pointer-events:none;
+}
+.viewport{
+  width:100%; height:100%; border-radius:48px; overflow:hidden;
+  background:var(--bg); position:relative;
+  display:flex; flex-direction:column;
+}
+.notch{
+  position:absolute; top:12px; left:50%; transform:translateX(-50%);
+  width:118px; height:34px; border-radius:20px; background:#0d0c0b; z-index:70;
+}
+.statusbar{
+  flex-shrink:0; display:flex; align-items:center; justify-content:space-between;
+  padding:17px 32px 6px; position:relative; z-index:60;
+}
+.statusbar .time{font-size:16px; font-weight:600; letter-spacing:.01em; color:var(--ink)}
+.statusbar .icons{display:flex; align-items:center; gap:6px}
+
+/* ---------- screens ---------- */
+.screens{flex:1; position:relative; min-height:0}
+.screen{
+  position:absolute; inset:0; overflow-y:auto; overscroll-behavior:contain;
+  padding:8px 22px 118px; display:none; flex-direction:column; gap:22px;
+  content-visibility:auto; scrollbar-width:none;
+}
+.screen::-webkit-scrollbar{display:none}
+.screen.is-active{display:flex; animation:screenIn .34s cubic-bezier(.22,1,.36,1)}
+.reduce .screen.is-active{animation:none}
+
+.eyebrow{font-size:11px; letter-spacing:.2em; font-weight:600; color:var(--faint); text-transform:uppercase}
+.eyebrow.card-eyebrow{font-size:12px; letter-spacing:.14em; color:var(--mut3)}
+.card{
+  background:var(--card); border:1px solid var(--line); border-radius:26px;
+  padding:22px 20px; box-shadow:var(--shadow-card); contain:content;
+}
+.softcard{background:var(--soft); border-radius:22px; padding:18px 20px}
+
+/* ---------- Today ---------- */
+.greet-hello{font-family:var(--seriff); font-size:32px; font-weight:500; line-height:1.1; margin-top:8px; color:var(--ink)}
+.greet-date{font-size:14.5px; color:var(--mut); margin-top:5px}
+.companion-head{display:flex; align-items:center; gap:9px}
+.companion-orb{width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 35% 30%, #e7b79a, #cf9576)}
+.companion-q{font-family:var(--seriff); font-size:22px; line-height:1.25; margin-top:14px; color:var(--ink)}
+.moodrow{display:flex; flex-wrap:wrap; gap:10px; margin-top:16px}
+.chip{
+  display:flex; align-items:center; padding:10px 17px; border-radius:999px;
+  border:1px solid rgba(51,48,43,.14); background:var(--soft); color:#7a7268;
+  font-size:15px; font-weight:500; cursor:pointer;
+  transition:background-color .25s ease, border-color .25s ease, color .25s ease, transform .15s ease;
+}
+.chip:active{transform:scale(.96)}
+.chip.is-on{border-color:var(--accent); background:var(--accent-12); color:var(--ink); font-weight:600}
+.recnote{
+  margin-top:16px; padding-top:15px; border-top:1px solid var(--line);
+  font-size:15.5px; line-height:1.5; color:var(--sec); animation:hcFade .4s ease;
+}
+.session-btn{display:block; width:100%; text-align:left; cursor:pointer; border:1px solid var(--line);
+  background:var(--card); border-radius:26px; padding:20px; box-shadow:var(--shadow-card);
+  transition:transform .18s ease, box-shadow .18s ease}
+.session-btn:active{transform:scale(.985)}
+.trainer-row{display:flex; align-items:center; justify-content:space-between}
+.trainer-id{display:flex; align-items:center; gap:11px}
+.avatar{width:40px;height:40px;border-radius:50%;background:var(--chipbg);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#7a7062;letter-spacing:.02em}
+.tname{font-size:15px;font-weight:600;color:var(--body)}
+.tcert{font-size:12.5px;color:var(--mut2)}
+.verify-pill{display:flex;align-items:center;gap:5px;padding:6px 11px;border-radius:999px;background:var(--accent-12)}
+.verify-pill span{font-size:11.5px;font-weight:600;color:var(--accent)}
+.rec-title{font-family:var(--seriff);font-size:25px;font-weight:500;margin-top:16px;color:var(--ink)}
+.rec-meta{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:14px;color:var(--mut)}
+.rec-meta .dot{color:#c9beae}
+.begin-row{margin-top:18px;display:flex;align-items:center;justify-content:space-between}
+.begin-row b{font-size:14.5px;font-weight:600;color:var(--body)}
+.arrow-circle{width:34px;height:34px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center}
+.insight{display:flex; gap:13px; align-items:flex-start}
+.insight .mark{width:8px;height:8px;border-radius:50%;background:#cf9576;margin-top:7px;flex-shrink:0}
+.insight p{font-size:15px;line-height:1.5;color:var(--sec)}
+.mini-artifact-btn{display:flex;align-items:center;gap:15px;width:100%;text-align:left;cursor:pointer;background:transparent;border:none;padding:4px}
+.mini-artifact-btn canvas{width:64px;height:64px;flex-shrink:0}
+.mini-t{font-size:15px;font-weight:600;color:var(--body)}
+.mini-s{font-size:13.5px;color:var(--mut2);margin-top:2px}
+
+/* ---------- voice rows (shared) ---------- */
+.vrow{display:flex; align-items:center; gap:13px}
+.playbtn{
+  width:44px;height:44px;border-radius:50%;background:var(--accent);border:none;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;
+  transition:transform .18s ease, background-color .3s ease; position:relative;
+}
+.playbtn:active{transform:scale(.92)}
+.playbtn.sm{width:38px;height:38px}
+.playbtn.md{width:40px;height:40px}
+.playbtn .ic-pause{display:none}
+.playing > .vrow .playbtn .ic-play,
+.playing.vrow .playbtn .ic-play{display:none}
+.playing > .vrow .playbtn .ic-pause,
+.playing.vrow .playbtn .ic-pause{display:block}
+.playbtn .ring{ /* progress ring */
+  position:absolute; inset:-3px; border-radius:50%; pointer-events:none;
+}
+.lockbtn{width:40px;height:40px;border-radius:50%;background:var(--chipbg);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.vmain{flex:1;min-width:0}
+.vtitle{font-size:14.5px;font-weight:600;color:var(--body)}
+.vmeta{font-size:12.5px;color:var(--mut2);margin-top:2px;font-variant-numeric:tabular-nums}
+.wave{display:flex;align-items:center;gap:2.5px;height:26px}
+.wave span{
+  display:block;width:2.5px;border-radius:2px;background:rgba(51,48,43,.14);
+  height:var(--h); transform:scaleY(1); transform-origin:center;
+  transition:background-color .3s ease;
+}
+.playing .wave span{
+  background:var(--accent);
+  animation:hcWave 1s ease-in-out var(--d) infinite;
+}
+.reduce .playing .wave span{animation:none; transform:scaleY(.75)}
+.transcript{
+  margin-top:12px; font-family:var(--seriff); font-style:italic;
+  font-size:15px; line-height:1.5; color:var(--sec);
+  display:none;
+}
+.playing .transcript{display:block; animation:hcFade .3s ease}
+.transcript .w{opacity:.14; transition:opacity .5s ease}
+.transcript .w.on{opacity:1}
+.reduce .transcript .w{opacity:1; transition:none}
+
+/* ---------- Wellness ---------- */
+#artifactLarge{width:100%;height:290px;margin-top:4px}
+.vitality-wrap{text-align:center;margin-top:2px}
+.vitality-cap{font-family:var(--seriff);font-size:26px;font-weight:500;color:var(--ink);transition:opacity .3s ease}
+.vitality-sub{font-size:15px;line-height:1.5;color:var(--mut);margin-top:8px;max-width:280px;margin-left:auto;margin-right:auto}
+.rhythm-card{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:20px 18px 16px;margin-top:22px}
+.rhythm-head{display:flex;align-items:center;justify-content:space-between}
+.seg{display:flex;background:var(--chipbg);border-radius:999px;padding:3px}
+.seg button{
+  padding:7px 14px;border-radius:999px;border:none;cursor:pointer;font-size:13px;font-weight:600;
+  background:transparent;color:var(--mut2);
+  transition:background-color .2s ease,color .2s ease,box-shadow .2s ease;
+}
+.seg button.is-on{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(51,48,43,.12)}
+.sig-wrap{position:relative;margin-top:6px}
+#sig{width:100%;height:278px;touch-action:none;cursor:crosshair}
+.tip{
+  position:absolute;left:0;top:0;background:var(--ink);border-radius:12px;
+  padding:9px 12px;min-width:118px;pointer-events:none;z-index:5;
+  box-shadow:0 10px 24px -12px rgba(0,0,0,.5);
+  opacity:0; transform:translate(-50%,-100%) translateY(4px) scale(.96);
+  transition:opacity .18s ease, transform .18s ease;
+  will-change:opacity,transform;
+}
+.tip.is-on{opacity:1; transform:translate(-50%,-100%) translateY(0) scale(1)}
+.tip-title-row{display:flex;align-items:center;gap:7px}
+.tip .tdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.tip .ttitle{font-size:13.5px;font-weight:600;color:var(--ink); color:#fbf7f1}
+.tip .tsub{font-size:12px;color:#b8ad9d;margin-top:3px}
+.legend{display:flex;gap:16px;margin-top:6px;justify-content:center;font-size:12.5px;color:var(--mut2)}
+.legend span{display:flex;align-items:center;gap:6px}
+.lg-moved{width:9px;height:9px;border-radius:50%;background:var(--accent)}
+.lg-refl{width:10px;height:10px;border-radius:50%;border:2px solid var(--clay)}
+.lg-rest{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--rest)}
+.catseg{display:flex;background:var(--chipbg);border-radius:14px;padding:4px;margin-top:16px}
+.catseg button{
+  flex:1;padding:9px 6px;border-radius:11px;border:none;cursor:pointer;font-size:13px;font-weight:500;
+  background:transparent;color:var(--mut2);
+  transition:background-color .2s ease,color .2s ease,box-shadow .2s ease;
+}
+.catseg button.is-on{background:var(--card);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(51,48,43,.12)}
+.zoomrow{display:flex;align-items:center;gap:14px;margin-top:16px}
+.zoomrow label{font-size:12.5px;font-weight:600;color:var(--mut2);flex-shrink:0}
+input[type=range]{
+  flex:1;appearance:none;-webkit-appearance:none;height:4px;border-radius:4px;outline:none;cursor:pointer;
+  background:linear-gradient(90deg,var(--accent) 0%,var(--accent) var(--fill,36%),#e0d5c6 var(--fill,36%),#e0d5c6 100%);
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--card);
+  border:1.5px solid rgba(51,48,43,.16);box-shadow:0 1px 4px rgba(51,48,43,.2);cursor:grab;
+}
+input[type=range]::-moz-range-thumb{
+  width:20px;height:20px;border-radius:50%;background:var(--card);
+  border:1.5px solid rgba(51,48,43,.16);box-shadow:0 1px 4px rgba(51,48,43,.2);cursor:grab;
+}
+.sig-hint{font-size:13px;line-height:1.5;color:#a49a8b;margin-top:14px}
+.statrow{display:flex;gap:12px;margin-top:14px}
+.stat{flex:1;background:var(--soft);border-radius:20px;padding:16px}
+.stat b{font-family:var(--seriff);font-size:24px;font-weight:500;color:var(--ink);display:block}
+.stat span{font-size:12.5px;color:var(--mut2);margin-top:2px;display:block}
+.quietline{margin-top:14px;background:var(--soft);border-radius:20px;padding:18px 20px;font-size:15px;line-height:1.5;color:var(--sec)}
+
+/* notes to yourself */
+.selfrec-row{margin-top:16px;display:flex;align-items:center;gap:14px}
+.recbtn{
+  width:50px;height:50px;border-radius:50%;flex-shrink:0;cursor:pointer;
+  border:2px solid rgba(51,48,43,.18);background:var(--card);
+  display:flex;align-items:center;justify-content:center;
+  transition:border-color .25s ease, transform .15s ease;
+}
+.recbtn:active{transform:scale(.94)}
+.recbtn .knob{width:22px;height:22px;border-radius:50%;background:var(--accent);
+  transition:border-radius .25s ease, width .25s ease, height .25s ease}
+.recbtn.rec{border-color:var(--accent)}
+.recbtn.rec .knob{width:16px;height:16px;border-radius:4px;animation:hcRecPulse 1.2s ease-in-out infinite}
+.reduce .recbtn.rec .knob{animation:none}
+.livewave{display:none;align-items:center;gap:2.5px;height:26px}
+.selfrec-row.rec .livewave{display:flex}
+.livewave span{display:block;width:2.5px;border-radius:2px;background:var(--accent);height:18px;transform:scaleY(.2);transform-origin:center;will-change:transform}
+.notelist{margin-top:16px;display:flex;flex-direction:column;gap:9px}
+.note{background:var(--soft);border-radius:16px;padding:14px 15px}
+.note.new{animation:hcFade .5s ease}
+.note .wave{height:24px}
+
+/* ---------- Connection ---------- */
+.conn-title{font-family:var(--seriff);font-size:30px;font-weight:500;line-height:1.15;margin-top:8px;color:var(--ink)}
+.conn-sub{font-size:15px;line-height:1.5;color:var(--mut);margin-top:8px}
+.witness-card{text-align:center;padding:26px 22px}
+.witness-ring{width:132px;height:132px;margin:6px auto 0;border-radius:50%;border:1.5px solid rgba(51,48,43,.10);display:flex;align-items:center;justify-content:center;position:relative}
+.witness-dot{
+  width:96px;height:96px;border-radius:50%;
+  background:radial-gradient(circle at 38% 32%, rgba(var(--accent-rgb),.75), var(--accent));
+  transform:scale(.001);opacity:0;
+  transition:transform 1.4s cubic-bezier(.22,1,.36,1), opacity 1s ease;
+  will-change:transform,opacity;
+}
+.witnessing .witness-dot{transform:scale(1);opacity:.9;animation:hcBreathe 5s ease-in-out 1.4s infinite}
+.reduce .witnessing .witness-dot{animation:none}
+.witness-label{font-size:15px;font-weight:600;color:var(--body);margin-top:20px}
+.witness-sub{font-size:13.5px;color:var(--mut2);margin-top:4px}
+.btn-primary{
+  margin-top:22px;width:100%;padding:15px;border-radius:16px;border:none;cursor:pointer;
+  background:var(--ink);color:var(--bg);font-size:15.5px;font-weight:600;
+  transition:background-color .25s ease,color .25s ease,transform .15s ease;
+}
+.btn-primary:active{transform:scale(.98)}
+.witnessing .btn-primary{background:transparent;color:var(--sec);border:1px solid rgba(51,48,43,.14)}
+.rowcard{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:18px 20px;display:flex;align-items:center;gap:14px}
+.coll-swatch{width:44px;height:44px;border-radius:14px;background:linear-gradient(150deg,#e7b79a,#b7c39f);flex-shrink:0}
+.section-note{font-size:14px;line-height:1.5;color:var(--mut);margin:0 4px 12px}
+.vaultlist{display:flex;flex-direction:column;gap:10px}
+.vault-note{border:1px solid var(--line);border-radius:20px;padding:16px 17px;background:#f3ece2;opacity:.85;
+  transition:background-color .5s ease, opacity .5s ease}
+.vault-note.open{background:var(--card);opacity:1}
+.vault-note .lockbtn{display:flex}
+.vault-note .playbtn{display:none}
+.vault-note.open .lockbtn{display:none}
+.vault-note.open .playbtn{display:flex}
+.vault-note .wave{visibility:hidden}
+.vault-note.open .wave{visibility:visible}
+.company-card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:20px 18px}
+.btn-opt{
+  margin-top:14px;width:100%;padding:13px;border-radius:15px;cursor:pointer;font-size:14.5px;font-weight:600;
+  border:1px solid rgba(51,48,43,.14);background:transparent;color:#7a7268;
+  transition:background-color .25s ease,border-color .25s ease,color .25s ease;
+}
+.btn-opt.is-on{border-color:var(--accent);background:var(--accent-12);color:var(--ink)}
+.company-body{display:none;margin-top:16px}
+.company-body.is-open{display:block;animation:hcFade .4s ease}
+.linelist{display:flex;flex-direction:column;gap:8px}
+.lineopt{
+  text-align:left;padding:12px 14px;border-radius:14px;cursor:pointer;
+  font-family:var(--seriff);font-style:italic;font-size:15px;line-height:1.4;
+  border:1px solid rgba(51,48,43,.10);background:var(--card);color:var(--sec);
+  transition:background-color .2s ease,border-color .2s ease,color .2s ease;
+}
+.lineopt.is-on{border-color:var(--accent);background:var(--accent-12);color:var(--ink)}
+.btn-send{
+  margin-top:14px;width:100%;padding:14px;border-radius:15px;border:none;font-size:14.5px;font-weight:600;
+  background:#e7ddd0;color:#b3a894;cursor:default;
+  transition:background-color .3s ease,color .3s ease;
+}
+.btn-send.ready{background:var(--ink);color:var(--bg);cursor:pointer}
+.btn-send.sent{background:var(--chipbg);color:#7a7062;cursor:default}
+.coming{margin-top:14px;display:flex;align-items:center;gap:11px;opacity:.55}
+.coming .dash{width:36px;height:36px;border-radius:50%;border:1.5px dashed rgba(51,48,43,.22);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.coming .dash i{width:13px;height:13px;border-radius:50%;background:rgba(51,48,43,.22)}
+
+/* ---------- bottom nav ---------- */
+.navbar{
+  position:absolute;left:0;right:0;bottom:0;z-index:40;
+  display:flex;justify-content:space-around;align-items:center;
+  padding:12px 24px 30px;background:rgba(241,233,223,.92);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-top:1px solid rgba(51,48,43,.07);
+}
+.navbtn{display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:none;cursor:pointer;padding:4px 10px;color:var(--faint);
+  transition:color .25s ease, transform .15s ease}
+.navbtn:active{transform:scale(.94)}
+.navbtn.is-on{color:var(--accent)}
+.navbtn span{font-size:11px;font-weight:600;color:currentColor}
+.navbtn svg{stroke:currentColor}
+.navbtn svg .fillpart{fill:currentColor;stroke:none}
+
+/* ---------- workout overlay ---------- */
+.overlay{
+  position:absolute;inset:0;z-index:60;background:var(--bg);
+  display:none;flex-direction:column;
+}
+.overlay.is-open{display:flex;animation:overlayUp .32s cubic-bezier(.22,1,.36,1)}
+.reduce .overlay.is-open{animation:none}
+.overlay .scrollarea{flex:1;overflow:auto;padding:64px 22px 120px;overscroll-behavior:contain;scrollbar-width:none}
+.overlay .scrollarea::-webkit-scrollbar{display:none}
+.backbtn{width:40px;height:40px;border-radius:50%;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s ease}
+.backbtn:active{transform:scale(.92)}
+.ovr-head{display:flex;align-items:center;justify-content:space-between}
+.ovr-kind{font-size:13px;color:var(--mut2)}
+.ovr-title{font-family:var(--seriff);font-size:34px;font-weight:500;line-height:1.1;margin-top:8px;color:var(--ink)}
+.ovr-trainer{display:flex;align-items:center;gap:11px;margin-top:16px}
+.adaptnote{margin-top:20px;background:var(--soft);border-radius:20px;padding:16px 18px;display:none;gap:12px;align-items:flex-start}
+.adaptnote.is-on{display:flex;animation:hcFade .4s ease}
+.adaptnote .orb{width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#e7b79a,#cf9576);flex-shrink:0;margin-top:1px}
+.adaptnote p{font-size:14.5px;line-height:1.5;color:var(--sec)}
+.movements-head{display:flex;align-items:baseline;justify-content:space-between;margin-top:26px}
+.movements-sub{font-size:12.5px;color:var(--mut3)}
+.exlist{margin-top:14px;display:flex;flex-direction:column;gap:2px}
+.exrow{display:flex;align-items:center;gap:14px;padding:15px 4px;border-bottom:1px solid rgba(51,48,43,.07)}
+.exrow .num{width:26px;font-family:var(--seriff);font-size:16px;color:var(--faint2)}
+.exrow .nm{flex:1;font-size:15.5px;font-weight:500;color:var(--body)}
+.exrow .dt{font-size:13.5px;color:var(--mut2)}
+.ovr-footer{flex-shrink:0;padding:14px 22px 34px;background:linear-gradient(rgba(241,233,223,0),var(--bg) 30%)}
+.btn-begin{width:100%;padding:17px;border-radius:18px;background:var(--ink);color:var(--bg);border:none;font-size:16px;font-weight:600;cursor:pointer;letter-spacing:.01em;transition:transform .15s ease}
+.btn-begin:active{transform:scale(.98)}
+.ovr-hint{text-align:center;font-size:12.5px;color:var(--mut3);margin-top:10px}
+
+/* ---------- settings sheet ---------- */
+.gearbtn{
+  position:absolute;top:56px;right:18px;z-index:50;width:36px;height:36px;border-radius:50%;
+  background:rgba(251,247,241,.85);border:1px solid var(--line);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  transition:transform .2s ease;
+}
+.gearbtn:active{transform:scale(.9) rotate(30deg)}
+.sheet-backdrop{position:absolute;inset:0;z-index:64;background:rgba(44,41,37,.24);opacity:0;pointer-events:none;transition:opacity .3s ease}
+.sheet-backdrop.is-open{opacity:1;pointer-events:auto}
+.sheet{
+  position:absolute;left:0;right:0;bottom:0;z-index:65;background:var(--card);
+  border-radius:28px 28px 0 0;padding:20px 22px 44px;
+  transform:translateY(100%);transition:transform .38s cubic-bezier(.22,1,.36,1);
+  box-shadow:0 -12px 40px -18px rgba(40,32,24,.35);
+  will-change:transform;
+}
+.sheet.is-open{transform:none}
+.sheet-grab{width:38px;height:4px;border-radius:2px;background:rgba(51,48,43,.14);margin:0 auto 18px}
+.setrow{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid rgba(51,48,43,.06)}
+.setrow:last-child{border-bottom:none}
+.setrow .lbl{font-size:14.5px;font-weight:600;color:var(--body)}
+.swatches{display:flex;gap:10px}
+.swatch{width:30px;height:30px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;
+  transition:transform .18s ease,border-color .2s ease}
+.swatch.is-on{border-color:var(--ink);transform:scale(1.08)}
+.toggle{width:48px;height:29px;border-radius:999px;background:#e0d5c6;border:none;cursor:pointer;position:relative;transition:background-color .25s ease}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:23px;height:23px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(51,48,43,.25);transition:transform .25s cubic-bezier(.22,1,.36,1)}
+.toggle.is-on{background:var(--accent)}
+.toggle.is-on::after{transform:translateX(19px)}
+.seg.mini button{padding:6px 12px;font-size:12.5px}
+
+/* ---------- voice picker (ElevenLabs) ---------- */
+.setrow.stack{flex-direction:column;align-items:stretch;gap:10px}
+.vchips{display:flex;gap:8px;flex-wrap:wrap}
+.vchip{
+  padding:7px 13px;border-radius:999px;border:1px solid var(--line);background:var(--soft);
+  font:600 12.5px/1 'Hanken Grotesk',sans-serif;color:var(--body);cursor:pointer;
+  transition:background-color .2s ease,border-color .2s ease,color .2s ease,transform .18s ease;
+}
+.vchip.is-on{background:var(--accent);border-color:var(--accent);color:#f7f3ec;transform:scale(1.04)}
+.vchip.previewing{animation:hcBreathe 1.4s ease-in-out infinite}
+.vhint{font-size:12px;color:var(--mut2);line-height:1.5}
+.vhint code{font-family:ui-monospace,monospace;font-size:11px;background:var(--chipbg);padding:1px 5px;border-radius:5px}
+.keyinput{
+  width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:12px;
+  background:var(--soft);padding:9px 12px;color:var(--ink);
+  font:500 12.5px/1.4 ui-monospace,monospace;outline:none;letter-spacing:.4px;
+  transition:border-color .2s ease,background-color .2s ease;
+}
+.keyinput:focus{border-color:var(--accent);background:var(--card)}
+.keyinput.is-set{border-color:var(--accent)}
+
+/* ---------- generated-note composer ---------- */
+.typebtn{
+  margin-top:12px;background:none;border:none;padding:2px 0;cursor:pointer;text-align:left;
+  font:600 12.5px/1.4 'Hanken Grotesk',sans-serif;color:var(--accent);
+  transition:opacity .2s ease;
+}
+.typebtn:hover{opacity:.75}
+.tts-composer{margin-top:10px;display:grid;gap:9px}
+.tts-composer textarea{
+  width:100%;box-sizing:border-box;resize:none;border:1px solid var(--line);border-radius:14px;
+  background:var(--soft);padding:11px 13px;color:var(--ink);
+  font:400 14px/1.5 'Newsreader',serif;outline:none;
+  transition:border-color .2s ease,background-color .2s ease;
+}
+.tts-composer textarea:focus{border-color:var(--accent);background:var(--card)}
+.tts-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.tts-note{font-size:11.5px;color:var(--mut2);flex:1;min-width:0}
+.genbtn{
+  padding:8px 16px;border-radius:999px;border:none;background:var(--accent);color:#f7f3ec;
+  font:600 12.5px/1 'Hanken Grotesk',sans-serif;cursor:pointer;
+  transition:opacity .2s ease,transform .18s ease;
+}
+.genbtn:disabled{opacity:.5;cursor:default}
+.genbtn:not(:disabled):active{transform:scale(.96)}
+.playbtn.busy{animation:hcBreathe 1.1s ease-in-out infinite;pointer-events:none}
+
+/* debug */
+#debug{position:fixed;left:10px;bottom:10px;z-index:999;font:11px/1.5 ui-monospace,monospace;color:#5c5347;background:rgba(251,247,241,.92);border:1px solid var(--line);border-radius:8px;padding:6px 10px;display:none;white-space:pre}
+
+@media (prefers-reduced-motion: reduce){
+  .screen.is-active,.overlay.is-open,.recnote,.company-body.is-open,.adaptnote.is-on,.note.new{animation:none !important}
+}
+</style>
+</head>
+<body>
+
+<div class="device">
+  <div class="viewport" id="viewport">
+    <div class="notch"></div>
+    <div class="statusbar">
+      <span class="time">9:41</span>
+      <span class="icons">
+        <svg width="19" height="12" viewBox="0 0 19 12"><rect x="0" y="7.5" width="3.2" height="4.5" rx="0.7" fill="#2c2925"/><rect x="4.8" y="5" width="3.2" height="7" rx="0.7" fill="#2c2925"/><rect x="9.6" y="2.5" width="3.2" height="9.5" rx="0.7" fill="#2c2925"/><rect x="14.4" y="0" width="3.2" height="12" rx="0.7" fill="#2c2925" opacity=".35"/></svg>
+        <svg width="17" height="12" viewBox="0 0 17 12"><path d="M8.5 3.2C10.8 3.2 12.9 4.1 14.4 5.6L15.5 4.5C13.7 2.7 11.2 1.5 8.5 1.5C5.8 1.5 3.3 2.7 1.5 4.5L2.6 5.6C4.1 4.1 6.2 3.2 8.5 3.2Z" fill="#2c2925"/><path d="M8.5 6.8C9.9 6.8 11.1 7.3 12 8.2L13.1 7.1C11.8 5.9 10.2 5.1 8.5 5.1C6.8 5.1 5.2 5.9 3.9 7.1L5 8.2C5.9 7.3 7.1 6.8 8.5 6.8Z" fill="#2c2925"/><circle cx="8.5" cy="10.5" r="1.5" fill="#2c2925"/></svg>
+        <svg width="27" height="13" viewBox="0 0 27 13"><rect x="0.5" y="0.5" width="23" height="12" rx="3.5" stroke="#2c2925" stroke-opacity=".35" fill="none"/><rect x="2" y="2" width="20" height="9" rx="2" fill="#2c2925"/><path d="M25 4.5V8.5C25.8 8.2 26.5 7.2 26.5 6.5C26.5 5.8 25.8 4.8 25 4.5Z" fill="#2c2925" fill-opacity=".4"/></svg>
+      </span>
+    </div>
+
+    <button class="gearbtn" id="gearBtn" aria-label="Preferences">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.4" stroke="#8a8073" stroke-width="1.4"/><path d="M8 1.6v2M8 12.4v2M1.6 8h2M12.4 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M12.5 3.5l-1.4 1.4M4.9 11.1l-1.4 1.4" stroke="#8a8073" stroke-width="1.4" stroke-linecap="round"/></svg>
+    </button>
+
+    <div class="screens">
+
+      <!-- ================= TODAY ================= -->
+      <section class="screen is-active" id="screen-today">
+        <div style="padding-top:6px;">
+          <div class="eyebrow">Good morning</div>
+          <div class="greet-hello">Hey, Kay</div>
+          <div class="greet-date">Thursday · May 29</div>
+        </div>
+
+        <div class="card">
+          <div class="companion-head">
+            <div class="companion-orb"></div>
+            <div class="eyebrow card-eyebrow">Your companion</div>
+          </div>
+          <div class="companion-q" id="companionPrompt">How’s your body feeling today?</div>
+          <div class="moodrow" id="moodRow"></div>
+          <div class="recnote" id="recNote" hidden></div>
+        </div>
+
+        <div>
+          <div class="eyebrow" style="margin:0 4px 10px;">Today, if you'd like</div>
+          <button class="session-btn" id="openWorkoutBtn">
+            <div class="trainer-row">
+              <div class="trainer-id">
+                <div class="avatar">AT</div>
+                <div><div class="tname">Alex Torres</div><div class="tcert">NASM-CPT</div></div>
+              </div>
+              <div class="verify-pill">
+                <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 6.3l2.2 2.2 4.8-5" stroke="var(--accent)" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>Form-verified</span>
+              </div>
+            </div>
+            <div class="rec-title" id="recTitle">Full-Body Strength</div>
+            <div class="rec-meta"><span id="recKind">Strength</span><span class="dot num-only">·</span><span class="num-only"><span id="recMins">40</span> min</span></div>
+            <div class="begin-row">
+              <b>Begin when you're ready</b>
+              <span class="arrow-circle"><svg width="13" height="13" viewBox="0 0 13 13"><path d="M2 6.5h8M6.5 3l3.5 3.5L6.5 10" stroke="#f1e9df" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </div>
+          </button>
+        </div>
+
+        <div class="softcard insight">
+          <div class="mark"></div>
+          <p>You’ve moved 4 of the last 7 days. That’s more than enough — rest counts too.</p>
+        </div>
+
+        <div class="card" id="selfSurfacedCard" hidden style="padding:18px 20px;">
+          <div class="eyebrow card-eyebrow">A note from a kinder morning</div>
+          <div class="vrow" style="margin-top:13px;">
+            <button class="playbtn" data-voice="selfToday" aria-label="Play note">
+              <svg class="ic-play" width="13" height="13" viewBox="0 0 14 14"><path d="M3 2l9 5-9 5z" fill="#f1e9df"/></svg>
+              <svg class="ic-pause" width="13" height="13" viewBox="0 0 14 14"><rect x="3" y="2" width="3" height="10" rx="1" fill="#f1e9df"/><rect x="8" y="2" width="3" height="10" rx="1" fill="#f1e9df"/></svg>
+            </button>
+            <div class="vmain">
+              <div class="vtitle">From you, on a good day</div>
+              <div class="vmeta" data-meta="selfToday" data-base="A note to yourself · 0:08">A note to yourself · 0:08</div>
+            </div>
+            <div class="wave" data-wave="selfToday"></div>
+          </div>
+          <div class="transcript" data-transcript="selfToday"></div>
+        </div>
+
+        <button class="mini-artifact-btn" id="miniArtifactBtn">
+          <canvas id="artifactMini" width="64" height="64"></canvas>
+          <div style="flex:1;">
+            <div class="mini-t">Your Living Artifact</div>
+            <div class="mini-s"><span class="vitcap">Steady</span> · open wellness</div>
+          </div>
+          <svg width="8" height="14" viewBox="0 0 8 14"><path d="M1 1l6 6-6 6" stroke="#c2b7a7" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </section>
+
+      <!-- ================= WELLNESS ================= -->
+      <section class="screen" id="screen-wellness" style="gap:8px;">
+        <div class="eyebrow" style="padding-top:6px;">Living Artifact</div>
+        <canvas id="artifactLarge"></canvas>
+        <div class="vitality-wrap">
+          <div class="vitality-cap" id="vitalityCap">Steady</div>
+          <div class="vitality-sub" id="vitalitySub">A quiet reflection of how you’ve moved and rested this week — never a score.</div>
+        </div>
+
+        <div class="rhythm-card">
+          <div class="rhythm-head">
+            <div class="eyebrow card-eyebrow">Your rhythm</div>
+            <div class="seg" id="viewSeg">
+              <button data-view="signature" class="is-on">Signature</button>
+              <button data-view="timeline">Timeline</button>
+            </div>
+          </div>
+          <div class="sig-wrap">
+            <canvas id="sig"></canvas>
+            <div class="tip" id="tip">
+              <div class="tip-title-row"><span class="tdot" id="tipDot"></span><span class="ttitle" id="tipTitle"></span></div>
+              <div class="tsub" id="tipSub"></div>
+            </div>
+          </div>
+          <div class="legend">
+            <span><span class="lg-moved"></span>Moved</span>
+            <span><span class="lg-refl"></span>Reflected</span>
+            <span><span class="lg-rest"></span>Rested</span>
+          </div>
+          <div class="catseg" id="catSeg">
+            <button data-cat="all" class="is-on">All</button>
+            <button data-cat="strength">Strength</button>
+            <button data-cat="mobility">Mobility</button>
+            <button data-cat="mindful">Mindful</button>
+          </div>
+          <div class="zoomrow">
+            <label for="zoomInput">Zoom</label>
+            <input type="range" id="zoomInput" min="0.7" max="1.8" step="0.01" value="1.1">
+          </div>
+          <div class="sig-hint" id="sigHint">Distance from centre = how long ago · angle = day of week. Tap a point.</div>
+        </div>
+
+        <div class="statrow num-only">
+          <div class="stat"><b>4</b><span>sessions</span></div>
+          <div class="stat"><b>2h 10m</b><span>moving</span></div>
+          <div class="stat"><b>3</b><span>days rested</span></div>
+        </div>
+        <div class="quietline quiet-only" hidden>A handful of sessions this week, and plenty of rest. That's a healthy rhythm.</div>
+
+        <div class="rhythm-card" style="margin-top:22px;">
+          <div class="eyebrow card-eyebrow">Notes to yourself</div>
+          <div class="section-note" style="margin:8px 0 0;">Leave a word for a harder day. It comes back on its own when you mark yourself low or sore — no one else ever hears it.</div>
+          <div class="selfrec-row" id="selfRecRow">
+            <button class="recbtn" id="recBtn" aria-label="Record a note"><span class="knob"></span></button>
+            <div class="vmain">
+              <div class="vtitle" id="recTitleLbl">Record a note for a harder day</div>
+              <div class="vmeta" id="recSubLbl">Tap to record — it comes back when you need it</div>
+            </div>
+            <div class="livewave" id="liveWave"></div>
+          </div>
+          <button class="typebtn" id="ttsToggleBtn">Don’t want to record? Write it — your chosen voice will say it.</button>
+          <div class="tts-composer" id="ttsComposer" hidden>
+            <textarea id="ttsText" rows="3" maxlength="280" placeholder="Write a few kind words for future-you…"></textarea>
+            <div class="tts-actions">
+              <span class="tts-note" id="ttsStatus">Spoken with your chosen voice · change it in preferences</span>
+              <button class="genbtn" id="ttsGenBtn">Generate</button>
+            </div>
+          </div>
+          <div class="notelist" id="selfNoteList"></div>
+        </div>
+      </section>
+
+      <!-- ================= CONNECTION ================= -->
+      <section class="screen" id="screen-connection">
+        <div style="padding-top:6px;">
+          <div class="eyebrow">Quiet connection</div>
+          <div class="conn-title">Witnessed, not watched</div>
+          <div class="conn-sub">One trusted person sees a single dot fill as you move today. No numbers. No comments. Just quiet company.</div>
+        </div>
+
+        <div class="card witness-card" id="witnessCard">
+          <div class="witness-ring"><div class="witness-dot"></div></div>
+          <div class="witness-label" id="witnessLabel">No one is watching</div>
+          <div class="witness-sub" id="witnessSub">Invite one person to hold quiet space.</div>
+          <button class="btn-primary" id="witnessBtn">Let today be witnessed</button>
+        </div>
+
+        <div>
+          <div class="eyebrow" style="margin:0 4px 10px;">Shared collections</div>
+          <div class="rowcard">
+            <div class="coll-swatch"></div>
+            <div style="flex:1;">
+              <div style="font-size:15.5px;font-weight:600;color:var(--body);">Morning Movements</div>
+              <div style="font-size:13px;color:var(--mut2);margin-top:2px;">6 gentle sessions · shared with Maya</div>
+            </div>
+            <svg width="8" height="14" viewBox="0 0 8 14"><path d="M1 1l6 6-6 6" stroke="#c2b7a7" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+
+        <div>
+          <div class="eyebrow" style="margin:0 4px 10px;">Voice notes</div>
+          <div class="section-note"><span id="movedNote">They open once you’ve moved today.</span> Short notes from the people who witness you — sealed until you move, never a ping.</div>
+          <div class="vaultlist" id="vaultList"></div>
+        </div>
+
+        <div>
+          <div class="eyebrow" style="margin:0 4px 10px;">Quiet company</div>
+          <div class="company-card">
+            <div class="section-note" style="margin:0;">From a stranger, no names. Opt in to a gentle pool: leave one kind line, receive one back. Moderated, always.</div>
+            <button class="btn-opt" id="companyOptBtn">Opt into quiet company</button>
+            <div class="company-body" id="companyBody">
+              <div class="eyebrow card-eyebrow" style="margin-bottom:10px;">Leave a line</div>
+              <div class="linelist" id="lineList"></div>
+              <button class="btn-send" id="companySendBtn">Send to a stranger</button>
+              <div class="coming">
+                <div class="dash"><i></i></div>
+                <div style="flex:1;">
+                  <div style="font-size:13.5px;font-weight:600;color:#7a7268;">Record your own voice</div>
+                  <div style="font-size:11.5px;color:var(--mut2);margin-top:1px;">Coming soon · pending moderation review</div>
+                </div>
+              </div>
+              <div class="eyebrow card-eyebrow" style="margin:20px 0 10px;">Received</div>
+              <div class="notelist" id="receivedList" style="margin-top:0;"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ================= NAV ================= -->
+    <nav class="navbar" id="navbar">
+      <button class="navbtn is-on" data-screen="today">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="8" stroke-width="1.6"/><circle class="fillpart" cx="11" cy="11" r="2.6"/></svg>
+        <span>Today</span>
+      </button>
+      <button class="navbtn" data-screen="wellness">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="8" stroke-width="1.6"/><circle cx="11" cy="11" r="4.4" stroke-width="1.6"/></svg>
+        <span>Wellness</span>
+      </button>
+      <button class="navbtn" data-screen="connection">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="8" cy="11" r="5.4" stroke-width="1.6"/><circle cx="14" cy="11" r="5.4" stroke-width="1.6"/></svg>
+        <span>Connection</span>
+      </button>
+    </nav>
+
+    <!-- ================= WORKOUT OVERLAY ================= -->
+    <div class="overlay" id="workoutOverlay">
+      <div class="scrollarea">
+        <div class="ovr-head">
+          <button class="backbtn" id="closeWorkoutBtn" aria-label="Back">
+            <svg width="12" height="20" viewBox="0 0 12 20"><path d="M10 2L2 10l8 8" stroke="#6f665b" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="verify-pill" style="padding:7px 12px;">
+            <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 6.3l2.2 2.2 4.8-5" stroke="var(--accent)" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Form-verified by trainer</span>
+          </div>
+        </div>
+        <div style="margin-top:26px;">
+          <div class="ovr-kind"><span id="ovrKind">Strength</span><span class="num-only" style="color:#c9beae;"> · </span><span class="num-only"><span id="ovrMins">40</span> min</span></div>
+          <div class="ovr-title" id="ovrTitle">Full-Body Strength</div>
+          <div class="ovr-trainer">
+            <div class="avatar" style="width:38px;height:38px;font-size:13px;">AT</div>
+            <div><div class="vtitle">Alex Torres</div><div class="vmeta">Certified trainer · form-verified</div></div>
+          </div>
+        </div>
+        <div class="adaptnote" id="adaptNote">
+          <div class="orb"></div>
+          <p>Adapted to how you're feeling today. Skip, slow down, or stop whenever you need — nothing here is broken by resting.</p>
+        </div>
+        <div class="movements-head">
+          <div class="eyebrow card-eyebrow">The movements</div>
+          <div class="movements-sub" id="exSubtitle">6 movements</div>
+        </div>
+        <div class="exlist" id="exList"></div>
+      </div>
+      <div class="ovr-footer">
+        <button class="btn-begin" id="beginBtn">Begin session</button>
+        <div class="ovr-hint">No countdown. Start when you're ready.</div>
+      </div>
+    </div>
+
+    <!-- ================= SETTINGS SHEET ================= -->
+    <div class="sheet-backdrop" id="sheetBackdrop"></div>
+    <div class="sheet" id="sheet">
+      <div class="sheet-grab"></div>
+      <div class="setrow">
+        <span class="lbl">Accent</span>
+        <div class="swatches" id="swatches"></div>
+      </div>
+      <div class="setrow">
+        <span class="lbl">Companion tone</span>
+        <div class="seg mini" id="toneSeg">
+          <button data-tone="Gentle" class="is-on">Gentle</button>
+          <button data-tone="Plainspoken" class="is-on-x">Plain</button>
+          <button data-tone="Warm">Warm</button>
+        </div>
+      </div>
+      <div class="setrow stack">
+        <span class="lbl">Note voice <span style="font-weight:400;color:var(--mut2);">(for generated notes)</span></span>
+        <div class="vchips" id="voiceChips"></div>
+        <div class="vhint" id="voiceHint" hidden>To hear real generated voices, paste an ElevenLabs API key below. It stays in this browser only — never in the repo or the deployed files.</div>
+        <input class="keyinput" id="keyInput" type="password" autocomplete="off" spellcheck="false" placeholder="ElevenLabs API key (stored on this device)">
+      </div>
+      <div class="setrow">
+        <span class="lbl">Quiet mode <span style="font-weight:400;color:var(--mut2);">(hide numbers)</span></span>
+        <button class="toggle" id="quietToggle" aria-label="Quiet mode"></button>
+      </div>
+      <div class="setrow">
+        <span class="lbl">Sound</span>
+        <button class="toggle is-on" id="soundToggle" aria-label="Sound"></button>
+      </div>
+      <div class="setrow">
+        <span class="lbl">Reduce motion</span>
+        <button class="toggle" id="motionToggle" aria-label="Reduce motion"></button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="debug"></div>
+
+<script>
+'use strict';
+/* ============================================================
+   Hype Cult runtime — vanilla JS, no framework.
+   Modules: state · screens · voice engine · painters · settings
+   ============================================================ */
+
+/* ---------- constants & data ---------- */
+
+/* ============================================================
+   ELEVENLABS TTS — v3 web API
+   Paste your API key below to enable real generated voices.
+   Without a key, every note gracefully falls back to the
+   simulated murmur playback.
+   ============================================================ */
+const ELEVENLABS_API_KEY = '';              /* ← optional hardcode for local dev only; on GitHub Pages, enter the key in Preferences instead (stored in this browser's localStorage, never deployed) */
+const KEY_STORE = 'hc_eleven_key';
+function elevenKey(){
+  if (ELEVENLABS_API_KEY.trim()) return ELEVENLABS_API_KEY.trim();
+  try { return (localStorage.getItem(KEY_STORE) || '').trim(); } catch(e){ return ''; }
+}
+const ELEVEN_MODEL = 'eleven_v3';
+const ELEVEN_FORMAT = 'mp3_44100_128';
+const TTS_VOICE_IDS = [
+  'EST9Ui6982FZPSi7gCHi',
+  'u8ADrbquiJqufR9XMtb8',
+  'goT3UYdM9bhm0n2lmKQx',
+  'LtPsVjX1k0Kl4StEMZPK',
+  'CwhRBWXzGAHq8TQ4Fs17',
+  'EXAVITQu4vr4xnSDxMaL',
+  'bIHbv24MWmeRgasZH58o'
+];
+
+
+
+
+/* fixed casting for other people's notes — distinct from the user's chosen voice */
+const CAST = {
+  maya:    TTS_VOICE_IDS[5],
+  sam:     TTS_VOICE_IDS[4],
+  company: TTS_VOICE_IDS[3]
+};
+const VOICE_PREVIEW_LINE = 'Hi — this is how your notes will sound.';
+
+const ACCENTS = ['#8f9e78', '#d99f7e', '#a99cc0', '#4f6b52'];
+const CLAY = [0xd9, 0x9f, 0x7e];
+
+const SESSIONS = [
+  { d: 0,  s: 'moved',     c: 'strength', t: 'Full-Body Strength',   k: 'Today · 40 min',    m: 40 },
+  { d: 1,  s: 'reflected', c: 'mindful',  t: 'Breath & reflection',  k: 'Wed · 10 min',      m: 10 },
+  { d: 2,  s: 'moved',     c: 'mobility', t: 'Gentle Mobility',      k: 'Tue · 20 min',      m: 20 },
+  { d: 3,  s: 'rested',    c: 'rest',     t: 'Rest day',             k: 'Mon',               m: 0  },
+  { d: 4,  s: 'moved',     c: 'strength', t: 'Upper Strength',       k: 'Sun · 35 min',      m: 35 },
+  { d: 5,  s: 'moved',     c: 'mobility', t: 'Mobility Flow',        k: 'Sat · 25 min',      m: 25 },
+  { d: 6,  s: 'reflected', c: 'mindful',  t: 'Wind-down',            k: 'Fri · 8 min',       m: 8  },
+  { d: 7,  s: 'moved',     c: 'strength', t: 'Full-Body Strength',   k: 'Last Thu · 40 min', m: 40 },
+  { d: 8,  s: 'rested',    c: 'rest',     t: 'Rest day',             k: 'Wed',               m: 0  },
+  { d: 9,  s: 'moved',     c: 'mobility', t: 'Hip Mobility',         k: 'Tue · 18 min',      m: 18 },
+  { d: 10, s: 'reflected', c: 'mindful',  t: 'Evening reflection',   k: 'Mon · 10 min',      m: 10 },
+  { d: 11, s: 'moved',     c: 'strength', t: 'Lower Strength',       k: 'Sun · 38 min',      m: 38 },
+  { d: 13, s: 'moved',     c: 'mobility', t: 'Mobility',             k: 'Fri · 22 min',      m: 22 }
+];
+const MAX_DAYS = 14;
+
+const SELF_TRANSCRIPT = 'Hey, you. If you’re hearing this, today feels heavy — and that’s allowed. You don’t owe anyone a workout. Drink some water, breathe, and be as kind to yourself as you’d be to me.';
+
+const PROMPTS = {
+  Gentle: 'How’s your body feeling today?',
+  Plainspoken: 'How are you today?',
+  Warm: 'Hey — how are you feeling this morning?'
+};
+const RECS = {
+  base:   { title: 'Full-Body Strength',   kind: 'Strength',            mins: 40, note: 'Your usual Thursday session — verified and ready whenever you are.' },
+  rested: { title: 'Full-Body Strength',   kind: 'Strength',            mins: 40, note: 'You’ve got energy today. Here’s the full session — go as far as feels good.' },
+  steady: { title: 'Balanced Flow',        kind: 'Strength · Mobility', mins: 30, note: 'A balanced thirty minutes feels about right today.' },
+  low:    { title: 'Gentle Mobility',      kind: 'Mobility',            mins: 20, note: 'Rather keep it light? Here’s a 20-minute mobility session instead — same trainer, verified.' },
+  sore:   { title: 'Restorative Mobility', kind: 'Recovery',            mins: 18, note: 'Sore is worth listening to. Let’s stay easy and restorative.' }
+};
+const CAPS = {
+  base:   ['Steady',                'A quiet reflection of how you’ve moved and rested this week — never a score.'],
+  rested: ['Vital and rested',      'Full of energy today. Your artifact is bright and open.'],
+  steady: ['Steady and consistent', 'Balanced and unhurried. This is a good place to be.'],
+  low:    ['Running a little low',  'Softer and quieter today — and that’s completely fine.'],
+  sore:   ['In recovery',           'Drawn inward while your body repairs. Nothing here to fix.']
+};
+const VIT_TARGETS = { base: 0.72, rested: 0.95, steady: 0.78, low: 0.58, sore: 0.48 };
+const STR_EX = [
+  ['Breath & centering','2 min'],['Air Squats','3 × 15'],['Push-ups','3 × 12'],
+  ['Bent-over Rows','3 × 12'],['Plank Hold','3 × 45s'],['Cool-down stretch','3 min']
+];
+const MOB_EX = [
+  ['Breath & centering','2 min'],['Cat–Cow Flow','2 min'],['Hip Openers','3 min'],
+  ['Thoracic Rotations','2 min'],['Gentle Hamstring','3 min'],['Stillness','2 min']
+];
+const VOICE_NOTES = [
+  { name: 'Maya', dur: 6, line: 'No rush today. Even a slow walk counts. I’m glad you’re here.' },
+  { name: 'Maya', dur: 5, line: 'Whatever today looks like, it’s enough. Rest is part of it too.' },
+  { name: 'Sam',  dur: 4, line: 'Proud of you for opening this at all. That’s the hard part.' }
+];
+const COMPANY_LINES = [
+  'A stranger somewhere is resting too — and that’s okay.',
+  'You’re not the only one starting again.',
+  'Someone, somewhere, is moving slowly today. With you.',
+  'Whatever pace you’re at, someone gets it.',
+  'Quiet solidarity, one stranger to another.'
+];
+const COMPANY_RECEIVED = [
+  { line: 'You’re not the only one starting again.', meta: 'received on a rest day', dur: 5 }
+];
+
+/* ---------- state ---------- */
+const S = {
+  screen: 'today', mood: null, tone: 'Gentle', quiet: false, sound: true,
+  witnessing: false, movedToday: false,
+  view: 'signature', cat: 'all', zoom: 1.1, hover: -1,
+  companyOptIn: false, companyChoice: -1, companySent: false,
+  recording: false, recStart: 0,
+  accent: ACCENTS[0], voiceId: TTS_VOICE_IDS[0]
+};
+const mqReduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+let reduceMotion = mqReduce.matches;
+mqReduce.addEventListener('change', e => { reduceMotion = e.matches || motionOverride; applyReduce(); });
+let motionOverride = false;
+function applyReduce(){ document.getElementById('viewport').classList.toggle('reduce', reduceMotion); wake(); }
+
+const $ = id => document.getElementById(id);
+const els = {};
+['recNote','recTitle','recKind','recMins','companionPrompt','vitalityCap','vitalitySub',
+ 'ovrKind','ovrMins','ovrTitle','exSubtitle','exList','adaptNote','workoutOverlay',
+ 'witnessCard','witnessLabel','witnessSub','witnessBtn','movedNote','vaultList',
+ 'companyOptBtn','companyBody','lineList','companySendBtn','receivedList',
+ 'selfNoteList','recBtn','recTitleLbl','recSubLbl','liveWave','selfRecRow','selfSurfacedCard',
+ 'tip','tipDot','tipTitle','tipSub','sig','zoomInput','sigHint','navbar','debug',
+ 'sheet','sheetBackdrop','gearBtn','swatches','toneSeg','quietToggle','soundToggle','motionToggle',
+ 'voiceChips','voiceHint','ttsToggleBtn','ttsComposer','ttsText','ttsGenBtn','ttsStatus','keyInput']
+.forEach(k => els[k] = $(k));
+
+/* ---------- accent ---------- */
+function hexToRgb(h){ h = h.replace('#',''); return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]; }
+let accentRGB = hexToRgb(S.accent);
+function setAccent(hex){
+  S.accent = hex; accentRGB = hexToRgb(hex);
+  const r = document.documentElement.style;
+  r.setProperty('--accent', hex);
+  r.setProperty('--accent-rgb', accentRGB.join(','));
+  r.setProperty('--accent-12', `rgba(${accentRGB.join(',')},0.15)`);
+  Artifact.retint(); Sig.retint(); wake();
+}
+
+/* ============================================================
+   VOICE ENGINE — simulated recordings & playback
+   - one note plays at a time, with pause/resume
+   - progress shown as elapsed / total in the meta line
+   - transcript reveals word-by-word, synced to duration
+   - gentle synthesized "murmur" via Web Audio (muteable)
+   ============================================================ */
+/* ============================================================
+   TTS — ElevenLabs v3 web API
+   - synthesize(text, voiceId) → object URL for an mp3 blob
+   - responses cached per (voice, text) so repeat plays are free
+   - resolveNames() lazily fetches display names for the picker
+   - enabled === false (no key) → callers fall back to murmur
+   ============================================================ */
+const TTS = (() => {
+  const cache = new Map();          /* key: voiceId + '\u0000' + text → objectURL */
+  const pending = new Map();        /* same key → in-flight promise (dedupes taps) */
+  const names = {};                 /* voiceId → display name, once resolved */
+
+  const enabled = () => elevenKey().length > 0;
+
+  async function synthesize(text, voiceId){
+    if (!enabled()) throw new Error('no-key');
+    const key = voiceId + '\u0000' + text;
+    if (cache.has(key)) return cache.get(key);
+    if (pending.has(key)) return pending.get(key);
+    const p = (async () => {
+      const res = await fetch(
+        'https://api.elevenlabs.io/v1/text-to-speech/' + voiceId + '?output_format=' + ELEVEN_FORMAT,
+        {
+          method: 'POST',
+          headers: { 'xi-api-key': elevenKey(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, model_id: ELEVEN_MODEL })
+        }
+      );
+      if (!res.ok) throw new Error('tts ' + res.status);
+      const url = URL.createObjectURL(await res.blob());
+      cache.set(key, url);
+      return url;
+    })();
+    pending.set(key, p);
+    try { return await p; } finally { pending.delete(key); }
+  }
+
+  /* fetch friendly names for the settings picker; silent on failure */
+  let namesFetched = false;
+  async function resolveNames(onEach){
+    if (!enabled() || namesFetched) return;
+    namesFetched = true;
+    await Promise.all(TTS_VOICE_IDS.map(async id => {
+      try {
+        const res = await fetch('https://api.elevenlabs.io/v1/voices/' + id,
+          { headers: { 'xi-api-key': elevenKey() } });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && data.name) { names[id] = data.name; if (onEach) onEach(id, data.name); }
+      } catch(e){ /* leave the generic label */ }
+    }));
+  }
+
+  return { synthesize, resolveNames, names, get enabled(){ return enabled(); } };
+})();
+
+const Voice = (() => {
+  let ctx = null, master = null, murmur = null;
+  let current = null;  // { id, dur, t0, elapsed, raf, container, metaEl, words }
+  let tickTimer = 0;
+
+  function audio(){
+    if (!ctx) {
+      try {
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        master = ctx.createGain(); master.gain.value = S.sound ? 1 : 0;
+        master.connect(ctx.destination);
+      } catch(e){ ctx = null; }
+    }
+    if (ctx && ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+  function setMuted(m){
+    if (master) master.gain.setTargetAtTime(m ? 0 : 1, ctx.currentTime, 0.05);
+    if (current && current.audioEl) current.audioEl.muted = m;
+  }
+
+  /* a soft voice-like murmur: filtered noise + warm pad, syllable envelope */
+  function startMurmur(dur){
+    if (!audio()) return;
+    stopMurmur();
+    const t = ctx.currentTime;
+    const g = ctx.createGain(); g.gain.value = 0; g.connect(master);
+
+    const len = ctx.sampleRate * 2;
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const ch = buf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < len; i++) { const w = Math.random()*2-1; last = (last + 0.02*w)/1.02; ch[i] = last*3.2; }
+    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 260; bp.Q.value = 0.8;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+    src.connect(bp); bp.connect(lp); lp.connect(g);
+
+    const pad = ctx.createOscillator(); pad.type = 'sine'; pad.frequency.value = 174;
+    const pad2 = ctx.createOscillator(); pad2.type = 'sine'; pad2.frequency.value = 174.8;
+    const pg = ctx.createGain(); pg.gain.value = 0.012;
+    pad.connect(pg); pad2.connect(pg); pg.connect(g);
+
+    /* syllable-ish envelope: random gain steps ~4/sec */
+    const steps = Math.max(4, Math.floor(dur * 4));
+    for (let i = 0; i < steps; i++) {
+      const at = t + 0.12 + (i / steps) * dur;
+      g.gain.setTargetAtTime(0.028 + Math.random() * 0.05, at, 0.06);
+    }
+    g.gain.setValueAtTime(0, t);
+    g.gain.setTargetAtTime(0.05, t + 0.02, 0.08);
+    g.gain.setTargetAtTime(0, t + dur - 0.15, 0.1);
+
+    src.start(t); pad.start(t); pad2.start(t);
+    const stopAt = t + dur + 0.3;
+    src.stop(stopAt); pad.stop(stopAt); pad2.stop(stopAt);
+    murmur = { g, src, pad, pad2 };
+  }
+  function stopMurmur(){
+    if (!murmur || !ctx) return;
+    const t = ctx.currentTime;
+    murmur.g.gain.cancelScheduledValues(t);
+    murmur.g.gain.setTargetAtTime(0, t, 0.05);
+    try { murmur.src.stop(t + 0.2); murmur.pad.stop(t + 0.2); murmur.pad2.stop(t + 0.2); } catch(e){}
+    murmur = null;
+  }
+  function chime(){
+    if (!audio() || !S.sound) return;
+    const t = ctx.currentTime;
+    [[880, 0.05], [1318.5, 0.028]].forEach(([f, v], i) => {
+      const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(v, t + 0.015 + i * 0.04);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+      o.connect(g); g.connect(master);
+      o.start(t); o.stop(t + 1.2);
+    });
+  }
+
+  function fmt(sec){ sec = Math.max(0, Math.round(sec)); return '0:' + String(sec).padStart(2, '0'); }
+
+  function buildTranscript(el, text){
+    if (!el || el.dataset.built === text) { return el ? [...el.querySelectorAll('.w')] : []; }
+    el.dataset.built = text;
+    el.textContent = '';
+    el.appendChild(document.createTextNode('“'));
+    const words = [];
+    text.split(' ').forEach((w, i) => {
+      const s = document.createElement('span');
+      s.className = 'w'; s.textContent = (i ? ' ' : '') + w;
+      el.appendChild(s); words.push(s);
+    });
+    el.appendChild(document.createTextNode('”'));
+    return words;
+  }
+
+  function stop(fin){
+    if (!current) return;
+    clearInterval(tickTimer);
+    stopMurmur();
+    const c = current; current = null;
+    if (c.audioEl) { try { c.audioEl.pause(); c.audioEl.currentTime = 0; } catch(e){} }
+    c.container.classList.remove('playing');
+    const pb = c.container.querySelector('.playbtn');
+    if (pb) pb.classList.remove('busy');
+    if (c.metaEl) c.metaEl.textContent = c.metaEl.dataset.base || c.metaEl.textContent;
+    c.words.forEach(w => w.classList.remove('on'));
+    wakeIdle();
+  }
+
+  /* toggle playback of a voice element.
+     opts.voiceId → try ElevenLabs first; anything fails → simulated murmur. */
+  function toggle(id, container, dur, transcriptText, opts){
+    if (current && current.id === id) { stop(false); return; }
+    stop(false);
+    audio();
+    const metaEl = container.querySelector('[data-meta]');
+    const tEl = container.querySelector('[data-transcript], .transcript');
+    const words = transcriptText && tEl ? buildTranscript(tEl, transcriptText) : [];
+    container.classList.add('playing');
+    current = { id, dur, t0: performance.now(), container, metaEl, words, audioEl: null };
+
+    const voiceId = opts && opts.voiceId;
+    if (voiceId && TTS.enabled && transcriptText) {
+      /* real voice: show a quiet busy state while the audio generates */
+      const pb = container.querySelector('.playbtn');
+      if (pb) pb.classList.add('busy');
+      if (metaEl) metaEl.textContent = 'Finding its voice…';
+      const my = current;
+      TTS.synthesize(transcriptText, voiceId).then(url => {
+        if (current !== my) return;               /* user moved on */
+        if (pb) pb.classList.remove('busy');
+        const a = new Audio(url);
+        a.muted = !S.sound;
+        my.audioEl = a;
+        a.addEventListener('loadedmetadata', () => {
+          if (current === my && isFinite(a.duration) && a.duration > 0) my.dur = a.duration;
+        });
+        a.addEventListener('ended', () => { if (current === my) stop(true); });
+        a.play().catch(() => beginSim(my));
+        beginTick(my);
+      }).catch(() => {
+        if (current !== my) return;
+        if (pb) pb.classList.remove('busy');
+        beginSim(my);
+      });
+      return;
+    }
+    beginSim(current);
+  }
+
+  /* simulated playback: murmur + wall-clock timing */
+  function beginSim(c){
+    c.audioEl = null;
+    c.t0 = performance.now();
+    if (S.sound) startMurmur(c.dur);
+    beginTick(c);
+  }
+
+  /* shared progress loop; elapsed from the audio element when present */
+  function beginTick(c){
+    clearInterval(tickTimer);
+    tickTimer = setInterval(() => {
+      if (!current || current !== c) return;
+      const el = c.audioEl ? c.audioEl.currentTime : (performance.now() - c.t0) / 1000;
+      if (c.metaEl) c.metaEl.textContent = fmt(el) + ' / ' + fmt(c.dur) + (c.metaEl.dataset.suffix || '');
+      const per = c.words.length ? c.dur / c.words.length : 0;
+      const n = per ? Math.min(c.words.length, Math.floor(el / per) + 1) : 0;
+      for (let i = 0; i < n; i++) c.words[i].classList.add('on');
+      if (!c.audioEl && el >= c.dur) stop(true);
+    }, 120);
+  }
+
+  return { toggle, stop, chime, setMuted, audio,
+    get playingId(){ return current ? current.id : null; } };
+})();
+
+/* waveform builder — deterministic per-seed bar heights */
+function buildWave(el, seed, n){
+  n = n || 16;
+  el.textContent = '';
+  for (let i = 0; i < n; i++) {
+    const h = 4 + Math.round(9 * Math.abs(Math.sin(i * 1.3 + seed)) + ((i + seed) % 3) * 2);
+    const s = document.createElement('span');
+    s.style.setProperty('--h', h + 'px');
+    s.style.setProperty('--d', (i * 0.07).toFixed(2) + 's');
+    el.appendChild(s);
+  }
+}
+
+/* ---------- generic voice card factory ---------- */
+function voiceCard({ cls, btnCls, title, meta, dur, line, seed, id, voice }){
+  const card = document.createElement('div');
+  card.className = cls;
+  card.innerHTML =
+    '<div class="vrow">' +
+      '<button class="playbtn ' + (btnCls || 'sm') + '" aria-label="Play">' +
+        '<svg class="ic-play" width="12" height="12" viewBox="0 0 14 14"><path d="M3 2l9 5-9 5z" fill="#f1e9df"/></svg>' +
+        '<svg class="ic-pause" width="12" height="12" viewBox="0 0 14 14"><rect x="3" y="2" width="3" height="10" rx="1" fill="#f1e9df"/><rect x="8" y="2" width="3" height="10" rx="1" fill="#f1e9df"/></svg>' +
+      '</button>' +
+      '<div class="vmain"><div class="vtitle"></div><div class="vmeta" data-meta data-base=""></div></div>' +
+      '<div class="wave"></div>' +
+    '</div>' +
+    '<div class="transcript"></div>';
+  card.querySelector('.vtitle').textContent = title;
+  const m = card.querySelector('.vmeta');
+  m.textContent = meta; m.dataset.base = meta;
+  buildWave(card.querySelector('.wave'), seed, 16);
+  card.querySelector('.playbtn').addEventListener('click', () =>
+    Voice.toggle(id, card, dur, line, voice ? { voiceId: (typeof voice === 'function' ? voice() : voice) } : undefined));
+  return card;
+}
+
+/* ============================================================
+   SCREENS & UI STATE
+   ============================================================ */
+function setScreen(name){
+  if (S.screen === name) return;
+  S.screen = name;
+  document.querySelectorAll('.screen').forEach(sc => sc.classList.toggle('is-active', sc.id === 'screen-' + name));
+  document.querySelectorAll('.navbtn').forEach(b => b.classList.toggle('is-on', b.dataset.screen === name));
+  if (name === 'wellness') Sig.enter();
+  wake();
+}
+els.navbar.addEventListener('click', e => {
+  const b = e.target.closest('.navbtn'); if (b) setScreen(b.dataset.screen);
+});
+$('miniArtifactBtn').addEventListener('click', () => setScreen('wellness'));
+
+/* ---------- mood chips & rec ---------- */
+const MOODS = [['rested','Rested'],['steady','Steady'],['low','Low'],['sore','Sore']];
+const moodRow = $('moodRow');
+MOODS.forEach(([key, label]) => {
+  const b = document.createElement('button');
+  b.className = 'chip'; b.textContent = label; b.dataset.mood = key;
+  b.addEventListener('click', () => setMood(key));
+  moodRow.appendChild(b);
+});
+function setMood(key){
+  S.mood = key;
+  moodRow.querySelectorAll('.chip').forEach(c => c.classList.toggle('is-on', c.dataset.mood === key));
+  const rec = RECS[key] || RECS.base;
+  els.recNote.hidden = false; els.recNote.textContent = rec.note;
+  els.recTitle.textContent = rec.title;
+  els.recKind.textContent = rec.kind; els.recMins.textContent = rec.mins;
+  els.ovrKind.textContent = rec.kind; els.ovrMins.textContent = rec.mins;
+  els.ovrTitle.textContent = rec.title;
+  const isMob = rec.kind === 'Mobility' || rec.kind === 'Recovery';
+  els.exSubtitle.textContent = isMob ? '6 gentle movements' : '6 movements';
+  renderExercises(isMob ? MOB_EX : STR_EX);
+  els.adaptNote.classList.add('is-on');
+  const cap = CAPS[key] || CAPS.base;
+  els.vitalityCap.textContent = cap[0]; els.vitalitySub.textContent = cap[1];
+  document.querySelectorAll('.vitcap').forEach(el => el.textContent = cap[0]);
+  Artifact.setTarget(VIT_TARGETS[key] || 0.72);
+  updateSelfSurfaced();
+  wake();
+}
+function renderExercises(list){
+  els.exList.textContent = '';
+  list.forEach(([n, d], i) => {
+    const r = document.createElement('div');
+    r.className = 'exrow';
+    r.innerHTML = '<div class="num"></div><div class="nm"></div><div class="dt"></div>';
+    r.querySelector('.num').textContent = i + 1;
+    r.querySelector('.nm').textContent = n;
+    r.querySelector('.dt').textContent = d;
+    els.exList.appendChild(r);
+  });
+}
+renderExercises(STR_EX);
+
+/* ---------- workout overlay ---------- */
+$('openWorkoutBtn').addEventListener('click', () => els.workoutOverlay.classList.add('is-open'));
+$('closeWorkoutBtn').addEventListener('click', () => els.workoutOverlay.classList.remove('is-open'));
+$('beginBtn').addEventListener('click', () => {
+  S.movedToday = true;
+  els.workoutOverlay.classList.remove('is-open');
+  els.movedNote.textContent = 'A voice note opened for you today.';
+  document.querySelectorAll('.vault-note').forEach(v => v.classList.add('open'));
+  Voice.chime();
+});
+
+/* ---------- witness ---------- */
+els.witnessBtn.addEventListener('click', () => {
+  S.witnessing = !S.witnessing;
+  els.witnessCard.classList.toggle('witnessing', S.witnessing);
+  els.witnessLabel.textContent = S.witnessing ? 'Maya is witnessing today' : 'No one is watching';
+  els.witnessSub.textContent = S.witnessing ? 'She sees the dot fill — nothing more.' : 'Invite one person to hold quiet space.';
+  els.witnessBtn.textContent = S.witnessing ? 'End for today' : 'Let today be witnessed';
+});
+
+/* ---------- self notes (Wellness) ---------- */
+const selfNotes = [
+  { title: 'For a heavy morning',   meta: 'recorded 8 days ago',  dur: 8, line: SELF_TRANSCRIPT, seed: 0.5 },
+  { title: 'When you want to quit', meta: 'recorded 3 weeks ago', dur: 8, line: SELF_TRANSCRIPT, seed: 2.1 }
+];
+let selfNoteN = 0;
+function renderSelfNotes(){
+  els.selfNoteList.textContent = '';
+  selfNotes.forEach((n, i) => {
+    const card = voiceCard({ cls: 'note' + (n.fresh ? ' new' : ''), title: n.title, meta: n.meta, dur: n.dur, line: n.line, seed: n.seed, id: 'self' + i + '-' + selfNoteN, voice: n.voice || (() => S.voiceId) });
+    els.selfNoteList.appendChild(card);
+    n.fresh = false;
+  });
+}
+renderSelfNotes();
+
+/* "A note from a kinder morning" (Today, surfaces on low/sore) */
+buildWave(document.querySelector('[data-wave="selfToday"]'), 0.5, 16);
+document.querySelector('[data-voice="selfToday"]').addEventListener('click', function(){
+  Voice.toggle('selfToday', els.selfSurfacedCard, 8, SELF_TRANSCRIPT, { voiceId: S.voiceId });
+});
+function updateSelfSurfaced(){
+  els.selfSurfacedCard.hidden = !(S.mood === 'low' || S.mood === 'sore');
+}
+
+/* ---------- recording simulation ---------- */
+const LIVE_BARS = 22;
+(function(){ for (let i = 0; i < LIVE_BARS; i++) els.liveWave.appendChild(document.createElement('span')); })();
+const liveBars = [...els.liveWave.children];
+let recRAF = 0, recAmp = 0.2, recSmoothed = new Float32Array(LIVE_BARS);
+const REC_MAX = 12;
+
+els.recBtn.addEventListener('click', () => {
+  if (S.recording) { finishRecording(); return; }
+  startRecording();
+});
+function startRecording(){
+  Voice.audio(); /* unlock audio on gesture */
+  S.recording = true; S.recStart = performance.now();
+  els.recBtn.classList.add('rec');
+  els.selfRecRow.classList.add('rec');
+  els.recTitleLbl.textContent = 'Recording… 0:00';
+  els.recSubLbl.textContent = 'Say something kind to future-you · tap to finish';
+  const step = () => {
+    if (!S.recording) return;
+    const el = (performance.now() - S.recStart) / 1000;
+    els.recTitleLbl.textContent = 'Recording… 0:' + String(Math.floor(el)).padStart(2, '0');
+    /* simulated mic amplitude: random walk with occasional swells */
+    recAmp += (Math.random() - 0.48) * 0.22;
+    recAmp = Math.max(0.08, Math.min(1, recAmp));
+    for (let i = LIVE_BARS - 1; i > 0; i--) recSmoothed[i] = recSmoothed[i - 1];
+    recSmoothed[0] = recAmp;
+    if (!reduceMotion) {
+      for (let i = 0; i < LIVE_BARS; i++) liveBars[i].style.transform = 'scaleY(' + (0.15 + recSmoothed[i] * 0.85).toFixed(2) + ')';
+    }
+    if (el >= REC_MAX) { finishRecording(); return; }
+    recRAF = requestAnimationFrame(step);
+  };
+  recRAF = requestAnimationFrame(step);
+}
+function finishRecording(){
+  if (!S.recording) return;
+  S.recording = false;
+  cancelAnimationFrame(recRAF);
+  const dur = Math.max(2, Math.round((performance.now() - S.recStart) / 1000));
+  els.recBtn.classList.remove('rec');
+  els.selfRecRow.classList.remove('rec');
+  els.recTitleLbl.textContent = 'Saved for a harder day';
+  els.recSubLbl.textContent = 'It returns on a low or sore day.';
+  Voice.chime();
+  selfNoteN++;
+  selfNotes.unshift({
+    title: 'A note in your voice', meta: 'just now · 0:' + String(dur).padStart(2, '0'),
+    dur, line: 'Your words, kept for the day you need them. This prototype simulates playback — nothing is stored or sent.',
+    seed: Math.random() * 6, fresh: true
+  });
+  renderSelfNotes();
+  setTimeout(() => {
+    els.recTitleLbl.textContent = 'Record another note';
+    els.recSubLbl.textContent = 'Tap to record — it comes back when you need it';
+  }, 3200);
+}
+
+/* ---------- generated notes (ElevenLabs) ----------
+   The record button stays a simulation; this path makes *real*
+   audio from typed words, spoken in the user's chosen voice. */
+els.ttsToggleBtn.addEventListener('click', () => {
+  const open = els.ttsComposer.hidden;
+  els.ttsComposer.hidden = !open;
+  els.ttsToggleBtn.textContent = open
+    ? 'Never mind — I’ll record instead'
+    : 'Don’t want to record? Write it — your chosen voice will say it.';
+  if (open) els.ttsText.focus();
+});
+
+let generating = false;
+els.ttsGenBtn.addEventListener('click', async () => {
+  if (generating) return;
+  const text = els.ttsText.value.trim();
+  if (!text) { els.ttsStatus.textContent = 'Write a few words first — future-you is listening.'; return; }
+  Voice.audio(); /* unlock audio on gesture */
+  const vid = S.voiceId;
+  const estDur = Math.max(2, Math.min(15, Math.round(text.split(/\s+/).length / 2.5)));
+
+  const addNote = (dur, generated) => {
+    selfNoteN++;
+    selfNotes.unshift({
+      title: 'A note in a chosen voice',
+      meta: 'just now · 0:' + String(Math.round(dur)).padStart(2, '0') + (generated ? '' : ' · simulated'),
+      dur, line: text, seed: Math.random() * 6, fresh: true, voice: vid
+    });
+    renderSelfNotes();
+    Voice.chime();
+    els.ttsText.value = '';
+    els.ttsComposer.hidden = true;
+    els.ttsToggleBtn.textContent = 'Don’t want to record? Write it — your chosen voice will say it.';
+  };
+
+  if (!TTS.enabled) {
+    els.ttsStatus.textContent = 'No API key set — saved with simulated playback.';
+    addNote(estDur, false);
+    return;
+  }
+  generating = true;
+  els.ttsGenBtn.disabled = true;
+  els.ttsStatus.textContent = 'Finding its voice…';
+  try {
+    const url = await TTS.synthesize(text, vid);
+    /* read the real duration so the note's meta is honest */
+    const dur = await new Promise(resolve => {
+      const a = new Audio(url);
+      a.addEventListener('loadedmetadata', () => resolve(isFinite(a.duration) && a.duration > 0 ? a.duration : estDur));
+      a.addEventListener('error', () => resolve(estDur));
+    });
+    els.ttsStatus.textContent = 'Spoken with your chosen voice · change it in preferences';
+    addNote(dur, true);
+  } catch(e) {
+    els.ttsStatus.textContent = 'Couldn’t reach the voice service — saved with simulated playback.';
+    addNote(estDur, false);
+  } finally {
+    generating = false;
+    els.ttsGenBtn.disabled = false;
+  }
+});
+
+/* ---------- vault (Connection voice notes) ---------- */
+VOICE_NOTES.forEach((v, i) => {
+  const card = voiceCard({
+    cls: 'vault-note', btnCls: 'md', title: v.name,
+    meta: 'Voice note · 0:0' + v.dur, dur: v.dur, line: v.line, seed: i * 1.7 + 0.8, id: 'vault' + i,
+    voice: CAST[v.name.toLowerCase()] || TTS_VOICE_IDS[5]
+  });
+  /* locked affordance */
+  const lock = document.createElement('div');
+  lock.className = 'lockbtn';
+  lock.innerHTML = '<svg width="13" height="13" viewBox="0 0 14 14"><rect x="3" y="6" width="8" height="6" rx="1.4" fill="none" stroke="#b3a894" stroke-width="1.3"/><path d="M4.6 6V4.6a2.4 2.4 0 0 1 4.8 0V6" fill="none" stroke="#b3a894" stroke-width="1.3"/></svg>';
+  card.querySelector('.vrow').prepend(lock);
+  const meta = card.querySelector('.vmeta');
+  const openMeta = meta.dataset.base;         /* "Voice note · 0:0N" — restored on unlock */
+  meta.textContent = 'Opens once you’ve moved today';
+  new MutationObserver(() => { if (card.classList.contains('open')) meta.textContent = openMeta; })
+    .observe(card, { attributes: true, attributeFilter: ['class'] });
+  els.vaultList.appendChild(card);
+});
+
+/* ---------- quiet company ---------- */
+els.companyOptBtn.addEventListener('click', () => {
+  S.companyOptIn = !S.companyOptIn;
+  els.companyOptBtn.classList.toggle('is-on', S.companyOptIn);
+  els.companyOptBtn.textContent = S.companyOptIn ? 'Opted in · you may receive a stranger’s note' : 'Opt into quiet company';
+  els.companyBody.classList.toggle('is-open', S.companyOptIn);
+});
+COMPANY_LINES.forEach((l, i) => {
+  const b = document.createElement('button');
+  b.className = 'lineopt'; b.textContent = '“' + l + '”';
+  b.addEventListener('click', () => {
+    S.companyChoice = i; S.companySent = false;
+    els.lineList.querySelectorAll('.lineopt').forEach((x, j) => x.classList.toggle('is-on', j === i));
+    els.companySendBtn.classList.add('ready');
+    els.companySendBtn.classList.remove('sent');
+    els.companySendBtn.textContent = 'Send to a stranger';
+  });
+  els.lineList.appendChild(b);
+});
+els.companySendBtn.addEventListener('click', () => {
+  if (S.companyChoice < 0 || S.companySent) return;
+  S.companySent = true;
+  els.companySendBtn.classList.remove('ready');
+  els.companySendBtn.classList.add('sent');
+  els.companySendBtn.textContent = 'Sent quietly — someone will receive it';
+  Voice.chime();
+});
+COMPANY_RECEIVED.forEach((r, i) => {
+  els.receivedList.appendChild(voiceCard({
+    cls: 'note', title: 'Anonymous', meta: r.meta, dur: r.dur, line: r.line, seed: 3.3 + i, id: 'recv' + i, voice: CAST.company
+  }));
+});
+
+/* ============================================================
+   PAINTERS — shared rAF scheduler with sleep states
+   ============================================================ */
+const DEBUG = new URLSearchParams(location.search).get('debug') === '1';
+if (DEBUG) els.debug.style.display = 'block';
+let frames = 0, lastFpsT = performance.now(), fps = 0, paintedA = 0, paintedS = 0;
+
+let rafId = 0, running = false, idleUntil = 0;
+function wake(){ idleUntil = performance.now() + 1400; start(); }       /* transitions / layout morphs */
+function wakeIdle(){ idleUntil = performance.now() + 600; start(); }    /* brief settle */
+function start(){ if (!running) { running = true; rafId = requestAnimationFrame(loop); } }
+
+const t0 = performance.now();
+let lastAmbient = 0;
+function loop(now){
+  const t = (now - t0) / 1000;
+  if (document.hidden) { running = false; return; }
+
+  /* ambient throttle: 30fps for breathing canvases */
+  const ambientDue = now - lastAmbient >= 33;
+
+  let energy = 0;
+  if (S.screen === 'wellness') {
+    energy += Sig.paint(t, now);
+    if (ambientDue) { Artifact.paint($('artifactLarge'), t); paintedA++; }
+  } else if (S.screen === 'today') {
+    if (ambientDue) { Artifact.paint($('artifactMini'), t); paintedA++; }
+  }
+  if (ambientDue) lastAmbient = now;
+
+  if (DEBUG) {
+    frames++;
+    if (now - lastFpsT > 500) { fps = Math.round(frames * 1000 / (now - lastFpsT)); frames = 0; lastFpsT = now;
+      els.debug.textContent = 'fps ' + fps + '\nartifact paints ' + paintedA + '\nsig paints ' + paintedS + '\nenergy ' + energy.toFixed(3); }
+  }
+
+  /* sleep policy:
+     - ambient breathing keeps the loop alive only where a canvas is on screen
+     - reduced motion, or the Connection screen, fully sleeps once settled */
+  const needsAmbient = !reduceMotion && (S.screen === 'today' || S.screen === 'wellness');
+  if (!needsAmbient && energy < 0.01 && now > idleUntil) { running = false; return; }
+  rafId = requestAnimationFrame(loop);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) wakeIdle(); });
+
+/* ============================================================
+   LIVING ARTIFACT — phyllotaxis field, sprite-cached glow
+   (no per-point shadowBlur, no per-frame gradient creation)
+   ============================================================ */
+const Artifact = (() => {
+  let vit = 0.72, target = 0.72;
+  const BANDS = 24;
+  let sprites = [];          /* offscreen tinted glow sprites per color band */
+  const SPR = 26;            /* sprite px size */
+  const geo = new Map();     /* per-canvas precomputed point geometry */
+
+  function makeSprites(){
+    sprites = [];
+    const [oR, oG, oB] = accentRGB, [iR, iG, iB] = CLAY;
+    for (let b = 0; b < BANDS; b++) {
+      const f = b / (BANDS - 1);
+      const R = Math.round(iR + (oR - iR) * f), G = Math.round(iG + (oG - iG) * f), B = Math.round(iB + (oB - iB) * f);
+      const c = document.createElement('canvas'); c.width = SPR; c.height = SPR;
+      const x = c.getContext('2d');
+      const g = x.createRadialGradient(SPR/2, SPR/2, 0, SPR/2, SPR/2, SPR/2);
+      g.addColorStop(0,   `rgba(${R},${G},${B},1)`);
+      g.addColorStop(0.35,`rgba(${R},${G},${B},.85)`);
+      g.addColorStop(1,   `rgba(${R},${G},${B},0)`);
+      x.fillStyle = g; x.fillRect(0, 0, SPR, SPR);
+      sprites.push(c);
+    }
+  }
+  makeSprites();
+
+  function geometry(canvas, w, h){
+    let g = geo.get(canvas);
+    const key = w + 'x' + h;
+    if (g && g.key === key) return g;
+    const maxR = Math.min(w, h) * 0.44;
+    const N = Math.max(90, Math.round(maxR * 1.7));
+    const pts = new Float32Array(N * 2), frac = new Float32Array(N), band = new Uint8Array(N), pr = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      const f = i / N;
+      const r = Math.sqrt(f) * maxR;
+      const th = i * 2.399963;
+      pts[i*2] = r * Math.cos(th); pts[i*2+1] = r * Math.sin(th);
+      frac[i] = f;
+      band[i] = Math.min(BANDS - 1, Math.round(f * (BANDS - 1)));
+      pr[i] = 1.1 + 2.4 * (1 - f);
+    }
+    g = { key, N, pts, frac, band, pr, maxR, halo: null };
+    geo.set(canvas, g);
+    return g;
+  }
+
+  function paint(canvas, t){
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.round(rect.width), h = Math.round(rect.height);
+    if (canvas.width !== w * dpr || canvas.height !== h * dpr) { canvas.width = w * dpr; canvas.height = h * dpr; geo.delete(canvas); }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    vit += (target - vit) * 0.04;
+    const g = geometry(canvas, w, h);
+    const breath = reduceMotion ? 1 : 1 + 0.03 * Math.sin(t * 0.6);
+    const rot = reduceMotion ? 0 : t * 0.05;
+
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate(rot);
+    ctx.scale(breath, breath);
+    const { N, pts, frac, band, pr } = g;
+    for (let i = 0; i < N; i++) {
+      const f = frac[i];
+      const lit = f <= vit + 0.001;
+      let a;
+      if (lit) { const edge = Math.min(1, (vit - f) / 0.12); a = (0.16 + 0.5 * (1 - f)) * (edge < 1 ? Math.max(0.28, edge) : 1); }
+      else a = 0.055;
+      const d = pr[i] * 2.6;              /* sprite draw size ≈ point + soft glow */
+      ctx.globalAlpha = a;
+      ctx.drawImage(sprites[band[i]], pts[i*2] - d/2, pts[i*2+1] - d/2, d, d);
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+
+    /* warm centre halo (gradient cached per size) */
+    if (!g.halo) {
+      const hg = ctx.createRadialGradient(0, 0, 0, 0, 0, g.maxR * 0.65);
+      hg.addColorStop(0, 'rgba(217,159,126,0.14)');
+      hg.addColorStop(1, 'rgba(217,159,126,0)');
+      g.halo = hg;
+    }
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    ctx.globalAlpha = reduceMotion ? 0.8 : 0.65 + 0.35 * Math.max(0, Math.sin(t * 0.6));
+    ctx.fillStyle = g.halo;
+    ctx.beginPath(); ctx.arc(0, 0, g.maxR * 0.65, 0, 6.2832); ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  return { paint, setTarget: v => { target = v; wakeIdle(); }, retint: makeSprites };
+})();
+
+/* ============================================================
+   SIGNATURE / TIMELINE — animated layout morph
+   - each session owns a live (x,y,alpha,scale) that eases
+     toward its layout target: polar (signature) ⟷ lanes (timeline)
+   - entrance bloom, hover halo, tap ripples, comet tails,
+     chronological thread; drama celebrates movement only
+   ============================================================ */
+const Sig = (() => {
+  const canvas = els.sig;
+  const P = SESSIONS.map((sn, i) => ({
+    sn, i,
+    x: 0, y: 0, tx: 0, ty: 0,          /* live + target position */
+    a: 0, ta: 1,                        /* live + target alpha */
+    r: 0, tr: 1,                        /* live + target radius scale */
+    seed: (i * 37) % 11 - 5
+  }));
+  let displayZoom = S.zoom;
+  let ripples = [];
+
+  const LANES = [
+    { c: 'strength', label: 'Strength' },
+    { c: 'mobility', label: 'Mobility' },
+    { c: 'mindful',  label: 'Mindful' },
+    { c: 'rest',     label: 'Rest' }
+  ];
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const TODAY_DOW = 4;
+
+  function stateColor(s){
+    if (s === 'moved') return S.accent;
+    if (s === 'reflected') return '#d99f7e';
+    return '#cabfae';
+  }
+  function retint(){ /* colors read live from S.accent */ }
+
+  function targets(w, h){
+    const zoom = displayZoom;
+    if (S.view === 'signature') {
+      const cx = w / 2, cy = h / 2 - 4;
+      const maxR = Math.min(w, h) * 0.42;
+      P.forEach(p => {
+        const dow = ((TODAY_DOW - p.sn.d) % 7 + 7) % 7;
+        const ang = -Math.PI / 2 + dow * (2 * Math.PI / 7) + p.seed * 0.012;
+        const r = Math.min(maxR * 0.96, (p.sn.d / MAX_DAYS) * maxR * zoom + 6);
+        p.tx = cx + Math.cos(ang) * r;
+        p.ty = cy + Math.sin(ang) * r;
+      });
+    } else {
+      const padL = 62, padR = 18, padT = 14, padB = 30;
+      const laneH = (h - padT - padB) / LANES.length;
+      const usableW = w - padL - padR;
+      const visDays = MAX_DAYS / zoom;
+      P.forEach(p => {
+        const li = LANES.findIndex(l => l.c === p.sn.c);
+        const off = p.sn.d > visDays;
+        p.tx = (w - padR) - (Math.min(p.sn.d, visDays) / visDays) * usableW;
+        p.ty = padT + laneH * li + laneH / 2;
+        p.thidden = off;
+      });
+    }
+    P.forEach(p => {
+      const active = S.cat === 'all' || p.sn.c === S.cat;
+      p.ta = p.thidden ? 0 : (active ? 1 : 0.15);
+      p.tr = active ? 1 : 0.8;
+      p.active = active && !p.thidden;
+    });
+  }
+
+  function enter(){
+    /* bloom-in: points fade/scale in with a stagger */
+    const now = performance.now();
+    P.forEach((p, i) => { p.a = 0; p.r = 0.4; p.bloomAt = now + i * 34; });
+    wake();
+  }
+
+  function onViewChange(){ wake(); }
+
+  function paint(t, now){
+    if (S.screen !== 'wellness') return 0;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return 0;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.round(rect.width), h = Math.round(rect.height);
+    if (canvas.width !== w * dpr || canvas.height !== h * dpr) { canvas.width = w * dpr; canvas.height = h * dpr; }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    /* smooth zoom + layout targets */
+    displayZoom += (S.zoom - displayZoom) * (reduceMotion ? 1 : 0.16);
+    targets(w, h);
+
+    /* ease live values; measure remaining energy so the loop can sleep */
+    let energy = Math.abs(S.zoom - displayZoom);
+    const k = reduceMotion ? 1 : 0.14;
+    P.forEach(p => {
+      if (p.bloomAt && now < p.bloomAt) { energy += 1; return; }
+      if (p.bloomAt) { /* first frame after stagger: appear at target, small */
+        p.x = p.tx; p.y = p.ty; p.bloomAt = 0;
+      }
+      p.x += (p.tx - p.x) * k; p.y += (p.ty - p.y) * k;
+      p.a += (p.ta - p.a) * k; p.r += (p.tr - p.r) * (reduceMotion ? 1 : 0.1);
+      energy += Math.abs(p.tx - p.x) + Math.abs(p.ty - p.y) + Math.abs(p.ta - p.a) * 10;
+    });
+
+    const pulse = reduceMotion ? 0 : 0.5 + 0.5 * Math.sin(t * 1.1);
+    ctx.font = '11px "Hanken Grotesk", system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+    /* ---- scaffolding ---- */
+    if (S.view === 'signature') {
+      const cx = w / 2, cy = h / 2 - 4;
+      const maxR = Math.min(w, h) * 0.42;
+      for (let d = 0; d < 7; d++) {
+        const ang = -Math.PI / 2 + d * (2 * Math.PI / 7);
+        ctx.strokeStyle = 'rgba(51,48,43,0.06)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(ang) * maxR, cy + Math.sin(ang) * maxR); ctx.stroke();
+        ctx.fillStyle = '#b0a596';
+        ctx.fillText(DAYS[d], cx + Math.cos(ang) * (maxR + 14), cy + Math.sin(ang) * (maxR + 14));
+      }
+      /* week rings: this week / last week */
+      ctx.strokeStyle = 'rgba(51,48,43,0.05)'; ctx.lineWidth = 1;
+      const r7 = Math.min(maxR * 0.96, (7 / MAX_DAYS) * maxR * displayZoom + 6);
+      ctx.beginPath(); ctx.arc(cx, cy, r7, 0, 6.2832); ctx.stroke();
+      ctx.fillStyle = 'rgba(51,48,43,0.16)'; ctx.font = '600 9px "Hanken Grotesk", sans-serif';
+      ctx.fillText('one week', cx + r7 * 0.71, cy - r7 * 0.71);
+      ctx.font = '11px "Hanken Grotesk", system-ui, sans-serif';
+      /* past marker */
+      ctx.setLineDash([2, 4]); ctx.strokeStyle = 'rgba(51,48,43,0.10)';
+      ctx.beginPath(); ctx.moveTo(cx, cy + 8); ctx.lineTo(cx, cy + maxR * 0.72); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#c2b7a7'; ctx.fillText('past', cx, cy + maxR * 0.82);
+
+      /* chronological thread: a quiet line through recent sessions */
+      const seq = P.filter(p => p.active && p.a > 0.4).sort((a, b) => a.sn.d - b.sn.d);
+      if (seq.length > 1) {
+        ctx.strokeStyle = 'rgba(' + accentRGB.join(',') + ',0.10)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(seq[0].x, seq[0].y);
+        for (let i = 1; i < seq.length; i++) {
+          const a = seq[i - 1], b = seq[i];
+          ctx.quadraticCurveTo((a.x + b.x) / 2 + (cy - (a.y + b.y) / 2) * 0.06, (a.y + b.y) / 2 + ((a.x + b.x) / 2 - cx) * 0.06, b.x, b.y);
+        }
+        ctx.stroke();
+      }
+      /* now core: gentle pulse */
+      ctx.fillStyle = S.accent;
+      ctx.beginPath(); ctx.arc(cx, cy, 3.5 + pulse * 0.8, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = '#8a8073'; ctx.font = '600 10px "Hanken Grotesk", system-ui, sans-serif';
+      ctx.fillText('now', cx, cy + 16);
+      ctx.font = '11px "Hanken Grotesk", system-ui, sans-serif';
+    } else {
+      const padL = 62, padR = 18, padT = 14, padB = 30;
+      const laneH = (h - padT - padB) / LANES.length;
+      const usableW = w - padL - padR;
+      const visDays = MAX_DAYS / displayZoom;
+      /* weekend banding */
+      for (let d = 0; d <= Math.floor(visDays); d++) {
+        const dow = ((TODAY_DOW - d) % 7 + 7) % 7;
+        if (dow === 0 || dow === 6) {
+          const x1 = (w - padR) - (d / visDays) * usableW;
+          const x0 = (w - padR) - ((d + 1) / visDays) * usableW;
+          ctx.fillStyle = 'rgba(51,48,43,0.022)';
+          ctx.fillRect(Math.max(padL, x0), padT, Math.min(x1, w - padR) - Math.max(padL, x0), h - padT - padB);
+        }
+      }
+      LANES.forEach((ln, li) => {
+        const ly = padT + laneH * li + laneH / 2;
+        ctx.strokeStyle = 'rgba(51,48,43,0.05)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(padL, ly); ctx.lineTo(w - padR, ly); ctx.stroke();
+        ctx.fillStyle = '#b0a596'; ctx.textAlign = 'left';
+        ctx.fillText(ln.label, 12, ly);
+        ctx.textAlign = 'center';
+      });
+      /* day ticks along bottom */
+      ctx.fillStyle = 'rgba(51,48,43,0.20)'; ctx.font = '600 9px "Hanken Grotesk", sans-serif';
+      const tickStep = visDays > 10 ? 2 : 1;
+      for (let d = 0; d <= Math.floor(visDays); d += tickStep) {
+        const x = (w - padR) - (d / visDays) * usableW;
+        if (x < padL + 8) continue;
+        const dow = ((TODAY_DOW - d) % 7 + 7) % 7;
+        ctx.fillText(DAYS[dow][0], x, h - padB + 12);
+      }
+      ctx.font = '11px "Hanken Grotesk", system-ui, sans-serif';
+      /* now axis with pulsing marker */
+      ctx.setLineDash([2, 4]); ctx.strokeStyle = 'rgba(51,48,43,0.12)';
+      ctx.beginPath(); ctx.moveTo(w - padR, padT); ctx.lineTo(w - padR, h - padB); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#8a8073'; ctx.fillText('now', w - padR, h - padB + 22);
+      ctx.fillStyle = '#c2b7a7'; ctx.textAlign = 'left';
+      ctx.fillText('past', padL, h - padB + 22); ctx.textAlign = 'center';
+      /* comet tails: session length, moved only (celebrate movement) */
+      P.forEach(p => {
+        if (!p.active || p.sn.s !== 'moved' || p.a < 0.4) return;
+        const len = Math.min(usableW * 0.16, (p.sn.m / 45) * usableW * 0.16);
+        const grad = ctx.createLinearGradient(p.x - len, p.y, p.x, p.y);
+        grad.addColorStop(0, 'rgba(' + accentRGB.join(',') + ',0)');
+        grad.addColorStop(1, 'rgba(' + accentRGB.join(',') + ',' + (0.30 * p.a).toFixed(2) + ')');
+        ctx.strokeStyle = grad; ctx.lineWidth = 3; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(p.x - len, p.y); ctx.lineTo(p.x - 6, p.y); ctx.stroke();
+        ctx.lineCap = 'butt';
+      });
+    }
+
+    /* ---- ripples (tap feedback) ---- */
+    ripples = ripples.filter(r => now - r.t0 < 620);
+    ripples.forEach(r => {
+      const f = (now - r.t0) / 620;
+      ctx.strokeStyle = 'rgba(' + accentRGB.join(',') + ',' + (0.35 * (1 - f)).toFixed(2) + ')';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(r.x, r.y, 6 + f * 26, 0, 6.2832); ctx.stroke();
+    });
+    if (ripples.length) energy += 1;
+
+    /* ---- points ---- */
+    P.forEach(p => {
+      if (p.a < 0.02 || p.bloomAt) return;
+      const col = stateColor(p.sn.s);
+      const hv = S.hover === p.i;
+      const sc = p.r * (hv ? 1.2 : 1);
+      /* glow celebrates movement (and hover) — rest stays calm */
+      if (p.active && (p.sn.s === 'moved' || hv)) {
+        const gr = 15 + pulse * 3;
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, gr);
+        g.addColorStop(0, col + (hv ? '55' : '30'));
+        g.addColorStop(1, col + '00');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(p.x, p.y, gr, 0, 6.2832); ctx.fill();
+      }
+      ctx.globalAlpha = p.a;
+      if (p.sn.s === 'moved') {
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 5 * sc, 0, 6.2832); ctx.fill();
+      } else if (p.sn.s === 'reflected') {
+        ctx.strokeStyle = col; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 5 * sc, 0, 6.2832); ctx.stroke();
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 1.8 * sc, 0, 6.2832); ctx.fill();
+      } else {
+        ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 4.5 * sc, 0, 6.2832); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    });
+
+    if (DEBUG) paintedS++;
+    /* keep a slow ambient pulse alive unless reduced motion */
+    return reduceMotion ? energy : energy + 0.02;
+  }
+
+  /* ---- pointer: rAF-throttled hit-testing ---- */
+  let pending = null;
+  function hit(px, py, isTap){
+    let best = -1, bd = 22 * 22;
+    P.forEach(p => {
+      if (p.a < 0.3) return;
+      const dx = p.x - px, dy = p.y - py, dd = dx * dx + dy * dy;
+      if (dd < bd) { bd = dd; best = p.i; }
+    });
+    if (isTap && best >= 0) { ripples.push({ x: P[best].x, y: P[best].y, t0: performance.now() }); wakeIdle(); }
+    setHover(best);
+  }
+  function setHover(i){
+    if (i === S.hover) return;
+    S.hover = i;
+    const tip = els.tip;
+    if (i < 0) { tip.classList.remove('is-on'); wakeIdle(); return; }
+    const p = P[i], sn = p.sn;
+    const label = { moved: 'Moved', reflected: 'Reflected', rested: 'Rested' }[sn.s];
+    els.tipTitle.textContent = sn.t;
+    els.tipSub.textContent = sn.k + '  ·  ' + label;
+    const col = stateColor(sn.s);
+    els.tipDot.style.cssText = sn.s === 'moved'
+      ? 'background:' + col
+      : 'background:transparent;border:2px solid ' + col + ';width:10px;height:10px;';
+    tip.style.left = p.x + 'px';
+    tip.style.top = (p.y - 12) + 'px';
+    tip.classList.add('is-on');
+    wakeIdle();
+  }
+  canvas.addEventListener('pointermove', e => {
+    if (pending) return;
+    pending = requestAnimationFrame(() => {
+      pending = null;
+      const r = canvas.getBoundingClientRect();
+      hit(e.clientX - r.left, e.clientY - r.top, false);
+    });
+  });
+  canvas.addEventListener('pointerdown', e => {
+    const r = canvas.getBoundingClientRect();
+    hit(e.clientX - r.left, e.clientY - r.top, true);
+  });
+  canvas.addEventListener('pointerleave', () => setHover(-1));
+
+  return { paint, enter, retint, onViewChange };
+})();
+
+/* ---------- rhythm controls ---------- */
+$('viewSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (S.view === b.dataset.view) return;
+  S.view = b.dataset.view; S.hover = -1; els.tip.classList.remove('is-on');
+  document.querySelectorAll('#viewSeg button').forEach(x => x.classList.toggle('is-on', x === b));
+  els.sigHint.textContent = S.view === 'signature'
+    ? 'Distance from centre = how long ago · angle = day of week. Tap a point.'
+    : 'Right is now, left is two weeks back · tails show session length. Tap a point.';
+  Sig.onViewChange(); wake();
+});
+$('catSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  S.cat = b.dataset.cat; S.hover = -1; els.tip.classList.remove('is-on');
+  document.querySelectorAll('#catSeg button').forEach(x => x.classList.toggle('is-on', x === b));
+  wake();
+});
+els.zoomInput.addEventListener('input', e => {
+  S.zoom = parseFloat(e.target.value);
+  const fill = ((S.zoom - 0.7) / 1.1) * 100;
+  e.target.style.setProperty('--fill', fill + '%');
+  wake();
+});
+els.zoomInput.style.setProperty('--fill', (((S.zoom - 0.7) / 1.1) * 100) + '%');
+
+/* ============================================================
+   SETTINGS SHEET
+   ============================================================ */
+function openSheet(open){
+  els.sheet.classList.toggle('is-open', open);
+  els.sheetBackdrop.classList.toggle('is-open', open);
+  if (open) TTS.resolveNames((id, name) => {
+    const chip = els.voiceChips.querySelector('[data-vid="' + id + '"]');
+    if (chip) chip.textContent = name;
+  });
+}
+els.gearBtn.addEventListener('click', () => openSheet(true));
+els.sheetBackdrop.addEventListener('click', () => openSheet(false));
+
+ACCENTS.forEach((hex, i) => {
+  const b = document.createElement('button');
+  b.className = 'swatch' + (i === 0 ? ' is-on' : '');
+  b.style.background = hex;
+  b.setAttribute('aria-label', 'Accent ' + hex);
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.swatch').forEach(x => x.classList.toggle('is-on', x === b));
+    setAccent(hex);
+  });
+  els.swatches.appendChild(b);
+});
+/* ---------- voice picker ---------- */
+function updateKeyUI(){
+  els.voiceHint.hidden = TTS.enabled;
+  els.keyInput.classList.toggle('is-set', TTS.enabled);
+}
+els.keyInput.value = (function(){ try { return localStorage.getItem(KEY_STORE) || ''; } catch(e){ return ''; } })();
+updateKeyUI();
+let keyDebounce = 0;
+els.keyInput.addEventListener('input', () => {
+  clearTimeout(keyDebounce);
+  keyDebounce = setTimeout(() => {
+    try { localStorage.setItem(KEY_STORE, els.keyInput.value.trim()); } catch(e){}
+    updateKeyUI();
+    if (TTS.enabled) TTS.resolveNames((id, name) => {
+      const chip = els.voiceChips.querySelector('[data-vid="' + id + '"]');
+      if (chip) chip.textContent = name;
+    });
+  }, 400);
+});
+
+let previewAudio = null;
+TTS_VOICE_IDS.forEach((vid, i) => {
+  const b = document.createElement('button');
+  b.className = 'vchip' + (i === 0 ? ' is-on' : '');
+  b.dataset.vid = vid;
+  b.textContent = TTS.names[vid] || 'Voice ' + (i + 1);
+  b.addEventListener('click', () => {
+    S.voiceId = vid;
+    document.querySelectorAll('.vchip').forEach(x => x.classList.toggle('is-on', x === b));
+    /* short spoken preview, when a key is present and sound is on */
+    if (previewAudio) { try { previewAudio.pause(); } catch(e){} previewAudio = null; }
+    document.querySelectorAll('.vchip.previewing').forEach(x => x.classList.remove('previewing'));
+    if (!TTS.enabled || !S.sound) return;
+    Voice.stop(false);
+    b.classList.add('previewing');
+    TTS.synthesize(VOICE_PREVIEW_LINE, vid).then(url => {
+      if (S.voiceId !== vid) return;
+      previewAudio = new Audio(url);
+      previewAudio.addEventListener('ended', () => b.classList.remove('previewing'));
+      previewAudio.play().catch(() => b.classList.remove('previewing'));
+    }).catch(() => b.classList.remove('previewing'));
+  });
+  els.voiceChips.appendChild(b);
+});
+
+els.toneSeg.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  S.tone = b.dataset.tone;
+  document.querySelectorAll('#toneSeg button').forEach(x => x.classList.toggle('is-on', x === b));
+  els.companionPrompt.textContent = PROMPTS[S.tone];
+});
+document.querySelectorAll('#toneSeg button').forEach(b => b.classList.toggle('is-on', b.dataset.tone === 'Gentle'));
+els.quietToggle.addEventListener('click', () => {
+  S.quiet = !S.quiet;
+  els.quietToggle.classList.toggle('is-on', S.quiet);
+  document.querySelectorAll('.num-only').forEach(el => el.style.display = S.quiet ? 'none' : '');
+  document.querySelectorAll('.quiet-only').forEach(el => el.hidden = !S.quiet);
+});
+els.soundToggle.addEventListener('click', () => {
+  S.sound = !S.sound;
+  els.soundToggle.classList.toggle('is-on', S.sound);
+  Voice.setMuted(!S.sound);
+  if (previewAudio) previewAudio.muted = !S.sound;
+});
+els.motionToggle.addEventListener('click', () => {
+  motionOverride = !motionOverride;
+  els.motionToggle.classList.toggle('is-on', motionOverride);
+  reduceMotion = motionOverride || mqReduce.matches;
+  applyReduce();
+});
+
+/* ---------- boot ---------- */
+applyReduce();
+wakeIdle(); wake();   /* first paint, then ambient loop governs itself */
+</script>
+</body>
+</html>
