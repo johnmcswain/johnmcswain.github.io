@@ -1,4 +1,4 @@
-// CRCP 6310 — Week 9: Dynamic Weather System (v0.8 — p5.js 2.x)
+// CRCP 6310 — Week 9: Dynamic Weather System (v0.10 — p5.js 2.x)
 // STORM OBSERVATORY — live Blitzortung.org lightning (or a synthetic storm,
 // [S] to toggle) driving a 3-layer wind volume, rendered as an orbitable
 // WEBGL volume with all three altitude planes interactable; organic cloud
@@ -33,10 +33,12 @@
 const CONFIG = {
   field: { cols: 26, rows: 26, layers: 3 },
   world: { fieldW: 900, layerGap: 150 },
+  // palette after Utopia Must Fall's phosphor sections: neon green /
+  // hot magenta / electric blue, with the system-orange as charge accent
   layerMeta: [
-    { name: 'SFC   ', col: [79, 179, 169],  baseSpeed: 0.35, dirOffset: 0.00, ringSpeed: 2.2 },
-    { name: '850hPa', col: [110, 143, 217], baseSpeed: 0.70, dirOffset: 0.55, ringSpeed: 3.2 },
-    { name: '500hPa', col: [176, 143, 224], baseSpeed: 1.15, dirOffset: 1.10, ringSpeed: 4.6 },
+    { name: 'SFC   ', col: [64, 255, 128],  baseSpeed: 0.35, dirOffset: 0.00, ringSpeed: 2.2 },
+    { name: '850hPa', col: [255, 72, 216],  baseSpeed: 0.70, dirOffset: 0.55, ringSpeed: 3.2 },
+    { name: '500hPa', col: [88, 148, 255],  baseSpeed: 1.15, dirOffset: 1.10, ringSpeed: 4.6 },
   ],
   // impulse attenuation by layer distance from the strike layer
   layerAtten: [1.0, 0.55, 0.28],
@@ -46,7 +48,7 @@ const CONFIG = {
 
   chargeGrid: { cols: 34, rows: 34 },
   chargeDecay: 0.988,
-  chargeCol: [232, 163, 76],
+  chargeCol: [255, 148, 44],
 
   particles: {
     count: 240,
@@ -93,7 +95,7 @@ const CONFIG = {
     maxSegs: 220, maxActive: 10,
     pulses: [[0, 1.0], [8, 0.6], [15, 0.38]],   // return-stroke flickers [frame, amp]
     leaderCol: [190, 205, 255],
-    glowCol: [159, 212, 208],
+    glowCol: [152, 244, 200],
   },
 
   // organic elements: noise-perturbed cloud masses + wind-sheared rain
@@ -102,7 +104,7 @@ const CONFIG = {
     baseAlt: 1.45, lobeAltStep: 0.22,   // in layer units (850→500hPa band)
     radiusScale: 2.0, noiseAmp: 0.55,
     breathe: 0.5,                       // size swells with cell intensity
-    col: [156, 168, 192],
+    col: [158, 172, 206],
   },
   rain: {
     pool: 420,                          // recycled — zero steady-state allocation
@@ -111,14 +113,29 @@ const CONFIG = {
     minIntensity: 0.45,                 // cells rain only when worked up
     spawnPerFrame: 5,
     streak: 3.2,
-    col: [170, 205, 225],
+    col: [140, 232, 255],
   },
 
   cam: { radius: 1500, azimuth: -0.7, elevation: 0.62,
          minR: 550, maxR: 3200, minEl: 0.12, maxEl: 1.35 },
   idle: { delayMs: 10000, rampMs: 3000, speed: 0.0012 },   // auto-orbit when untouched
 
-  geoCol: [100, 115, 135],   // reference outline, faint slate
+  // Thunder: delay/filter/gain are PROPORTIONAL to distance but on a
+  // compressed timebase (~6 s at the far corner) — physically real delays at
+  // Gulf scale would run to minutes. Relative truth kept, absolute dramatized.
+  // Drone: real Schumann-mode ratios (7.83/14.3/20.8/27.3/33.8 Hz), octave-
+  // shifted x8 into audibility; strike rate opens it, each strike pumps it.
+  audio: {
+    masterGain: 0.9,
+    delayPerUnit: 0.0048,       // s per field unit (compressed timebase)
+    maxVoices: 14,
+    droneBase: 62.64,           // 7.83 Hz x 8
+    droneRatios: [1, 1.826, 2.656, 3.486, 4.317],
+    droneGains: [0.16, 0.09, 0.055, 0.038, 0.024],
+    droneLevel: 0.09,
+  },
+
+  geoCol: [124, 214, 255],   // reference outline, phosphor cyan
 
   bg: [10, 14, 20],
 };
@@ -166,6 +183,162 @@ let hoverPt = null;          // raycast hit on active plane, or null
 let cellSize, chSize, halfW;
 let geoLines = [];           // GEO_OUTLINE projected to field coords, cached
 let lastInputMs = 0;         // idle auto-orbit timer
+
+// ---------------------------------------------------------------- SND
+// Listener sits at field center. Thunder is scheduled at each RETURN STROKE
+// (the flash), arriving late in proportion to distance: near strikes crack,
+// far ones swell in as low-passed rumble. Stereo pan follows the camera.
+const SND = { ctx: null, master: null, noiseBuf: null, drone: null,
+                enabled: false, unavailable: false, voices: 0 };
+
+// pure mapping distance/amplitude -> thunder character (headlessly testable)
+function thunderParams(d, amp) {
+  const t = constrain(d / 1250, 0, 1);
+  return {
+    delay: d * CONFIG.audio.delayPerUnit,
+    cutoff: lerp(5200, 130, Math.pow(t, 0.6)),   // distance = low-pass
+    gain: (0.45 + 0.55 * amp) * (1 - 0.82 * t),
+    attack: lerp(0.006, 0.55, t),                // crack -> swell
+    decay: lerp(0.9, 4.2, t),
+    sub: 0.25 + 0.5 * t,                         // far thunder is mostly body
+  };
+}
+
+function audioToggle() {
+  const AC = (typeof AudioContext !== 'undefined') ? AudioContext
+    : (typeof webkitAudioContext !== 'undefined') ? webkitAudioContext : null;
+  if (!AC) { SND.unavailable = true; SND.enabled = false; return; }
+  if (!SND.ctx) {
+    // first toggle is a user gesture, satisfying autoplay policy
+    SND.ctx = new AC();
+    const comp = SND.ctx.createDynamicsCompressor();
+    comp.threshold.value = -18;
+    comp.ratio.value = 6;
+    comp.connect(SND.ctx.destination);
+    SND.master = SND.ctx.createGain();
+    SND.master.gain.value = CONFIG.audio.masterGain;
+    SND.master.connect(comp);
+    const len = SND.ctx.sampleRate * 3;
+    SND.noiseBuf = SND.ctx.createBuffer(1, len, SND.ctx.sampleRate);
+    const ch = SND.noiseBuf.getChannelData(0);
+    for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+    SND.drone = new SchumannDrone(SND.ctx, SND.master);
+  }
+  SND.enabled = !SND.enabled;
+  if (SND.enabled) {
+    if (SND.ctx.state === 'suspended') SND.ctx.resume();
+    SND.drone.setLevel(1);
+  } else {
+    SND.drone.setLevel(0);
+  }
+}
+
+function scheduleThunder(x, z, amp) {
+  if (!SND.enabled || !SND.ctx) return;
+  if (SND.voices >= CONFIG.audio.maxVoices) return;
+  const d = dist(x, z, 0, 0);                    // listener at field center
+  const P = thunderParams(d, amp);
+  const ctx = SND.ctx;
+  const t0 = ctx.currentTime + P.delay;
+
+  // pan follows the camera: strike azimuth relative to the current view
+  const B = camBasis();
+  const pan = constrain(((x * B.rx + z * B.rz) / max(d, 1)) * 0.8, -0.9, 0.9);
+  const panner = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+  const sink = panner || SND.master;
+  if (panner) { panner.pan.value = pan; panner.connect(SND.master); }
+
+  const stopAt = t0 + P.attack + P.decay * 3;
+
+  // main body: looped noise through a distance-mapped low-pass
+  const src = ctx.createBufferSource();
+  src.buffer = SND.noiseBuf;
+  src.loop = true;
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = P.cutoff;
+  lp.Q.value = 0.4;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0, t0);
+  g.gain.linearRampToValueAtTime(P.gain, t0 + P.attack);
+  g.gain.setTargetAtTime(0, t0 + P.attack, P.decay / 3);
+  src.connect(lp); lp.connect(g); g.connect(sink);
+
+  // sub layer: narrow band around 68 Hz, the chest-feel of far thunder
+  const sub = ctx.createBufferSource();
+  sub.buffer = SND.noiseBuf;
+  sub.loop = true;
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 68;
+  bp.Q.value = 2.2;
+  const sg = ctx.createGain();
+  sg.gain.setValueAtTime(0, t0);
+  sg.gain.linearRampToValueAtTime(P.gain * P.sub, t0 + P.attack * 1.6);
+  sg.gain.setTargetAtTime(0, t0 + P.attack * 1.6, P.decay / 2.2);
+  sub.connect(bp); bp.connect(sg); sg.connect(sink);
+
+  SND.voices++;
+  src.onended = () => { SND.voices--; };
+  src.start(t0); src.stop(stopAt);
+  sub.start(t0); sub.stop(stopAt);
+}
+
+// The Earth-ionosphere cavity as an instrument: five sine modes at true
+// Schumann ratios, each breathing on its own slow LFO. Strike rate opens
+// the upper modes; each return stroke pumps the whole cavity briefly.
+class SchumannDrone {
+  constructor(ctx, out) {
+    this.ctx = ctx;
+    this.level = ctx.createGain();     // [A] on/off fade
+    this.level.gain.value = 0;
+    this.pumpG = ctx.createGain();     // per-strike transient swell
+    this.pumpG.gain.value = 1;
+    this.activityG = ctx.createGain(); // strike-rate coupling
+    this.activityG.gain.value = 0.3;
+    this.pumpG.connect(this.activityG);
+    this.activityG.connect(this.level);
+    this.level.connect(out);
+
+    this.modes = [];
+    const A = CONFIG.audio;
+    for (let i = 0; i < A.droneRatios.length; i++) {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = A.droneBase * A.droneRatios[i] * (1 + (Math.random() - 0.5) * 0.004);
+      const g = ctx.createGain();
+      g.gain.value = A.droneGains[i] * A.droneLevel;
+      // independent slow breathing per mode
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.05 + Math.random() * 0.08;
+      const lfoG = ctx.createGain();
+      lfoG.gain.value = A.droneGains[i] * A.droneLevel * 0.35;
+      lfo.connect(lfoG); lfoG.connect(g.gain);
+      osc.connect(g); g.connect(this.pumpG);
+      osc.start(); lfo.start();
+      this.modes.push({ osc, g, base: A.droneGains[i] * A.droneLevel });
+    }
+  }
+  setLevel(v) {
+    this.level.gain.setTargetAtTime(v, this.ctx.currentTime, 0.8);
+  }
+  setActivity(rate01) {
+    // quiet cavity when the sky is calm; upper modes brighten with rate
+    this.activityG.gain.setTargetAtTime(0.3 + 0.7 * rate01, this.ctx.currentTime, 1.5);
+    for (let i = 1; i < this.modes.length; i++) {
+      const m = this.modes[i];
+      m.g.gain.setTargetAtTime(m.base * (1 + rate01 * i * 0.4), this.ctx.currentTime, 1.5);
+    }
+  }
+  pump(amp) {
+    const t = this.ctx.currentTime;
+    this.pumpG.gain.cancelScheduledValues(t);
+    this.pumpG.gain.setValueAtTime(this.pumpG.gain.value, t);
+    this.pumpG.gain.linearRampToValueAtTime(1 + 0.22 * amp, t + 0.08);
+    this.pumpG.gain.setTargetAtTime(1, t + 0.08, 1.2);
+  }
+}
+
 let hudEl = null, helpEl = null;
 let layerLabelEls = [];      // one DOM label pinned to each plane's near corner
 let tagEls = [];             // floating strike tags, recycled
@@ -532,6 +705,8 @@ function triggerStrike(x, z, layer, amp, geo) {
 // charge, and debris loft all fire there — leader first, then FLASH+physics
 function applyStrikePhysics(x, z, layer, amp) {
   shockwaves.push({ x, z, layer, age: 0, amp });
+  scheduleThunder(x, z, amp);
+  if (SND.enabled && SND.drone) SND.drone.pump(amp);
 
   // ground charge is only fed by cloud-to-ground strikes (2D field)
   if (layer === 0) {
@@ -790,21 +965,25 @@ function updateParticles() {
 function layerVisible(l) { return !isolate || l === activeLayer; }
 
 // geographic reference on the ground plane; only meaningful in live mode,
-// where strikes and outline share the same projection
+// where strikes and outline share the same projection. Two passes fake
+// phosphor bloom: a wide dim halo under a bright thin core.
 function drawGeoOutline() {
   if (source !== liveSource) return;
   const c = CONFIG.geoCol;
-  stroke(c[0], c[1], c[2], 46);
-  strokeWeight(1);
-  beginShape(LINES);
-  for (let i = 0; i < geoLines.length; i++) {
-    const line = geoLines[i];
-    for (let k = 0; k < line.length - 1; k++) {
-      vertex(line[k].x, -0.5, line[k].z);
-      vertex(line[k + 1].x, -0.5, line[k + 1].z);
+  const passes = [[2.8, 38], [1, 175]];          // [weight, alpha]
+  for (let p = 0; p < passes.length; p++) {
+    stroke(c[0], c[1], c[2], passes[p][1]);
+    strokeWeight(passes[p][0]);
+    beginShape(LINES);
+    for (let i = 0; i < geoLines.length; i++) {
+      const line = geoLines[i];
+      for (let k = 0; k < line.length - 1; k++) {
+        vertex(line[k].x, -0.5, line[k].z);
+        vertex(line[k + 1].x, -0.5, line[k + 1].z);
+      }
     }
+    endShape();
   }
-  endShape();
 }
 
 function drawPlaneFrames() {
@@ -853,7 +1032,7 @@ function drawVectors() {
     if (!layerVisible(l)) continue;
     const M = CONFIG.layerMeta[l];
     const y = layerY(l);
-    const dim = l === activeLayer ? 150 : 95;
+    const dim = l === activeLayer ? 175 : 105;
     stroke(M.col[0], M.col[1], M.col[2], dim);
     strokeWeight(l === 0 ? 1 : l === 1 ? 1.3 : 1.6);
     const s = 8 + l * 3;
@@ -1056,6 +1235,21 @@ function drawStrikes() {
   }
 }
 
+// the thunder listener at field center — visible only when sound is on,
+// so the delay/pan geometry has a visible anchor
+function drawListener() {
+  if (!SND.enabled) return;
+  stroke(143, 163, 184, 130);
+  strokeWeight(1);
+  noFill();
+  push();
+  translate(0, -0.5, 0);
+  rotateX(HALF_PI);
+  circle(0, 0, 16);
+  circle(0, 0, 34);
+  pop();
+}
+
 // reticle where the cursor's ray meets the active plane
 function drawReticle() {
   if (!hoverPt) return;
@@ -1076,16 +1270,16 @@ function drawReticle() {
 // ------------------------------------------------------------------ HUD
 function buildHUD() {
   if (typeof document === 'undefined') return;
-  const base = 'position:fixed;color:#8fa3b8;font:12px monospace;' +
+  const base = 'position:fixed;font:12px monospace;' +
                'pointer-events:none;user-select:none;white-space:pre;z-index:10;';
   hudEl = document.createElement('div');
-  hudEl.style.cssText = base + 'left:16px;top:14px;';
+  hudEl.style.cssText = base + 'left:16px;top:14px;color:#7dffa8;';
   helpEl = document.createElement('div');
-  helpEl.style.cssText = base + 'left:16px;bottom:14px;color:#5c6b7a;';
+  helpEl.style.cssText = base + 'left:16px;bottom:14px;color:#ff5ad0;opacity:0.7;';
   helpEl.textContent =
     'drag orbit   scroll zoom   [1-3] active plane   click strike on plane\n' +
-    '[S] live/synthetic   [W] weather   [H] isolate   [G] charge   [P] debris\n' +
-    '[R] cam   [space] pause';
+    '[A] sound   [S] live/synthetic   [W] weather   [H] isolate   [G] charge\n' +
+    '[P] debris   [R] cam   [space] pause';
   document.body.appendChild(hudEl);
   document.body.appendChild(helpEl);
 
@@ -1170,7 +1364,7 @@ function updateHUD() {
     else if (st === 'unavailable') srcLine = 'LIVE \u25AA UNAVAILABLE \u25AA SYN FALLBACK';
     else srcLine = 'LIVE \u25AA RECONNECTING \u25AA SYN FALLBACK';
   }
-  let s = 'STORM OBSERVATORY  v0.8 · p5 2.3.0\n' +
+  let s = 'STORM OBSERVATORY  v0.10.1 · p5 2.3.0\n' +
     'SOURCE   ' + srcLine + '\n' +
     (source === liveSource
       ? 'REGION   ' + CONFIG.live.region.name +
@@ -1180,6 +1374,8 @@ function updateHUD() {
     'STRIKES  ' + nf(strikeCount, 6) + '\n' +
     'RATE     ' + nf(strikeTimes.length / 60, 1, 2) + ' /s\n' +
     'RAIN     ' + rainActive + '\n' +
+    'SND    ' + (SND.unavailable ? 'UNAVAILABLE'
+                   : SND.enabled ? 'ON \u25AA thunder + 7.83 Hz drone' : 'OFF  [A]') + '\n' +
     'PLANE    [' + (activeLayer + 1) + '] ' + M.name.trim() +
     (isolate ? '  (isolated)' : '') +
     (paused ? '\nPAUSED' : '');
@@ -1232,7 +1428,11 @@ function draw() {
   if (showWeather) drawClouds();   // translucent masses late in draw order
   drawStrikes();
   drawReticle();
+  drawListener();
   updateLabels();
+
+  if (SND.enabled && SND.drone && frameCount % 15 === 0)
+    SND.drone.setActivity(min(1, (strikeTimes.length / 60) / 3));
 
   if (frameCount % 10 === 0) updateHUD();
 }
@@ -1279,6 +1479,8 @@ function keyPressed() {
     showParticles = !showParticles;
   } else if (key === 'w' || key === 'W') {
     showWeather = !showWeather;
+  } else if (key === 'a' || key === 'A') {
+    audioToggle();
   } else if (key === 's' || key === 'S') {
     useLive = !useLive;
     if (useLive) {
