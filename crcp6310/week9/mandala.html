@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+================================================================================
+  SEISMA · five mandalas of the restless earth                    (mandala.html)
+  CRCP 6310 — Midterm: extend a prior project into five iterative variations
+================================================================================
+  Extends the Week-6 seismic mandala. The same live USGS earthquake feed is read
+  through a sequence of ORNAMENTAL TRADITIONS: one planet's tremors, drawn in
+  five of humanity's decorative languages. Press 1..N (or the MOTIF button) to
+  move through the variations; the piece dips and re-blooms as it changes hand.
+
+  The data, the phyllotaxis layout, the depth->color harmonies, the
+  density-aware sizing and all controls stay fixed across the five — only the
+  SEED MOTIF changes. That makes the set a controlled study: same earth, same
+  spiral, five traditions.
+
+  THE FIVE (iterative order)
+    1  CELTIC      torus knots + rings           (the inherited anchor)
+    2  BOTANICAL   superformula florets           (the spiral revealed as botany)
+    3  FLUID       Perlin flow blobs              (the restless earth as molten, not woven)
+    4  GIRIH       Islamic star strapwork         (compass-and-rule construction)
+    5  AUTOMATA    Conway's Game of Life            (the earth as emergent rule)
+
+  ENGAGEMENT — seismic sonification (opt-in; press M or the SOUND button).
+  Each seed can also SOUND: a gentle sequence walks the newest events near the
+  center, magnitude->pitch and depth->filter, and the ACTIVE MOTIF picks the
+  timbre — so the sound iterates across the variations alongside the visuals.
+  (Audio stays silent until you turn it on, per browser autoplay rules.)
+
+  DATA SOURCES  (button top-left / D)
+    LIVE       real USGS feed supplies the events (refreshes ~60s)
+    SYNTHETIC  a designed, rotationally symmetric specimen showing every shape
+
+  CONTROLS
+    1..N  motif (variation)        <- ->  symmetry (1..12)     C  color harmony
+    F  magnitude feed              P  time window               [ ] hold-scrub hue
+    D  data source                 M  sound on/off              R  reseed
+    Space  pause spin              S  save PNG
+    hover  event details           click  open USGS event page
+
+  Performance: pixelDensity 1, cached knot + superformula polylines, size-based
+  LOD, precomputed seed positions, move-gated hover, lite path above 1,400 seeds.
+
+  ARCHITECTURE — the sketch is now ES-module classes loaded via main.js:
+    palette.js  ColorHarmony              shapes.js  ShapeAtlas
+    motifs.js   Motif + 5 subclasses,     audio.js   Sonifier
+                GameOfLife (expression)   data.js    QuakeFeed
+    hud.js      Hud                       engine.js  ViewState, MandalaEngine
+  Serve over http(s) — ES modules will not load from file:// (CORS).
+--------------------------------------------------------------------------------
+  Author : John McSwain (jimcswain@smu.edu)
+  Repo   : https://github.com/johnmcswain/johnmcswain.github.io/blob/master/crcp6310/midterm/sketch.js
+  Live   : https://johnmcswain.github.io/crcp6310/midterm/mandala.html
+================================================================================
+-->
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>SEISMA — five mandalas of the restless earth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;1,9..144,400;1,9..144,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+<style>
+  :root{
+    --abyss:#0a0d13; --char:#11151e; --ash:#7c8597; --bone:#e9e4d6;
+    --ember:#ff8a4c; --box:rgba(233,228,214,0.16);
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; background:var(--abyss); overflow:hidden; }
+  body{ font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace; color:var(--bone); }
+  canvas{ display:block; }
+  .overlay{ position:fixed; inset:0; pointer-events:none; z-index:10; }
+  .masthead{ position:absolute; top:22px; left:24px; }
+  .eyebrow{ font-size:10.5px; letter-spacing:0.34em; text-transform:uppercase; color:var(--ash); }
+  .eyebrow .dot{ color:var(--ember); }
+  .title{ font-family:"Fraunces",Georgia,serif; font-style:italic; font-weight:400;
+    font-size:46px; line-height:0.92; letter-spacing:0.01em; margin-top:4px; }
+  .strap{ font-size:11px; color:var(--ash); margin-top:6px; letter-spacing:0.04em; }
+  .panel{ position:absolute; bottom:22px; left:24px; font-size:11.5px; line-height:1.7; max-width:320px; }
+  .row{ display:flex; gap:10px; }
+  .k{ color:var(--ash); min-width:84px; text-transform:uppercase; letter-spacing:0.12em; font-size:10px; padding-top:2px; }
+  .v{ color:var(--bone); }
+  .v.big{ font-family:"Fraunces",serif; font-style:italic; font-size:16px; }
+  .legend{ margin-top:14px; }
+  .ramp{ height:7px; width:200px; border-radius:4px; margin:5px 0 3px; background:#888; }
+  .rampscale{ display:flex; justify-content:space-between; width:200px; color:var(--ash); font-size:9.5px; letter-spacing:0.08em; }
+  .hover{ position:absolute; top:84px; right:24px; text-align:right; min-width:220px; opacity:0; transition:opacity .18s ease; }
+  .hover.on{ opacity:1; }
+  .hover .mag{ font-family:"Fraunces",serif; font-style:italic; font-size:40px; line-height:1; }
+  .hover .place{ font-size:11.5px; color:var(--bone); margin-top:6px; }
+  .hover .meta{ font-size:10.5px; color:var(--ash); margin-top:4px; letter-spacing:0.04em; }
+  .controls{ position:absolute; bottom:22px; right:24px; text-align:right; font-size:10.5px; color:var(--ash); line-height:1.85; letter-spacing:0.03em; }
+  .controls b{ color:var(--bone); font-weight:500; }
+  .controls .feed{ color:var(--ember); }
+  .status{ position:absolute; top:50px; right:24px; font-size:10px; color:var(--ash); letter-spacing:0.14em; text-transform:uppercase; opacity:.75; }
+  .status.live::before{ content:"\25CF  "; color:#5fd38a; }
+  .status.offline::before{ content:"\25CF  "; color:var(--ember); }
+  .status.loading::before{ content:"\25CB  "; }
+  .status.synth::before{ content:"\25C7  "; color:#7aa7ff; }
+  .btn{ pointer-events:auto; cursor:pointer; font-family:inherit; font-size:10px;
+    letter-spacing:0.2em; text-transform:uppercase; color:var(--bone);
+    background:rgba(20,24,32,0.5); border:1px solid var(--box);
+    padding:6px 11px; border-radius:5px; transition:all .15s ease; }
+  .btn:hover{ border-color:var(--ember); color:var(--ember); }
+  .harmonybtn{ position:absolute; top:18px; right:24px; min-width:96px; }
+  .databtn{ position:absolute; top:108px; left:24px; min-width:128px; }
+  .motifbtn{ position:absolute; top:148px; left:24px; min-width:128px; }
+  .soundbtn{ position:absolute; top:188px; left:24px; min-width:128px; }
+  .soundbtn.on{ border-color:var(--ember); color:var(--ember); }
+  /* the active tradition, named in the display face, centered low on the canvas */
+  .motiflabel{ position:absolute; left:0; right:0; bottom:54px; text-align:center;
+    font-family:"Fraunces",Georgia,serif; font-style:italic; font-weight:400;
+    font-size:30px; letter-spacing:0.02em; color:var(--bone); opacity:0.9;
+    text-transform:lowercase; }
+  @media (max-width:640px){
+    .title{ font-size:34px; } .legend,.controls .extra{ display:none; }
+    .panel{ font-size:10.5px; } .hover .mag{ font-size:30px; }
+    .motiflabel{ font-size:22px; }
+  }
+</style>
+</head>
+<body>
+<div class="overlay">
+  <div class="masthead">
+    <div class="eyebrow">USGS <span class="dot">&middot;</span> live seismic feed</div>
+    <div class="title">Seisma</div>
+    <div class="strap">five mandalas of the restless earth</div>
+  </div>
+  <button class="btn databtn" id="databtn">DATA: LIVE</button>
+  <button class="btn motifbtn" id="motifbtn">1 &middot; CELTIC</button>
+  <button class="btn soundbtn" id="soundbtn">SOUND: OFF</button>
+  <button class="btn harmonybtn" id="harmonybtn">TRIAD</button>
+  <div class="status loading" id="status">connecting</div>
+  <div class="motiflabel" id="motiflabel">celtic</div>
+  <div class="hover" id="hover">
+    <div class="mag" id="h-mag">&mdash;</div>
+    <div class="place" id="h-place"></div>
+    <div class="meta" id="h-meta"></div>
+  </div>
+  <div class="panel">
+    <div class="row"><span class="k">Variation</span><span class="v big" id="s-motif">&mdash;</span></div>
+    <div class="row"><span class="k">Source</span><span class="v" id="s-src">&mdash;</span></div>
+    <div class="row"><span class="k">Feed</span><span class="v" id="s-feed">&mdash;</span></div>
+    <div class="row"><span class="k">Events</span><span class="v" id="s-count">&mdash;</span></div>
+    <div class="row"><span class="k">Strongest</span><span class="v" id="s-max">&mdash;</span></div>
+    <div class="row"><span class="k">Symmetry</span><span class="v" id="s-sym">&mdash;</span></div>
+    <div class="row"><span class="k">Palette</span><span class="v" id="s-pal">&mdash;</span></div>
+    <div class="row"><span class="k">Updated</span><span class="v" id="s-upd">&mdash;</span></div>
+    <div class="legend">
+      <div class="row"><span class="k">Depth</span></div>
+      <div class="ramp"></div>
+      <div class="rampscale"><span>0 km</span><span>shallow &rarr; deep</span><span>700</span></div>
+      <div class="row" style="margin-top:6px"><span class="k">Size</span><span class="v" style="font-size:10.5px">= magnitude</span></div>
+    </div>
+  </div>
+  <div class="controls">
+    <div><b>1 &ndash; N</b> variation &middot; <b>&larr; &rarr;</b> symmetry</div>
+    <div class="extra"><b>F</b> magnitude <span class="feed" id="c-mag">all</span></div>
+    <div class="extra"><b>P</b> window <span class="feed" id="c-per">day</span></div>
+    <div class="extra"><b>C</b> palette &middot; <b>[ ]</b> hue (hold to scrub)</div>
+    <div class="extra"><b>M</b> sound &middot; <b>D</b> data &middot; <b>R</b> reseed &middot; <b>Space</b> spin &middot; <b>S</b> save</div>
+  </div>
+</div>
+<script type="module" src="main.js"></script>
+</body>
+</html>
