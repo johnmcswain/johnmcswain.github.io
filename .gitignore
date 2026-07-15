@@ -14,5 +14,4 @@ coverage
 /coverage
 
 # Build
-dist
 build
