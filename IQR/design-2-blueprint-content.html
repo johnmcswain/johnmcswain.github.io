@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inquisitive Robotics — Engineering the Missing Parts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0C1420;
+    --bg-2:#101A29;
+    --line:#1E3048;
+    --line-bright:#2C4666;
+    --ink:#E6EEF7;
+    --dim:#8CA3BD;
+    --cyan:#5FD4E8;
+    --cyan-dim:#2E7C8C;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:'Work Sans',system-ui,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    line-height:1.65;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:48px 48px;
+    background-attachment:fixed;
+  }
+  a{color:var(--cyan)}
+  header{
+    position:sticky;top:0;z-index:10;
+    background:rgba(12,20,32,.92);backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--line-bright);
+  }
+  .bar{
+    max-width:960px;margin:0 auto;padding:12px 20px;
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .mark{font-weight:800;font-size:.85rem;letter-spacing:.14em;text-transform:uppercase}
+  .mark::before{content:"◫ ";color:var(--cyan)}
+  .doc-no{font-size:.7rem;color:var(--dim);letter-spacing:.12em}
+  .sheet{max-width:960px;margin:40px auto 0;padding:0 20px}
+  .titleblock{border:1px solid var(--line-bright);background:rgba(16,26,41,.85)}
+  .tb-head{display:grid;grid-template-columns:1fr auto;border-bottom:1px solid var(--line-bright)}
+  .tb-head > div{padding:10px 16px;font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+  .tb-head > div + div{border-left:1px solid var(--line-bright);color:var(--cyan)}
+  .tb-main{padding:36px 20px 40px}
+  @media(min-width:640px){.tb-main{padding:56px 48px 60px}}
+  h1{
+    font-weight:800;
+    font-size:clamp(1.9rem,6.5vw,3.4rem);
+    line-height:1.08;letter-spacing:-.015em;
+    margin-bottom:18px;
+  }
+  h1 .hl{color:var(--cyan);border-bottom:3px solid var(--cyan-dim)}
+  .lede{color:var(--dim);max-width:36rem;font-weight:300;font-size:1.06rem}
+  .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:30px}
+  .btn{
+    font:inherit;font-weight:700;font-size:.82rem;letter-spacing:.1em;text-transform:uppercase;
+    padding:13px 22px;text-decoration:none;cursor:pointer;
+    border:1px solid var(--cyan);color:var(--cyan);background:transparent;
+    transition:background .15s,color .15s;
+  }
+  .btn.solid{background:var(--cyan);color:#0C1420}
+  .btn.solid:hover{background:#8AE2F0}
+  .btn:not(.solid):hover{background:rgba(95,212,232,.1)}
+  .tb-foot{
+    border-top:1px solid var(--line-bright);
+    display:grid;grid-template-columns:repeat(3,1fr);
+    font-size:.72rem;
+  }
+  .tb-foot div{padding:10px 16px;border-left:1px solid var(--line-bright)}
+  .tb-foot div:first-child{border-left:none}
+  .tb-foot b{display:block;color:var(--cyan);font-size:.95rem;font-weight:700}
+  .tb-foot span{color:var(--dim);letter-spacing:.1em;text-transform:uppercase;font-size:.62rem}
+  section{max-width:960px;margin:0 auto;padding:56px 20px 8px}
+  .sec-label{
+    display:flex;align-items:center;gap:12px;margin-bottom:22px;
+    font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);font-weight:700;
+  }
+  .sec-label::after{content:"";flex:1;height:1px;background:var(--line-bright)}
+  h2{font-weight:700;font-size:clamp(1.4rem,4vw,2rem);margin-bottom:20px;letter-spacing:-.01em}
+  details{
+    border:1px solid var(--line-bright);
+    background:rgba(16,26,41,.85);
+    margin-bottom:10px;
+  }
+  summary{
+    list-style:none;cursor:pointer;
+    display:flex;align-items:baseline;gap:14px;
+    padding:16px 18px;
+    font-weight:600;
+  }
+  summary::-webkit-details-marker{display:none}
+  summary:hover{background:rgba(95,212,232,.06)}
+  summary:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}
+  .ref{font-size:.7rem;color:var(--cyan);letter-spacing:.12em;font-weight:700;flex:none}
+  .state{margin-left:auto;font-size:.65rem;color:var(--dim);letter-spacing:.14em;text-transform:uppercase;flex:none}
+  details[open] .state::after{content:"— open"}
+  details:not([open]) .state::after{content:"+ expand"}
+  .d-body{padding:0 18px 20px;color:var(--dim);border-top:1px dashed var(--line-bright)}
+  .d-body p{padding-top:14px}
+  .d-body strong{color:var(--ink)}
+  .spec-table{width:100%;border-collapse:collapse;margin-top:14px;font-size:.85rem}
+  .spec-table td,.spec-table th{border:1px solid var(--line-bright);padding:8px 12px;text-align:left}
+  .spec-table td:first-child,.spec-table th{color:var(--cyan);font-weight:600;text-transform:uppercase;font-size:.7rem;letter-spacing:.1em}
+  .spec-table td:first-child{width:40%}
+  .roster th{background:rgba(95,212,232,.06)}
+  .roster td{color:var(--dim)}
+  .roster td:first-child{width:auto;color:var(--ink);font-weight:600;text-transform:none;font-size:.85rem;letter-spacing:0}
+  .frame{position:relative;padding-top:56.25%;border:1px solid var(--line-bright);background:#000;margin-bottom:10px}
+  .frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+  .cap{font-size:.75rem;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;margin-bottom:28px}
+  .cap b{color:var(--cyan)}
+  .final{max-width:960px;margin:48px auto 0;padding:0 20px 64px}
+  .final-box{
+    border:1px solid var(--cyan-dim);
+    background:linear-gradient(135deg,rgba(95,212,232,.08),transparent 60%),rgba(16,26,41,.9);
+    padding:40px 24px;text-align:center;
+  }
+  .final-box h2{margin-bottom:12px}
+  .final-box p{color:var(--dim);max-width:30rem;margin:0 auto 24px}
+  footer{border-top:1px solid var(--line);padding:22px;text-align:center;font-size:.72rem;color:var(--dim);letter-spacing:.1em}
+  @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="bar">
+    <div class="mark">Inquisitive Robotics</div>
+    <div class="doc-no">DWG № IR-2026-001 · REV B</div>
+  </div>
+</header>
+
+<main>
+  <div class="sheet">
+    <div class="titleblock">
+      <div class="tb-head">
+        <div>Project brief — Lego combat propulsion program</div>
+        <div>Status: Active</div>
+      </div>
+      <div class="tb-main">
+        <h1>The parts don't exist yet. <span class="hl">So we're engineering them.</span></h1>
+        <p class="lede">Eleven Lego combat robots in three years — from Deviant to Refried Beans — and one season in 1&nbsp;lb plastic antweight with DVNT. The diagnosis is clear: Lego combat isn't limited by imagination. It's limited by motors. Inquisitive Robotics is designing smaller, lighter motors to change that.</p>
+        <div class="actions">
+          <a class="btn solid" href="#analysis">Read the analysis</a>
+          <a class="btn" href="#fleet">Inspect the fleet</a>
+        </div>
+      </div>
+      <div class="tb-foot">
+        <div><b>11 bots</b><span>Lego fleet built</span></div>
+        <div><b>+1 ant</b><span>DVNT · 1 lb plastic</span></div>
+        <div><b>2026</b><span>Motor program start</span></div>
+      </div>
+    </div>
+  </div>
+
+  <section id="analysis" aria-labelledby="a-h">
+    <div class="sec-label">Section 01 · Findings</div>
+    <h2 id="a-h">Engineering analysis</h2>
+
+    <details open>
+      <summary><span class="ref">§1.1</span> Benchmark: what DVNT proved in antweight <span class="state"></span></summary>
+      <div class="d-body">
+        <p>Building DVNT for the 1&nbsp;lb plastic antweight division was the control experiment. <strong>Dedicated products exist for every weight class</strong> — battle-ready motors, integrated ESCs, drop-in weapon systems. With basic CAD skills, the design came together around proven parts instead of being contorted around scarce ones.</p>
+        <p>Compared to three years of Lego builds, the difference was stark: the design work was a thousand times easier, and the fights were far more intense. That ecosystem is exactly why antweight keeps growing.</p>
+        <table class="spec-table" aria-label="Antweight ecosystem summary">
+          <tr><td>Test article</td><td>DVNT — 1 lb plastic antweight</td></tr>
+          <tr><td>Parts availability</td><td>Purpose-built, every weight class</td></tr>
+          <tr><td>Design difficulty</td><td>Low — CAD around known components</td></tr>
+          <tr><td>Fight intensity</td><td>High — and it shows in event growth</td></tr>
+        </table>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="ref">§1.2</span> Constraint: the Lego electronics bottleneck <span class="state"></span></summary>
+      <div class="d-body">
+        <p>Eleven Lego bots taught us the same lesson eleven times: builders work with an <strong>extremely limited variety of electronics.</strong> Every chassis in the fleet — spinner or wedge, 600&nbsp;g or heavier — was shaped around the same handful of motors, not around the best fighting concept.</p>
+        <p>That caps weapon geometry, cramps electrical layouts, and keeps an extremely underrated hobby smaller than it should be.</p>
+        <table class="spec-table" aria-label="Lego constraint summary">
+          <tr><td>Root cause</td><td>No motors sized for Lego weight classes</td></tr>
+          <tr><td>Effect</td><td>Limited weapon geometry &amp; layouts</td></tr>
+          <tr><td>Downstream</td><td>Fewer events, fewer builders</td></tr>
+        </table>
+      </div>
+    </details>
+
+    <details>
+      <summary><span class="ref">§1.3</span> Proposal: smaller, lighter motors <span class="state"></span></summary>
+      <div class="d-body">
+        <p>The program objective: <strong>bring the antweight experience to Lego</strong> by developing smaller, lighter motors that open up new electrical layouts and new weapon geometries — the designs the current fleet could never attempt.</p>
+        <p>More viable designs raise fight intensity; intensity drives popularity; popularity means more events, more builders, and more fun.</p>
+        <table class="spec-table" aria-label="Program objectives">
+          <tr><td>Deliverable</td><td>Compact motors for Lego-scale combat</td></tr>
+          <tr><td>Unlocks</td><td>New layouts + weapon geometries</td></tr>
+          <tr><td>Mission</td><td>Grow an underrated hobby</td></tr>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section id="fleet" aria-labelledby="fl-h">
+    <div class="sec-label">Section 02 · Fleet registry</div>
+    <h2 id="fl-h">Three years of test articles</h2>
+
+    <details open>
+      <summary><span class="ref">§2.1</span> Registry: eleven Lego bots + one antweight <span class="state"></span></summary>
+      <div class="d-body">
+        <p>Every machine below is a data point in the case for better parts. The full build and fight history lives on <a href="https://www.youtube.com/@InquisitiveRobotics">the Inquisitive Robotics YouTube channel</a>.</p>
+        <table class="spec-table roster" aria-label="Robot fleet registry">
+          <tr><th>Designation</th><th>Line / class</th></tr>
+          <tr><td>Deviant · Deviation · Devious</td><td>The Deviant line — Lego combat</td></tr>
+          <tr><td>Insurrection · Infraction · Insubordination</td><td>The uprising line — Lego combat</td></tr>
+          <tr><td>Subversion</td><td>Lego combat</td></tr>
+          <tr><td>Goldfish</td><td>Lego combat</td></tr>
+          <tr><td>Beans &amp; Cornbread · Refried Beans</td><td>The kitchen line — Lego combat</td></tr>
+          <tr><td>Cornbread</td><td>600 g class — Lego combat</td></tr>
+          <tr><td>DVNT</td><td>1 lb plastic antweight — benchmark build</td></tr>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section id="footage" aria-labelledby="f-h">
+    <div class="sec-label">Section 03 · Field footage</div>
+    <h2 id="f-h">Recorded evidence</h2>
+    <div class="frame">
+      <iframe src="https://www.youtube.com/embed/videoseries?list=UU9IeauUTaSlEuW4YqCPCvTw" title="Inquisitive Robotics — latest uploads" loading="lazy" allowfullscreen></iframe>
+    </div>
+    <p class="cap"><b>FIG 3.1</b> — Latest uploads from the Inquisitive Robotics channel (auto-updating playlist)</p>
+    <div class="frame">
+      <iframe src="https://www.youtube.com/embed/VIDEO_ID_FEATURE" title="Featured fight — Inquisitive Robotics" loading="lazy" allowfullscreen></iframe>
+    </div>
+    <p class="cap"><b>FIG 3.2</b> — Featured bout · drop in the video ID of your best fight (e.g. DVNT's antweight debut)</p>
+  </section>
+</main>
+
+<div class="final">
+  <div class="final-box">
+    <h2>Review the drawings with us.</h2>
+    <p>The motor program is in active development. Subscribe for build logs, fight footage, and first word when prototypes hit the bench.</p>
+    <a class="btn solid" href="https://www.youtube.com/@InquisitiveRobotics">Subscribe on YouTube</a>
+  </div>
+</div>
+
+<footer>INQUISITIVE ROBOTICS · SHEET 1 OF 1 · © 2026 · NOT AFFILIATED WITH THE LEGO GROUP</footer>
+
+</body>
+</html>
