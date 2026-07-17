@@ -211,6 +211,16 @@
     margin-bottom:36px;padding-bottom:6px;border-bottom:1px solid var(--line);
   }
   .credit b{color:var(--crimson);font-weight:600}
+  .latest-h{
+    font-weight:600;font-size:1.05rem;margin:34px 0 16px;
+    padding-top:22px;border-top:1px solid var(--line);
+  }
+  .latest{display:grid;gap:18px;grid-template-columns:1fr}
+  @media(min-width:700px){.latest{grid-template-columns:repeat(3,1fr)}}
+  .latest-item{margin:0}
+  .latest-item .frame{margin-bottom:8px}
+  .latest-item figcaption{font-size:.82rem;color:var(--dim)}
+  .latest-item figcaption b{display:block;color:var(--crimson);font-weight:600;font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;margin-bottom:2px}
   .coda{max-width:880px;margin:0 auto;padding:56px 24px 80px}
   .coda p{font-size:clamp(1.3rem,4vw,1.9rem);line-height:1.5;font-weight:300;max-width:44rem}
   .coda p strong{font-weight:700;box-shadow:inset 0 -0.14em 0 var(--crimson)}
@@ -396,12 +406,12 @@
     <p class="note">Designs are opinions. Arenas are peer review.</p>
     <div class="record">
       <div class="bout">
-        <span class="date">2026 · Spring</span>
-        <span class="what"><b>Georgia Spring Smash 4.0</b>1 lb plastic antweight bracket — DVNT's proving ground. <a href="https://www.robotcombatevents.com/events/6890">Event page</a> · <a href="https://www.youtube.com/watch?v=C9b_ygDA7dY">full event stream</a>.</span>
-      </div>
-      <div class="bout">
         <span class="date">Ongoing</span>
         <span class="what"><b>Texas Brick Brawl</b>Regular competitor in Lego combat events — where the fleet from Deviant to Refried Beans earns its mk numbers. <a href="https://texasbrickbrawl.com">texasbrickbrawl.com</a></span>
+      </div>
+      <div class="bout">
+        <span class="date">2026 · Season</span>
+        <span class="what"><b>1 lb plastic antweight circuit</b>DVNT competing in sanctioned events via <a href="https://www.robotcombatevents.com">Robot Combat Events</a>.</span>
       </div>
       <div class="bout">
         <span class="date">2023 – now</span>
@@ -415,13 +425,25 @@
     <h2 id="film-h">See it, <strong>don't take my word for it.</strong></h2>
     <p class="note">The fleet in action — straight from the channel and the arena floor.</p>
     <div class="frame">
-      <iframe src="https://www.youtube.com/embed/C9b_ygDA7dY" title="Georgia Spring Smash 4.0 — full event" loading="lazy" allowfullscreen></iframe>
-    </div>
-    <p class="credit"><b>Film I</b> — Georgia Spring Smash 4.0, the event DVNT competed in</p>
-    <div class="frame">
       <iframe src="https://www.youtube.com/embed/videoseries?list=UU9IeauUTaSlEuW4YqCPCvTw" title="Inquisitive Robotics — latest uploads" loading="lazy" allowfullscreen></iframe>
     </div>
-    <p class="credit"><b>Film II</b> — latest uploads from @InquisitiveRobotics (auto-updating)</p>
+    <p class="credit"><b>Now showing</b> — latest uploads from @InquisitiveRobotics (auto-updating playlist)</p>
+
+    <h3 class="latest-h">Latest three from the channel</h3>
+    <div class="latest">
+      <figure class="latest-item">
+        <div class="frame"><iframe src="https://www.youtube.com/embed/LATEST_ID_1" title="Latest video 1 — Inquisitive Robotics" loading="lazy" allowfullscreen></iframe></div>
+        <figcaption><b>№ 1 · Newest</b>LATEST_TITLE_1</figcaption>
+      </figure>
+      <figure class="latest-item">
+        <div class="frame"><iframe src="https://www.youtube.com/embed/LATEST_ID_2" title="Latest video 2 — Inquisitive Robotics" loading="lazy" allowfullscreen></iframe></div>
+        <figcaption><b>№ 2</b>LATEST_TITLE_2</figcaption>
+      </figure>
+      <figure class="latest-item">
+        <div class="frame"><iframe src="https://www.youtube.com/embed/LATEST_ID_3" title="Latest video 3 — Inquisitive Robotics" loading="lazy" allowfullscreen></iframe></div>
+        <figcaption><b>№ 3</b>LATEST_TITLE_3</figcaption>
+      </figure>
+    </div>
   </section>
 </main>
 
