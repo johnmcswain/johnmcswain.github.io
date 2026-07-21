@@ -182,6 +182,11 @@
           <input type="text" id="writerModel" placeholder="model id">
           <p class="hint" id="writerHint"></p>
         </div>
+        <div class="field" id="relayField" style="display:none;">
+          <label for="writerRelay">Writer — relay URL</label>
+          <input type="text" id="writerRelay" placeholder="https://red-wind-cec4.jmcswain.workers.dev/write">
+          <p class="hint">NVIDIA blocks browser calls (CORS), so run <code>NVIDIA_API_KEY=nvapi-… node deep-cuts-relay.js</code> and point this at it. Your key stays on the server — the key field above can stay empty.</p>
+        </div>
         <div class="field">
           <label for="elevenKey">ElevenLabs API key</label>
           <input type="password" id="elevenKey" placeholder="xi-…" autocomplete="off">
@@ -560,7 +565,9 @@ const WRITERS={
 };
 function writerConf(){
   const provider=$("writerProvider").value;
-  return {provider, key:$("writerKey").value.trim(),
+  const relay=provider==="nvidia" ? $("writerRelay").value.trim() : "";
+  return {provider, relay,
+          key:$("writerKey").value.trim() || (relay ? "relay" : ""),
           model:$("writerModel").value.trim()||WRITERS[provider].defModel};
 }
 async function writerCall(system,user,maxTokens=2000,json=false){
@@ -589,7 +596,20 @@ async function writerCall(system,user,maxTokens=2000,json=false){
     const data=await res.json();
     return (data.candidates?.[0]?.content?.parts||[]).map(p=>p.text||"").join("");
   }
-  // openai-compatible: OpenAI + NVIDIA NIM (Nemotron)
+  // nvidia via relay: browser -> your Node relay -> NVIDIA (key lives server-side)
+  const conf=writerConf();
+  if(provider==="nvidia" && conf.relay){
+    const res=await fetch(conf.relay,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model, system, user, max_tokens:16384}),
+    });
+    if(!res.ok) throw new Error("Relay "+res.status);
+    const data=await res.json();
+    if(data.error) throw new Error("Relay: "+JSON.stringify(data.error).slice(0,80));
+    return data.text||"";
+  }
+  // openai-compatible: OpenAI + NVIDIA NIM direct (works only where CORS allows)
   const nim=provider==="nvidia";
   const oc=nim?{
     url:"https://integrate.api.nvidia.com/v1/chat/completions",
@@ -695,10 +715,13 @@ function saveTracks(){localStorage.setItem("dc_tracks",JSON.stringify(tracks));}
 $("elevenKey").value=localStorage.getItem("hc_eleven_key")||"";
 $("elevenKey").addEventListener("change",e=>localStorage.setItem("hc_eleven_key",e.target.value.trim()));
 function loadWriterFields(){
-  const w=WRITERS[$("writerProvider").value];
+  const p=$("writerProvider").value;
+  const w=WRITERS[p];
   $("writerKey").value=localStorage.getItem(w.keyLS)||"";
   $("writerModel").value=localStorage.getItem(w.keyLS+"_model")||w.defModel;
   $("writerHint").textContent=w.hint;
+  $("relayField").style.display = p==="nvidia" ? "block" : "none";
+  $("writerRelay").value=localStorage.getItem("dc_writer_relay")||"https://red-wind-cec4.jmcswain.workers.dev/write";
 }
 $("writerProvider").value=localStorage.getItem("dc_writer_provider")||"nvidia";
 if(!WRITERS[$("writerProvider").value]) $("writerProvider").value="nvidia";
@@ -711,6 +734,9 @@ $("writerKey").addEventListener("change",()=>{
 });
 $("writerModel").addEventListener("change",()=>{
   localStorage.setItem(WRITERS[$("writerProvider").value].keyLS+"_model",$("writerModel").value.trim());
+});
+$("writerRelay").addEventListener("change",()=>{
+  localStorage.setItem("dc_writer_relay",$("writerRelay").value.trim());
 });
 let personaSel=localStorage.getItem("dc_persona")||"wry";
 const voiceIds=JSON.parse(localStorage.getItem("dc_voice_ids")||"{}");
