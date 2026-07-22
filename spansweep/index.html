@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpanSweep · What Does Your Instrument Vary? k6 · Artificial Analysis · Langfuse</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F7F6F1;
+  --panel:#FFFFFF;
+  --ink:#22282D;
+  --ink-soft:#5A625F;
+  --iv:#0E6E78;          /* swept / manipulated */
+  --iv-soft:#D8EAEB;
+  --held:#8A8578;        /* pinned / controlled */
+  --held-soft:#EDEBE3;
+  --oos:#C4BFB2;         /* out of scope */
+  --line:#DDD9CE;
+  --obs:#2F3A36;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto} *{transition:none!important;animation:none!important}}
+body{
+  font-family:'Instrument Sans',sans-serif;
+  background:var(--paper);
+  color:var(--ink);
+  line-height:1.55;
+  font-size:16px;
+  background-image:radial-gradient(var(--line) 0.8px, transparent 0.8px);
+  background-size:26px 26px;
+}
+.wrap{max-width:980px;margin:0 auto;padding:48px 24px 72px}
+
+/* ── header ── */
+.eyebrow{
+  font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--iv);margin-bottom:14px;
+}
+h1{
+  font-family:'Instrument Serif',serif;font-weight:400;font-size:clamp(30px,4.6vw,44px);
+  line-height:1.12;max-width:21ch;
+}
+h1 em{font-style:italic;color:var(--iv)}
+.lede{max-width:60ch;color:var(--ink-soft);margin-top:14px;font-size:17px}
+.lede b{color:var(--ink);font-weight:600}
+
+/* ── equation (signature) ── */
+.equation-card{
+  margin-top:38px;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;padding:26px 26px 20px;box-shadow:0 1px 0 rgba(34,40,45,.04);
+}
+.eq{
+  font-family:'IBM Plex Mono',monospace;font-size:clamp(15px,2.6vw,21px);
+  display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;
+}
+.eq .fixedpart{color:var(--ink-soft)}
+.term{
+  padding:3px 10px;border-radius:6px;border:1.5px solid transparent;
+  transition:background .25s,border-color .25s,color .25s,opacity .25s;
+  cursor:default;white-space:nowrap;
+}
+.term.swept{background:var(--iv-soft);border-color:var(--iv);color:var(--iv);font-weight:600}
+.term.pinned{background:var(--held-soft);border-color:transparent;color:var(--held)}
+.term.oos{background:transparent;border:1.5px dashed var(--oos);color:var(--oos)}
+.eq-legend{
+  display:flex;flex-wrap:wrap;gap:18px;margin-top:16px;padding-top:14px;
+  border-top:1px solid var(--line);
+  font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-soft);
+}
+.eq-legend span{display:flex;align-items:center;gap:7px}
+.chip{width:14px;height:14px;border-radius:4px;display:inline-block}
+.chip.swept{background:var(--iv-soft);border:1.5px solid var(--iv)}
+.chip.pinned{background:var(--held-soft)}
+.chip.oos{border:1.5px dashed var(--oos)}
+
+/* ── selector ── */
+.tabs{display:flex;gap:8px;margin-top:34px;flex-wrap:wrap}
+.tab{
+  font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:.02em;
+  padding:10px 18px;border:1px solid var(--line);border-radius:999px;background:var(--panel);
+  color:var(--ink-soft);cursor:pointer;transition:all .2s;
+}
+.tab:hover{border-color:var(--iv);color:var(--iv)}
+.tab:focus-visible{outline:2px solid var(--iv);outline-offset:2px}
+.tab[aria-selected="true"]{background:var(--iv);border-color:var(--iv);color:#fff;font-weight:600}
+.tab small{opacity:.75;font-weight:400}
+
+/* ── question line ── */
+.question{
+  margin-top:26px;font-family:'Instrument Serif',serif;font-size:clamp(19px,3vw,25px);
+  font-style:italic;color:var(--obs);
+}
+.question::before{content:"Q · ";font-family:'IBM Plex Mono',monospace;font-style:normal;font-size:.65em;color:var(--iv);vertical-align:2px}
+
+/* ── panels ── */
+.grid{display:grid;grid-template-columns:1.25fr .85fr;gap:20px;margin-top:22px}
+@media(max-width:760px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px}
+.panel h3{
+  font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-soft);margin-bottom:14px;font-weight:600;
+}
+.chart-wrap{width:100%}
+.chart-wrap svg{width:100%;height:auto;display:block}
+.axis-label{font-family:'IBM Plex Mono',monospace;font-size:10.5px;fill:var(--ink-soft)}
+.axis-label.sweep{fill:var(--iv);font-weight:600}
+.caption{font-size:13.5px;color:var(--ink-soft);margin-top:12px}
+.caption b{color:var(--iv);font-weight:600}
+
+.blind{list-style:none}
+.blind li{
+  position:relative;padding:0 0 12px 22px;font-size:14.5px;color:var(--ink-soft);
+}
+.blind li::before{
+  content:"×";position:absolute;left:0;top:-1px;font-family:'IBM Plex Mono',monospace;
+  color:var(--oos);font-weight:600;
+}
+.blind li b{color:var(--ink);font-weight:600}
+.reaches{
+  margin-top:6px;padding:12px 14px;border-left:3px solid var(--iv);background:var(--iv-soft);
+  border-radius:0 8px 8px 0;font-size:14.5px;
+}
+.reaches b{color:var(--iv)}
+
+/* ── composition gallery ── */
+.compositions{margin-top:44px}
+.compositions h2{
+  font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;
+}
+.compositions .sub{font-size:14px;color:var(--ink-soft);margin-bottom:14px;max-width:66ch}
+.comp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:900px){.comp-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.comp-grid{grid-template-columns:1fr}}
+.comp{
+  border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:14px;
+}
+.comp svg{width:100%;height:auto;display:block;margin-bottom:10px}
+.comp .cname{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:var(--ink);letter-spacing:.03em}
+.comp .cex{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+.comp .cmeasure{
+  margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);
+  font-size:12px;color:var(--iv);
+}
+.comp .cmeasure::before{content:"harness measures · ";color:var(--ink-soft)}
+
+/* ── structural conformance ── */
+.conformance{margin-top:44px}
+.conformance h2{
+  font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;
+}
+.conformance .sub{font-size:14px;color:var(--ink-soft);margin-bottom:14px;max-width:70ch}
+.conf-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:760px){.conf-grid{grid-template-columns:1fr}}
+.conf-panel{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:16px}
+.conf-panel h4{
+  font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-soft);margin-bottom:10px;font-weight:600;
+}
+.conf-panel h4 b{color:var(--iv)}
+.conf-panel svg{width:100%;height:auto;display:block}
+.conf-metrics{
+  margin-top:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);
+  padding:14px 16px;display:flex;flex-wrap:wrap;gap:8px 26px;align-items:baseline;
+}
+.metric{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft)}
+.metric b{font-size:19px;color:var(--ink);font-weight:600;margin-right:4px}
+.metric.bad b{color:#A0522D}
+.metric.good b{color:var(--iv)}
+.conf-note{font-size:13px;color:var(--ink-soft);margin-top:10px;max-width:74ch}
+.conf-note b{color:var(--iv)}
+
+/* ── layer stack footer ── */
+.stack{margin-top:44px}
+.stack h2{
+  font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-soft);margin-bottom:14px;
+}
+.layers{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:900px){.layers{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.layers{grid-template-columns:1fr}}
+.layer{
+  border:1px solid var(--line);border-radius:10px;padding:16px;background:var(--panel);
+  transition:border-color .25s, box-shadow .25s;
+}
+.layer.active{border-color:var(--iv);box-shadow:0 0 0 3px var(--iv-soft)}
+.layer .lname{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--iv);font-weight:600;letter-spacing:.06em}
+.layer .lwho{font-family:'Instrument Serif',serif;font-size:19px;margin:4px 0 6px}
+.layer p{font-size:13.5px;color:var(--ink-soft)}
+footer{margin-top:52px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--oos)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">Instrumentation · Experimental Design</div>
+  <h1>Every measurement tool is an experiment. The question is <em>which variable it sweeps.</em></h1>
+  <p class="lede">Hold everything else fixed, vary one factor, watch the curve. k6, Artificial Analysis, and SpanSweep all follow that formula; they just <b>pin different terms</b>. Select an instrument to see its experimental design.</p>
+
+  <!-- Equation -->
+  <div class="equation-card">
+    <div class="eq" id="eq">
+      <span class="fixedpart">Behavior&nbsp;=&nbsp;f(</span>
+      <span class="term" id="t-task">Task</span><span class="fixedpart">,</span>
+      <span class="term" id="t-model">Model</span><span class="fixedpart">,</span>
+      <span class="term" id="t-arch">Architecture</span><span class="fixedpart">,</span>
+      <span class="term" id="t-load">Load</span>
+      <span class="fixedpart">)&nbsp;&nbsp;·&nbsp;&nbsp;observed via&nbsp;</span>
+      <span class="term" id="t-surface">Surface</span>
+    </div>
+    <div class="eq-legend">
+      <span><span class="chip swept"></span>swept: the independent variable</span>
+      <span><span class="chip pinned"></span>pinned: held constant</span>
+      <span><span class="chip oos"></span>out of scope: not modeled</span>
+    </div>
+  </div>
+
+  <!-- Selector -->
+  <div class="tabs" role="tablist" aria-label="Instrument selector">
+    <button class="tab" role="tab" id="tab-k6" aria-selected="false">k6 <small>· load testing</small></button>
+    <button class="tab" role="tab" id="tab-aa" aria-selected="false">Artificial Analysis <small>· model benchmarks</small></button>
+    <button class="tab" role="tab" id="tab-obs" aria-selected="false">Langfuse / OTel <small>· observability</small></button>
+    <button class="tab" role="tab" id="tab-harness" aria-selected="true">SpanSweep <small>· this instrument</small></button>
+  </div>
+
+  <div class="question" id="question"></div>
+
+  <div class="grid">
+    <div class="panel">
+      <h3 id="chart-title"></h3>
+      <div class="chart-wrap" id="chart"></div>
+      <div class="caption" id="chart-caption"></div>
+    </div>
+    <div class="panel">
+      <h3>What it cannot tell you</h3>
+      <ul class="blind" id="blind"></ul>
+      <div class="reaches" id="reaches"></div>
+    </div>
+  </div>
+
+  <!-- Composition gallery -->
+  <div class="compositions">
+    <h2>The composition layer, concretely</h2>
+    <p class="sub">Four public-domain composition patterns, the kind of "Architecture" values SpanSweep sweeps. Same task, same models; only the arrangement changes. Node color: <span style="color:var(--iv);font-weight:600">worker</span> · <span style="color:var(--obs);font-weight:600">orchestration</span>.</p>
+    <div class="comp-grid">
+
+      <div class="comp">
+        <svg viewBox="0 0 200 90" role="img" aria-label="Serial pipeline: three workers in sequence">
+          <line x1="38" y1="45" x2="80" y2="45" stroke="#8A8578" stroke-width="1.5" marker-end="none"/>
+          <line x1="104" y1="45" x2="146" y2="45" stroke="#8A8578" stroke-width="1.5"/>
+          <circle cx="26" cy="45" r="12" fill="#0E6E78"/>
+          <circle cx="92" cy="45" r="12" fill="#0E6E78"/>
+          <circle cx="158" cy="45" r="12" fill="#0E6E78"/>
+          <text x="26" y="74" text-anchor="middle" style="font:9px 'IBM Plex Mono'" fill="#5A625F">draft</text>
+          <text x="92" y="74" text-anchor="middle" style="font:9px 'IBM Plex Mono'" fill="#5A625F">critique</text>
+          <text x="158" y="74" text-anchor="middle" style="font:9px 'IBM Plex Mono'" fill="#5A625F">revise</text>
+        </svg>
+        <div class="cname">Serial pipeline</div>
+        <div class="cex">generator → critic → reviser</div>
+        <div class="cmeasure">latency stacking; where quality gains stop paying for added stages</div>
+      </div>
+
+      <div class="comp">
+        <svg viewBox="0 0 200 90" role="img" aria-label="Parallel fan-out: orchestrator dispatches to three workers and aggregates">
+          <line x1="30" y1="45" x2="86" y2="18" stroke="#8A8578" stroke-width="1.5"/>
+          <line x1="30" y1="45" x2="86" y2="45" stroke="#8A8578" stroke-width="1.5"/>
+          <line x1="30" y1="45" x2="86" y2="72" stroke="#8A8578" stroke-width="1.5"/>
+          <line x1="110" y1="18" x2="166" y2="45" stroke="#8A8578" stroke-width="1.5"/>
+          <line x1="110" y1="45" x2="166" y2="45" stroke="#8A8578" stroke-width="1.5"/>
+          <line x1="110" y1="72" x2="166" y2="45" stroke="#8A8578" stroke-width="1.5"/>
+          <rect x="16" y="33" width="24" height="24" rx="6" fill="#2F3A36"/>
+          <circle cx="98" cy="18" r="11" fill="#0E6E78"/>
+          <circle cx="98" cy="45" r="11" fill="#0E6E78"/>
+          <circle cx="98" cy="72" r="11" fill="#0E6E78"/>
+          <rect x="160" y="33" width="24" height="24" rx="6" fill="#2F3A36"/>
+        </svg>
+        <div class="cname">Parallel fan-out</div>
+        <div class="cex">ensemble vote · mixture-of-agents</div>
+        <div class="cmeasure">aggregation-failure rate vs. token cost of N-way redundancy</div>
+      </div>
+
+      <div class="comp">
+        <svg viewBox="0 0 200 90" role="img" aria-label="Hierarchical orchestrator delegating to specialist workers">
+          <line x1="100" y1="26" x2="46" y2="62" stroke="#8A8578" stroke-width="1.5"/>
+          <line x1="100" y1="26" x2="100" y2="62" stroke="#8A8578" stroke-width="1.5"/>
+          <line x1="100" y1="26" x2="154" y2="62" stroke="#8A8578" stroke-width="1.5"/>
+          <rect x="88" y="8" width="24" height="24" rx="6" fill="#2F3A36"/>
+          <circle cx="46" cy="68" r="11" fill="#0E6E78"/>
+          <circle cx="100" cy="68" r="11" fill="#0E6E78"/>
+          <circle cx="154" cy="68" r="11" fill="#0E6E78"/>
+          <text x="100" y="5" text-anchor="middle" style="font:9px 'IBM Plex Mono'" fill="#5A625F">planner</text>
+        </svg>
+        <div class="cname">Hierarchical</div>
+        <div class="cex">planner delegates to specialists</div>
+        <div class="cmeasure">misassignment and premature-termination failures at the planner span</div>
+      </div>
+
+      <div class="comp">
+        <svg viewBox="0 0 200 90" role="img" aria-label="Router cascade: router sends easy cases to a cheap model, escalates hard ones">
+          <line x1="34" y1="45" x2="88" y2="22" stroke="#8A8578" stroke-width="1.5"/>
+          <line x1="34" y1="45" x2="88" y2="68" stroke="#8A8578" stroke-width="1.5"/>
+          <line x1="112" y1="68" x2="150" y2="30" stroke="#8A8578" stroke-width="1.5" stroke-dasharray="4 3"/>
+          <rect x="18" y="33" width="24" height="24" rx="6" fill="#2F3A36"/>
+          <circle cx="100" cy="22" r="12" fill="#0E6E78"/>
+          <circle cx="100" cy="68" r="9" fill="#0E6E78" opacity="0.55"/>
+          <text x="100" y="47" text-anchor="middle" style="font:8.5px 'IBM Plex Mono'" fill="#5A625F">big</text>
+          <text x="100" y="86" text-anchor="middle" style="font:8.5px 'IBM Plex Mono'" fill="#5A625F">small · escalate ↗</text>
+          <text x="28" y="24" text-anchor="middle" style="font:9px 'IBM Plex Mono'" fill="#5A625F">router</text>
+        </svg>
+        <div class="cname">Router / cascade</div>
+        <div class="cex">cheap-first, escalate on doubt</div>
+        <div class="cmeasure">misroute rate and escalation cost, with model assignment as a second swept variable</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Structural conformance -->
+  <div class="conformance">
+    <h2>Structural conformance: declared vs. realized</h2>
+    <p class="sub">An experiment has an expected structure; telemetry does not. Because SpanSweep declares the topology ex ante and reconstructs the realized structure from span parentage, the gap between the two is itself measurable. Illustrative run below: a declared 3-way fan-out, and what actually executed.</p>
+    <div class="conf-grid">
+
+      <div class="conf-panel">
+        <h4>Declared topology <b>(run config)</b></h4>
+        <svg viewBox="0 0 300 170" role="img" aria-label="Declared tree: orchestrator with three workers, each with one tool call">
+          <line x1="150" y1="34" x2="70" y2="76" stroke="#8A8578" stroke-width="1.5"/>
+          <line x1="150" y1="34" x2="150" y2="76" stroke="#8A8578" stroke-width="1.5"/>
+          <line x1="150" y1="34" x2="230" y2="76" stroke="#8A8578" stroke-width="1.5"/>
+          <line x1="70" y1="96" x2="70" y2="126" stroke="#8A8578" stroke-width="1.2"/>
+          <line x1="150" y1="96" x2="150" y2="126" stroke="#8A8578" stroke-width="1.2"/>
+          <line x1="230" y1="96" x2="230" y2="126" stroke="#8A8578" stroke-width="1.2"/>
+          <rect x="138" y="14" width="24" height="24" rx="6" fill="#2F3A36"/>
+          <circle cx="70" cy="86" r="11" fill="#0E6E78"/>
+          <circle cx="150" cy="86" r="11" fill="#0E6E78"/>
+          <circle cx="230" cy="86" r="11" fill="#0E6E78"/>
+          <rect x="61" y="128" width="18" height="14" rx="4" fill="#0E6E78" opacity="0.45"/>
+          <rect x="141" y="128" width="18" height="14" rx="4" fill="#0E6E78" opacity="0.45"/>
+          <rect x="221" y="128" width="18" height="14" rx="4" fill="#0E6E78" opacity="0.45"/>
+          <text x="70" y="160" text-anchor="middle" style="font:9px 'IBM Plex Mono'" fill="#5A625F">w1·tool</text>
+          <text x="150" y="160" text-anchor="middle" style="font:9px 'IBM Plex Mono'" fill="#5A625F">w2·tool</text>
+          <text x="230" y="160" text-anchor="middle" style="font:9px 'IBM Plex Mono'" fill="#5A625F">w3·tool</text>
+        </svg>
+      </div>
+
+      <div class="conf-panel">
+        <h4>Realized structure <b>(span parentage)</b></h4>
+        <svg viewBox="0 0 300 170" role="img" aria-label="Realized tree: worker one matched, worker two terminated early with an unplanned retry, worker three missing">
+          <line x1="150" y1="34" x2="70" y2="76" stroke="#8A8578" stroke-width="1.5"/>
+          <line x1="150" y1="34" x2="150" y2="76" stroke="#8A8578" stroke-width="1.5"/>
+          <line x1="150" y1="34" x2="230" y2="76" stroke="#C4BFB2" stroke-width="1.5" stroke-dasharray="4 4"/>
+          <line x1="70" y1="96" x2="70" y2="126" stroke="#8A8578" stroke-width="1.2"/>
+          <line x1="160" y1="94" x2="196" y2="118" stroke="#A0522D" stroke-width="1.4"/>
+          <rect x="138" y="14" width="24" height="24" rx="6" fill="#2F3A36"/>
+          <circle cx="70" cy="86" r="11" fill="#0E6E78"/>
+          <circle cx="150" cy="86" r="11" fill="#0E6E78"/>
+          <path d="M 143 79 L 157 93 M 157 79 L 143 93" stroke="#fff" stroke-width="2"/>
+          <circle cx="230" cy="86" r="11" fill="none" stroke="#C4BFB2" stroke-width="1.6" stroke-dasharray="4 3"/>
+          <rect x="61" y="128" width="18" height="14" rx="4" fill="#0E6E78" opacity="0.45"/>
+          <circle cx="204" cy="126" r="10" fill="#A0522D"/>
+          <text x="70" y="160" text-anchor="middle" style="font:9px 'IBM Plex Mono'" fill="#5A625F">w1·tool ✓</text>
+          <text x="150" y="114" text-anchor="middle" style="font:9px 'IBM Plex Mono'" fill="#5A625F">w2 early-term</text>
+          <text x="230" y="112" text-anchor="middle" style="font:9px 'IBM Plex Mono'" fill="#C4BFB2">w3 missing</text>
+          <text x="204" y="152" text-anchor="middle" style="font:9px 'IBM Plex Mono'" fill="#A0522D">retry (unplanned)</text>
+        </svg>
+      </div>
+
+    </div>
+    <div class="conf-metrics">
+      <span class="metric"><b>0.57</b>span recall (4 of 7 declared spans realized)</span>
+      <span class="metric"><b>0.80</b>span precision (1 unplanned span)</span>
+      <span class="metric"><b>0.29</b>normalized tree edit distance</span>
+      <span class="metric bad"><b>3</b>deviation events: early-term · missing branch · extra span</span>
+      <span class="metric good"><b>34%</b>of run cost spent on nonconforming spans</span>
+    </div>
+    <p class="conf-note">Every deviation is itself a located span event, so structural nonconformance can be priced: <b>cost attributed to unplanned structure</b> is a quantity no black-box instrument can produce. Metrics follow process-mining conformance checking (fitness, precision, alignments); values above are illustrative.</p>
+  </div>
+
+  <!-- Layer stack -->
+  <div class="stack">
+    <h2>Four instruments, one stack</h2>
+    <div class="layers">
+      <div class="layer" id="layer-k6">
+        <div class="lname">RUNTIME LAYER</div>
+        <div class="lwho">k6</div>
+        <p>Does the deployed system hold under pressure. Fixed architecture, swept load, edge metrics.</p>
+      </div>
+      <div class="layer" id="layer-aa">
+        <div class="lname">MODEL LAYER</div>
+        <div class="lwho">Artificial Analysis</div>
+        <p>Which brain, at what price and speed. Fixed task battery, swept model, public leaderboard.</p>
+      </div>
+      <div class="layer" id="layer-obs">
+        <div class="lname">OBSERVATION SURFACE</div>
+        <div class="lwho">Langfuse / OTel</div>
+        <p>What production is actually doing. Nothing swept; white-box spans over uncontrolled traffic.</p>
+      </div>
+      <div class="layer" id="layer-harness">
+        <div class="lname">COMPOSITION LAYER</div>
+        <div class="lwho">SpanSweep</div>
+        <p>Which arrangement of brains, with which failure modes. Fixed task, swept topology, span-attributed traces.</p>
+      </div>
+    </div>
+  </div>
+
+  <footer>spansweep · comparative positioning · j. mcswain 2026</footer>
+</div>
+
+<script>
+const INK="#22282D", SOFT="#5A625F", IV="#0E6E78", IVSOFT="#D8EAEB", HELD="#8A8578", LINE="#DDD9CE", OOS="#C4BFB2";
+
+/* Chart builders: each returns an SVG string. viewBox 560x300. The x-axis IS the swept variable. */
+
+function chartK6(){
+  // latency vs load: flat then hockey stick
+  const pts=[[60,232],[130,228],[200,222],[270,212],[330,196],[390,164],[440,112],[490,58]];
+  const path=pts.map((p,i)=>(i?"L":"M")+p[0]+","+p[1]).join(" ");
+  return `<svg viewBox="0 0 560 300" role="img" aria-label="Latency rising as load increases, architecture held fixed">
+    <line x1="50" y1="250" x2="520" y2="250" stroke="${LINE}" stroke-width="1.5"/>
+    <line x1="50" y1="250" x2="50" y2="30" stroke="${LINE}" stroke-width="1.5"/>
+    <path d="${path}" fill="none" stroke="${IV}" stroke-width="3" stroke-linecap="round"/>
+    ${pts.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="${IV}"/>`).join("")}
+    <line x1="50" y1="120" x2="520" y2="120" stroke="${OOS}" stroke-width="1" stroke-dasharray="5 5"/>
+    <text x="516" y="112" text-anchor="end" class="axis-label">SLO ceiling</text>
+    <text x="285" y="278" text-anchor="middle" class="axis-label sweep">LOAD (virtual users): swept →</text>
+    <text x="20" y="140" transform="rotate(-90 20 140)" text-anchor="middle" class="axis-label">p99 latency</text>
+    <rect x="352" y="34" width="164" height="24" rx="6" fill="${HELD}" opacity="0.13"/>
+    <text x="434" y="50" text-anchor="middle" class="axis-label">architecture: PINNED</text>
+  </svg>`;
+}
+
+function chartAA(){
+  // scatter: intelligence vs cost, each dot a model
+  const dots=[[95,205,"m1"],[150,180,"m2"],[205,196,"m3"],[255,140,"m4"],[300,150,"m5"],[345,96,"m6"],[400,110,"m7"],[455,62,"m8"],[490,78,"m9"]];
+  return `<svg viewBox="0 0 560 300" role="img" aria-label="Scatter of models by cost and intelligence, task battery held fixed">
+    <line x1="50" y1="250" x2="520" y2="250" stroke="${LINE}" stroke-width="1.5"/>
+    <line x1="50" y1="250" x2="50" y2="30" stroke="${LINE}" stroke-width="1.5"/>
+    <rect x="285" y="40" width="235" height="105" rx="8" fill="${IVSOFT}" opacity="0.55"/>
+    <text x="512" y="58" text-anchor="end" class="axis-label">attractive quadrant</text>
+    ${dots.map(d=>`<circle cx="${d[0]}" cy="${d[1]}" r="7" fill="${IV}" opacity="0.85"/>`).join("")}
+    <text x="285" y="278" text-anchor="middle" class="axis-label sweep">MODEL / PROVIDER: swept (one dot each) →</text>
+    <text x="20" y="140" transform="rotate(-90 20 140)" text-anchor="middle" class="axis-label">intelligence ↑ · cost →</text>
+    <rect x="60" y="34" width="150" height="24" rx="6" fill="${HELD}" opacity="0.13"/>
+    <text x="135" y="50" text-anchor="middle" class="axis-label">task battery: PINNED</text>
+  </svg>`;
+}
+
+function chartHarness(){
+  // grouped, segmented bars: 3 topologies; each bar split worker vs orchestration cost (attribution)
+  // serial / fan-out / hierarchical
+  const groups=[
+    {x:110,label:"serial",worker:120,orch:18},
+    {x:270,label:"parallel fan-out",worker:96,orch:64},
+    {x:430,label:"hierarchical",worker:104,orch:44}
+  ];
+  const base=250, w=64;
+  let bars="";
+  groups.forEach(g=>{
+    const wy=base-g.worker, oy=wy-g.orch;
+    bars+=`<rect x="${g.x-w/2}" y="${wy}" width="${w}" height="${g.worker}" fill="${IV}" rx="3"/>
+           <rect x="${g.x-w/2}" y="${oy}" width="${w}" height="${g.orch}" fill="${INK}" opacity="0.75" rx="3"/>
+           <text x="${g.x}" y="272" text-anchor="middle" class="axis-label sweep">${g.label}</text>`;
+  });
+  return `<svg viewBox="0 0 560 300" role="img" aria-label="Cost per run by topology, segmented into worker and orchestration spans">
+    <line x1="50" y1="250" x2="520" y2="250" stroke="${LINE}" stroke-width="1.5"/>
+    <line x1="50" y1="250" x2="50" y2="30" stroke="${LINE}" stroke-width="1.5"/>
+    ${bars}
+    <text x="285" y="292" text-anchor="middle" class="axis-label sweep">TOPOLOGY: swept →</text>
+    <text x="20" y="140" transform="rotate(-90 20 140)" text-anchor="middle" class="axis-label">cost / latency per run</text>
+    <rect x="330" y="34" width="186" height="42" rx="6" fill="${HELD}" opacity="0.13"/>
+    <text x="423" y="50" text-anchor="middle" class="axis-label">task: PINNED</text>
+    <text x="423" y="66" text-anchor="middle" class="axis-label">model: PINNED</text>
+    <g>
+      <rect x="60" y="36" width="13" height="13" fill="${IV}" rx="3"/><text x="80" y="47" class="axis-label">worker spans</text>
+      <rect x="60" y="56" width="13" height="13" fill="${INK}" opacity="0.75" rx="3"/><text x="80" y="67" class="axis-label">orchestration spans</text>
+    </g>
+  </svg>`;
+}
+
+function chartObs(){
+  // passive trace stream: irregular spans over wall-clock time, nothing swept
+  const rows=[
+    [70,60,150],[70,230,80],[130,110,190],[130,330,120],[190,80,90],[190,200,240],[250,150,110],[250,290,160],[310,95,300]
+  ];
+  let spans="";
+  rows.forEach(r=>{
+    spans+=`<rect x="${r[1]}" y="${r[0]}" width="${r[2]}" height="16" rx="4" fill="${IV}" opacity="${0.35+Math.random()*0.4}"/>`;
+  });
+  return `<svg viewBox="0 0 560 300" role="img" aria-label="Irregular production trace spans over wall-clock time; no variable is swept">
+    <line x1="50" y1="250" x2="520" y2="250" stroke="${LINE}" stroke-width="1.5"/>
+    <line x1="50" y1="250" x2="50" y2="30" stroke="${LINE}" stroke-width="1.5"/>
+    ${spans}
+    <text x="285" y="278" text-anchor="middle" class="axis-label">WALL-CLOCK TIME: nothing swept, traffic just arrives →</text>
+    <text x="20" y="140" transform="rotate(-90 20 140)" text-anchor="middle" class="axis-label">trace spans</text>
+    <rect x="336" y="34" width="180" height="24" rx="6" fill="${OOS}" opacity="0.2"/>
+    <text x="426" y="50" text-anchor="middle" class="axis-label">no experimental control</text>
+  </svg>`;
+}
+
+const STATES={
+  k6:{
+    terms:{task:"pinned",model:"oos",arch:"pinned",load:"swept",surface:"pinned"},
+    surfaceText:"black box (edge)",
+    question:"Does this deployment hold under pressure?",
+    chartTitle:"Latency vs load · architecture fixed",
+    chart:chartK6,
+    caption:"Sweep virtual users, watch p99 climb toward the SLO ceiling. <b>Load</b> is the only moving part.",
+    blind:[
+      "<b>Which component</b> caused the knee in the curve; it sees the edge, not the inside.",
+      "Whether a <b>different architecture</b> would move the curve; the deployment is frozen.",
+      "Anything about <b>model choice</b>, since models aren't in its vocabulary at all."
+    ],
+    reaches:"Reaches: <b>the runtime layer.</b> Capacity and stability of one fixed system.",
+    layer:"layer-k6"
+  },
+  aa:{
+    terms:{task:"pinned",model:"swept",arch:"oos",load:"oos",surface:"pinned"},
+    surfaceText:"black box (outcome)",
+    question:"Which model should I buy, at what price and speed?",
+    chartTitle:"Intelligence vs cost · task battery fixed",
+    chart:chartAA,
+    caption:"Every dot is one model run through the same benchmark battery. <b>Model</b> is the swept variable; the output is a leaderboard.",
+    blind:[
+      "How models behave <b>composed together</b>; each is scored as a sealed unit.",
+      "<b>Where</b> an agent failure lived (worker vs. orchestration); it records outcomes only.",
+      "Your workload: the task battery is <b>theirs</b>, not yours."
+    ],
+    reaches:"Reaches: <b>the model layer.</b> Cross-model economics on a fixed public battery.",
+    layer:"layer-aa"
+  },
+  obs:{
+    terms:{task:"oos",model:"oos",arch:"oos",load:"oos",surface:"swept"},
+    surfaceText:"white box (spans)",
+    question:"What is production actually doing right now?",
+    chartTitle:"Trace stream · nothing manipulated",
+    chart:chartObs,
+    caption:"Same span vocabulary as SpanSweep, but the traffic, task mix, and architecture are whatever production happens to be. <b>Observation without manipulation.</b>",
+    blind:[
+      "<b>Causation.</b> With no controlled variable, differences between traces can't be attributed to a design choice.",
+      "<b>Counterfactuals.</b> It can't tell you what a different topology would have cost, because that run never happened.",
+      "<b>Coverage.</b> Rare failure classes appear only if production stumbles into them."
+    ],
+    reaches:"Reaches: <b>the observation surface only.</b> SpanSweep is this white-box surface plus a manipulated variable in front of it: tracing turned from telemetry into a designed experiment.",
+    layer:null
+  },
+  harness:{
+    terms:{task:"pinned",model:"pinned",arch:"swept",load:"pinned",surface:"swept"},
+    surfaceText:"white box (spans)",
+    question:"How should I compose the models I've already chosen?",
+    chartTitle:"Cost per run by topology · task and model fixed",
+    chart:chartHarness,
+    caption:"Same task, same model, three physical topologies. Bars are <b>segmented by span</b>, so every unit of cost and every failure arrives with a location.",
+    blind:[
+      "Which frontier model is <b>globally best</b>; that's the layer below (AA's job).",
+      "Peak <b>traffic capacity</b> of a production deployment; that's the layer below that (k6's job)."
+    ],
+    reaches:"Reaches: <b>the composition layer</b>, and the observation surface is swept too: white-box span attribution, not edge or outcome metrics. Failures arrive with a location, which is what makes the data usable for trust-calibration research.",
+    layer:"layer-harness"
+  }
+};
+
+const termEls={task:t("t-task"),model:t("t-model"),arch:t("t-arch"),load:t("t-load"),surface:t("t-surface")};
+function t(id){return document.getElementById(id)}
+
+function select(key){
+  const s=STATES[key];
+  ["k6","aa","obs","harness"].forEach(k=>{
+    t("tab-"+k).setAttribute("aria-selected", k===key ? "true":"false");
+    const ly=document.getElementById("layer-"+k);
+    if(ly) ly.classList.toggle("active", k===key);
+  });
+  Object.entries(s.terms).forEach(([name,state])=>{
+    const el=termEls[name];
+    el.className="term "+state;
+  });
+  termEls.surface.textContent = s.surfaceText;
+  t("question").textContent=s.question;
+  t("chart-title").textContent=s.chartTitle;
+  t("chart").innerHTML=s.chart();
+  t("chart-caption").innerHTML=s.caption;
+  t("blind").innerHTML=s.blind.map(b=>`<li>${b}</li>`).join("");
+  t("reaches").innerHTML=s.reaches;
+}
+
+t("tab-k6").addEventListener("click",()=>select("k6"));
+t("tab-aa").addEventListener("click",()=>select("aa"));
+t("tab-obs").addEventListener("click",()=>select("obs"));
+t("tab-harness").addEventListener("click",()=>select("harness"));
+select("harness");
+</script>
+</body>
+</html>
