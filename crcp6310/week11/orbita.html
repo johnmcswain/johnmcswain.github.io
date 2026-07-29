@@ -12,14 +12,32 @@
     border:1px solid #26314a;border-radius:6px;padding:10px 14px;pointer-events:none}
   #panel h1{margin:0 0 6px;font-size:12px;letter-spacing:.18em;color:#e8eef8}
   #panel td{padding:0 0 1px 10px}#panel td:first-child{padding-left:0;color:#5f7191}
-  #keys{position:fixed;bottom:12px;left:14px;color:#4a5a76}
-  #prov{position:fixed;bottom:12px;right:14px;color:#3d4c66;text-align:right}
+  /* The bottom band is ONE stacked flex column spanning the full width.
+     Previously #keys (bottom-left) and #prov (bottom-right) were separate
+     fixed elements on the same baseline, so they overlapped as soon as
+     their combined natural width exceeded the viewport. Stacking removes
+     the horizontal competition entirely: neither can ever collide, and
+     both wrap normally at any width. The scrim keeps them legible over
+     the starfield. */
+  #footer{position:fixed;left:0;right:0;bottom:0;box-sizing:border-box;
+    display:flex;flex-direction:column;gap:5px;padding:10px 14px 11px;
+    pointer-events:none;
+    background:linear-gradient(to top,rgba(10,13,19,.95) 25%,rgba(10,13,19,0))}
+  #prov{align-self:flex-end;max-width:100%;text-align:right;
+    color:#3d4c66;font-size:11px;line-height:1.5}
+  #keys{max-width:100%;color:#5a6c8c;line-height:1.55}
+  #keys div{white-space:normal}
   #legend{display:none;position:fixed;top:14px;right:14px;background:rgba(10,13,19,.78);
     border:1px solid #26314a;border-radius:6px;padding:10px 14px;pointer-events:none}
   #legend b{display:inline-block;width:10px;height:10px;border-radius:5px;margin-right:8px}
   #lookup{display:none;position:fixed;top:16px;left:50%;transform:translateX(-50%);
     background:rgba(38,26,10,.9);border:1px solid #7a5c22;border-radius:6px;
     padding:8px 18px;color:#ffdf9e;letter-spacing:.06em;pointer-events:none}
+  /* the same latent collision at the top: cap widths so the panel, legend
+     and banner wrap instead of overlapping on narrow viewports */
+  #panel{max-width:min(48vw,340px)}
+  #lookup{max-width:min(92vw,660px);text-align:center;line-height:1.5}
+  #legend{max-width:min(34vw,230px)}
 </style>
 </head>
 <body>
@@ -56,9 +74,17 @@
   <div><b style="background:#d8b084"></b>Jupiter</div>
   <div><b style="background:#e2c896"></b>Saturn</div>
 </div>
-<div id="prov">elements: CelesTrak GP · stars: HYG mag ≤ 4.0 · sun/planets/moon: computed ephemerides —
-directions & angles true; system-view distances log-compressed; corona artistic · folds are a lens, not the sky · observer coordinates stay in this tab</div>
-<div id="keys">drag rotate · scroll zoom · O observer · A instrument · V view · ←/→ folds · F focus · G group · T time · E scale · Space pause · M sound · S save</div>
+<div id="footer">
+  <div id="prov">
+    <div>elements: CelesTrak &middot; stars: HYG (mag &le; 4) &middot; sun, planets, moon: computed ephemerides</div>
+    <div>angles true &middot; system-view distances log-compressed &middot; corona artistic</div>
+    <div>folds are a lens, not the sky &middot; observer coordinates stay in this tab</div>
+  </div>
+  <div id="keys">
+    <div>drag rotate &middot; scroll zoom &middot; O observer &middot; A instrument &middot; V view</div>
+    <div>&larr;/&rarr; folds &middot; F focus &middot; G group &middot; T time &middot; E scale &middot; Space pause &middot; M sound &middot; S save</div>
+  </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/p5@2/lib/p5.min.js"></script>
 <script type="module" src="./js/main.js"></script>
 </body>

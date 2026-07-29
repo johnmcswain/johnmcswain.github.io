@@ -12,8 +12,25 @@
     border:1px solid #26314a;border-radius:6px;padding:10px 14px;pointer-events:none}
   #panel h1{margin:0 0 6px;font-size:12px;letter-spacing:.18em;color:#e8eef8}
   #panel td{padding:0 0 1px 10px}#panel td:first-child{padding-left:0;color:#5f7191}
-  #keys{position:fixed;bottom:12px;left:14px;color:#4a5a76}
-  #prov{position:fixed;bottom:12px;right:14px;color:#3d4c66;text-align:right}
+  /* The bottom band is ONE stacked flex column spanning the full width.
+     Previously #keys (bottom-left) and #prov (bottom-right) were separate
+     fixed elements on the same baseline, so they overlapped as soon as
+     their combined natural width exceeded the viewport. Stacking removes
+     the horizontal competition entirely: neither can ever collide, and
+     both wrap normally at any width. The scrim keeps them legible over
+     the starfield. */
+  #footer{position:fixed;left:0;right:0;bottom:0;box-sizing:border-box;
+    display:flex;flex-direction:column;gap:5px;padding:10px 14px 11px;
+    pointer-events:none;
+    background:linear-gradient(to top,rgba(10,13,19,.95) 25%,rgba(10,13,19,0))}
+  #prov{align-self:flex-end;max-width:100%;text-align:right;
+    color:#3d4c66;font-size:11px;line-height:1.5}
+  #keys{max-width:100%;color:#5a6c8c;line-height:1.55}
+  /* the same latent collision at the top: cap widths so the panel, legend
+     and banner wrap instead of overlapping on narrow viewports */
+  #panel{max-width:min(48vw,340px)}
+  #lookup{max-width:min(92vw,660px);text-align:center;line-height:1.5}
+  #legend{max-width:min(34vw,230px)}
 </style>
 <script type="importmap">
 { "imports": {
@@ -34,9 +51,13 @@
     <tr><td>sound</td><td id="s-snd">off</td></tr>
   </table>
 </div>
-<div id="prov">elements: CelesTrak GP · stars: HYG · sun: computed ephemeris ·
-same tested core as the mandala build — this one trades the kaleidoscope for fidelity</div>
-<div id="keys">drag rotate · scroll zoom · F focus · G group · T time · E scale · Space pause · M sound</div>
+<div id="footer">
+  <div id="prov">
+    <div>elements: CelesTrak &middot; stars: HYG &middot; sun: computed ephemeris</div>
+    <div>same tested core as the mandala build &mdash; this one trades the kaleidoscope for fidelity</div>
+  </div>
+  <div id="keys">drag rotate &middot; scroll zoom &middot; F focus &middot; G group &middot; T time &middot; E scale &middot; Space pause &middot; M sound</div>
+</div>
 <script type="module" src="./js/three/main.js"></script>
 </body>
 </html>
