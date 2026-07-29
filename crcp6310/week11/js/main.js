@@ -140,10 +140,20 @@ function updateObserverHud() {
   }
 }
 
+/* say WHY we are not live: a silent fallback that looks like fresh data is
+   the one failure this project must never present */
+function sourceLabel() {
+  if (state.dataMode === 'loading') return 'loading\u2026';
+  if (state.dataMode === 'live')
+    return feed.lastSource === 'cached' ? 'CelesTrak (cached)' : 'CelesTrak live';
+  const e = feed.lastError;
+  return e ? `recorded ${RECORDED_AT} \u2014 ${e.message}`
+           : `recorded ${RECORDED_AT}`;
+}
+
 function refreshHud() {
   setText('s-view',  state.view === 'system' ? 'solar system' : 'earth orbit');
-  setText('s-src',   state.dataMode === 'live' ? 'CelesTrak live'
-                   : state.dataMode === 'fixture' ? `recorded ${RECORDED_AT}` : 'loading\u2026');
+  setText('s-src', sourceLabel());
   setText('s-group', CONFIG.groups[state.groupIdx]);
   setText('s-count', String(state.objects.length));
   setText('s-time',  timeScale() + '\u00d7');

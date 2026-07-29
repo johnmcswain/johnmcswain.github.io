@@ -5,6 +5,26 @@
   var R_EARTH_KM = 6371;
   var SEC_PER_DAY = 86400;
   var GP_BASE = "https://celestrak.org/NORAD/elements/gp.php";
+  var STORE_PREFIX = "orbita:gp:";
+  var BLOCK_KEY = "orbita:gp:blockedUntil";
+  var CACHE_TTL_MS = 6 * 3600 * 1e3;
+  var BLOCK_BACKOFF_MS = 2 * 3600 * 1e3;
+  function storeGet(key) {
+    try {
+      const raw = globalThis.localStorage?.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+  function storeSet(key, value) {
+    try {
+      globalThis.localStorage?.setItem(key, JSON.stringify(value));
+      return true;
+    } catch {
+      return false;
+    }
+  }
   function parseEpoch(iso) {
     const t = Date.parse(iso.endsWith("Z") ? iso : iso + "Z");
     return Number.isFinite(t) ? t : NaN;
@@ -24,8 +44,21 @@
     /* private state: session cache and injectable fetch (for headless tests) */
     #cache = /* @__PURE__ */ new Map();
     #fetchImpl;
-    constructor({ fetchImpl } = {}) {
+    #now;
+    constructor({ fetchImpl, now } = {}) {
       this.#fetchImpl = fetchImpl ?? ((...a) => fetch(...a));
+      this.#now = now ?? (() => Date.now());
+      this.lastSource = null;
+      this.lastError = null;
+    }
+    get blockedUntil() {
+      return storeGet(BLOCK_KEY) || 0;
+    }
+    get isBlocked() {
+      return this.#now() < this.blockedUntil;
+    }
+    get blockedMinutesLeft() {
+      return Math.max(0, Math.ceil((this.blockedUntil - this.#now()) / 6e4));
     }
     name = "celestrak";
     kind = "ensemble";
@@ -33,13 +66,59 @@
     url(group) {
       return `${GP_BASE}?GROUP=${encodeURIComponent(group)}&FORMAT=JSON`;
     }
-    /* Fetch once per group per session; later calls hit the private cache. */
+    /* Memory cache, then persistent cache, then (if not backed off) network. */
     async load(group = "starlink") {
-      if (this.#cache.has(group)) return this.#cache.get(group);
-      const res = await this.#fetchImpl(this.url(group));
-      if (!res.ok) throw new Error(`celestrak ${group}: HTTP ${res.status}`);
+      this.lastError = null;
+      if (this.#cache.has(group)) {
+        this.lastSource = "cached";
+        return this.#cache.get(group);
+      }
+      const stored = storeGet(STORE_PREFIX + group);
+      const fresh = stored && this.#now() - stored.t < CACHE_TTL_MS;
+      if (fresh) {
+        this.#cache.set(group, stored.objects);
+        this.lastSource = "cached";
+        return stored.objects;
+      }
+      if (this.isBlocked) {
+        this.lastError = {
+          status: 403,
+          message: `backing off ${this.blockedMinutesLeft} min after a refusal`
+        };
+        if (stored) {
+          this.lastSource = "cached";
+          return stored.objects;
+        }
+        throw new Error(`celestrak ${group}: ${this.lastError.message}`);
+      }
+      let res;
+      try {
+        res = await this.#fetchImpl(this.url(group));
+      } catch (e) {
+        this.lastError = { status: 0, message: "network unreachable" };
+        if (stored) {
+          this.lastSource = "cached";
+          return stored.objects;
+        }
+        throw e;
+      }
+      if (!res.ok) {
+        this.lastError = {
+          status: res.status,
+          message: res.status === 403 || res.status === 429 ? "CelesTrak declined the request (rate limit)" : `HTTP ${res.status}`
+        };
+        if (res.status === 403 || res.status === 429)
+          storeSet(BLOCK_KEY, this.#now() + BLOCK_BACKOFF_MS);
+        if (stored) {
+          this.lastSource = "cached";
+          return stored.objects;
+        }
+        throw new Error(`celestrak ${group}: ${this.lastError.message}`);
+      }
       const objects = this.normalize(await res.json());
       this.#cache.set(group, objects);
+      storeSet(STORE_PREFIX + group, { t: this.#now(), objects });
+      this.lastSource = "live";
       return objects;
     }
     /* OMM records -> renderer-neutral objects. Drops records that would put
@@ -1326,6 +1405,8 @@
     #cache = null;
     #fetchImpl;
     #fetchedAt = 0;
+    #failed = /* @__PURE__ */ new Set();
+    // URLs that failed this session; not retried
     constructor({ fetchImpl } = {}) {
       this.#fetchImpl = fetchImpl ?? ((...a) => fetch(...a));
     }
@@ -1334,41 +1415,68 @@
     /* conditions change on a ~minutes cadence; one refresh per 10 min is
        plenty and keeps us a polite client */
     refreshMs = 6e5;
-    urls() {
+    /* ordered candidates per field; first success wins */
+    chains() {
       return {
-        kp: `${BASE}/products/noaa-planetary-k-index.json`,
-        plasma: `${BASE}/products/solar-wind/plasma-1-day.json`,
-        mag: `${BASE}/products/solar-wind/mag-1-day.json`,
-        scales: `${BASE}/products/noaa-scales.json`,
-        f107: `${BASE}/json/f107_cm_flux.json`
+        kp: [`${BASE}/products/noaa-planetary-k-index.json`],
+        speed: [
+          `${BASE}/products/summary/solar-wind-speed.json`,
+          `${BASE}/products/solar-wind/plasma-1-day.json`
+        ],
+        plasma: [`${BASE}/products/solar-wind/plasma-1-day.json`],
+        bz: [
+          `${BASE}/products/summary/solar-wind-mag-field.json`,
+          `${BASE}/products/solar-wind/mag-1-day.json`
+        ],
+        scales: [`${BASE}/products/noaa-scales.json`],
+        f107: [
+          `${BASE}/products/10cm-flux-30-day.json`,
+          `${BASE}/json/f107_cm_flux.json`
+        ]
       };
     }
-    /* Each request is independent: one failure costs one field, not the set. */
+    get failedUrls() {
+      return this.#failed;
+    }
+    /* Each field is independent: one failure costs one number, not the set. */
     async load() {
       const now = Date.now();
       if (this.#cache && now - this.#fetchedAt < this.refreshMs) return this.#cache;
-      const u = this.urls();
-      const get = async (key) => {
-        try {
-          const res = await this.#fetchImpl(u[key]);
-          if (!res.ok) return null;
-          return await res.json();
-        } catch {
-          return null;
+      const chains = this.chains();
+      const tryChain = async (key) => {
+        for (const url of chains[key]) {
+          if (this.#failed.has(url)) continue;
+          try {
+            const res = await this.#fetchImpl(url);
+            if (!res.ok) {
+              this.#failed.add(url);
+              continue;
+            }
+            return await res.json();
+          } catch {
+            this.#failed.add(url);
+          }
         }
+        return null;
       };
-      const [kpRaw, plasmaRaw, magRaw, scalesRaw, f107Raw] = await Promise.all(
-        ["kp", "plasma", "mag", "scales", "f107"].map(get)
-      );
-      this.#cache = this.normalize({ kpRaw, plasmaRaw, magRaw, scalesRaw, f107Raw });
+      const keys = ["kp", "speed", "plasma", "bz", "scales", "f107"];
+      const [kpRaw, speedRaw, plasmaRaw, bzRaw, scalesRaw, f107Raw] = await Promise.all(keys.map(tryChain));
+      this.#cache = this.normalize({
+        kpRaw,
+        speedRaw,
+        plasmaRaw,
+        bzRaw,
+        scalesRaw,
+        f107Raw
+      });
       this.#fetchedAt = now;
       return this.#cache;
     }
-    normalize({ kpRaw, plasmaRaw, magRaw, scalesRaw, f107Raw }) {
+    normalize({ kpRaw, speedRaw, plasmaRaw, bzRaw, magRaw, scalesRaw, f107Raw }) {
       const kp = readField(kpRaw, "kp");
-      const speed = readField(plasmaRaw, "speed");
+      const speed = readField(speedRaw, "speed") ?? readField(plasmaRaw, "speed");
       const dens = readField(plasmaRaw, "density");
-      const bz = readField(magRaw, "bz");
+      const bz = readField(bzRaw, "bz") ?? readField(magRaw ?? bzRaw, "bz");
       const f107 = readField(f107Raw, "flux");
       const scaleG = readScaleG(scalesRaw);
       const live = [kp, speed, dens, bz, f107, scaleG].filter((v2) => v2 !== null).length;
@@ -2062,8 +2170,6 @@
     altMinKm: 250,
     // radius mapping domain
     altMaxKm: 2e3,
-    shellRefs: [400, 550, 800, 1200],
-    // faint reference rings, km
     timeScales: [60, 240, 600],
     // one LEO orbit ≈ 95 s / 24 s / 9.5 s
     altExags: [4, 1],
@@ -2206,9 +2312,16 @@
       } else banner.style.display = "none";
     }
   }
+  function sourceLabel() {
+    if (state.dataMode === "loading") return "loading…";
+    if (state.dataMode === "live")
+      return celestrak_default.lastSource === "cached" ? "CelesTrak (cached)" : "CelesTrak live";
+    const e = celestrak_default.lastError;
+    return e ? `recorded ${RECORDED_AT} — ${e.message}` : `recorded ${RECORDED_AT}`;
+  }
   function refreshHud() {
     setText("s-view", state.view === "system" ? "solar system" : "earth orbit");
-    setText("s-src", state.dataMode === "live" ? "CelesTrak live" : state.dataMode === "fixture" ? `recorded ${RECORDED_AT}` : "loading…");
+    setText("s-src", sourceLabel());
     setText("s-group", CONFIG.groups[state.groupIdx]);
     setText("s-count", String(state.objects.length));
     setText("s-time", timeScale() + "×");

@@ -2,12 +2,27 @@
   feeds/spaceweather.js — NOAA SWPC, the sun's effect on the ensemble.
   Implements the FEEDS interface shape (name, kind, load, normalize).
 
-  Endpoints (public, keyless, services.swpc.noaa.gov):
-    products/noaa-planetary-k-index.json   geomagnetic activity, Kp
-    products/solar-wind/plasma-1-day.json  solar wind speed + density
-    products/solar-wind/mag-1-day.json     IMF Bz (southward = coupling)
-    products/noaa-scales.json              G / S / R storm scales
-    json/f107_cm_flux.json                 F10.7 solar radio flux
+  Endpoints (public, keyless, services.swpc.noaa.gov). Each field has a
+  CANDIDATE CHAIN, tried in order, because two things bite in the browser:
+  the legacy /products/solar-wind/ paths do not send Access-Control-Allow-
+  Origin (so a page on another domain cannot read them), and SWPC listed
+  those RTSW products for deprecation around 2026-04-30. The
+  /products/summary/ equivalents are the supported, much smaller products
+  and are tried first.
+
+    Kp        products/noaa-planetary-k-index.json
+    speed     products/summary/solar-wind-speed.json
+              -> products/solar-wind/plasma-1-day.json   (legacy, no CORS)
+    density   products/solar-wind/plasma-1-day.json       (legacy only)
+    Bz        products/summary/solar-wind-mag-field.json
+              -> products/solar-wind/mag-1-day.json       (legacy, no CORS)
+    scales    products/noaa-scales.json
+    F10.7     products/10cm-flux-30-day.json -> json/f107_cm_flux.json
+
+  A blocked cross-origin request is logged by the browser no matter how the
+  code handles it, so the console will show CORS lines for any legacy URL
+  that gets tried. FAILED_URLS remembers them for the session so each is
+  attempted at most once rather than on every refresh.
 
   TOLERANT PARSING, ON PURPOSE. SWPC serves several shapes: arrays of
   arrays with a header row, and arrays of objects. Rather than hard-code
@@ -84,6 +99,7 @@ export class SpaceWeatherFeed {
   #cache = null;
   #fetchImpl;
   #fetchedAt = 0;
+  #failed = new Set();          // URLs that failed this session; not retried
 
   constructor({ fetchImpl } = {}) {
     this.#fetchImpl = fetchImpl ?? ((...a) => fetch(...a));
@@ -95,40 +111,55 @@ export class SpaceWeatherFeed {
      plenty and keeps us a polite client */
   refreshMs = 600000;
 
-  urls() {
+  /* ordered candidates per field; first success wins */
+  chains() {
     return {
-      kp:     `${BASE}/products/noaa-planetary-k-index.json`,
-      plasma: `${BASE}/products/solar-wind/plasma-1-day.json`,
-      mag:    `${BASE}/products/solar-wind/mag-1-day.json`,
-      scales: `${BASE}/products/noaa-scales.json`,
-      f107:   `${BASE}/json/f107_cm_flux.json`,
+      kp:     [`${BASE}/products/noaa-planetary-k-index.json`],
+      speed:  [`${BASE}/products/summary/solar-wind-speed.json`,
+               `${BASE}/products/solar-wind/plasma-1-day.json`],
+      plasma: [`${BASE}/products/solar-wind/plasma-1-day.json`],
+      bz:     [`${BASE}/products/summary/solar-wind-mag-field.json`,
+               `${BASE}/products/solar-wind/mag-1-day.json`],
+      scales: [`${BASE}/products/noaa-scales.json`],
+      f107:   [`${BASE}/products/10cm-flux-30-day.json`,
+               `${BASE}/json/f107_cm_flux.json`],
     };
   }
 
-  /* Each request is independent: one failure costs one field, not the set. */
+  get failedUrls() { return this.#failed; }
+
+  /* Each field is independent: one failure costs one number, not the set. */
   async load() {
     const now = Date.now();
     if (this.#cache && now - this.#fetchedAt < this.refreshMs) return this.#cache;
-    const u = this.urls();
-    const get = async key => {
-      try {
-        const res = await this.#fetchImpl(u[key]);
-        if (!res.ok) return null;
-        return await res.json();
-      } catch { return null; }
+    const chains = this.chains();
+    const tryChain = async key => {
+      for (const url of chains[key]) {
+        if (this.#failed.has(url)) continue;      // known bad this session
+        try {
+          const res = await this.#fetchImpl(url);
+          if (!res.ok) { this.#failed.add(url); continue; }
+          return await res.json();
+        } catch { this.#failed.add(url); }
+      }
+      return null;
     };
-    const [kpRaw, plasmaRaw, magRaw, scalesRaw, f107Raw] = await Promise.all(
-      ['kp', 'plasma', 'mag', 'scales', 'f107'].map(get));
-    this.#cache = this.normalize({ kpRaw, plasmaRaw, magRaw, scalesRaw, f107Raw });
+    const keys = ['kp', 'speed', 'plasma', 'bz', 'scales', 'f107'];
+    const [kpRaw, speedRaw, plasmaRaw, bzRaw, scalesRaw, f107Raw] =
+      await Promise.all(keys.map(tryChain));
+    this.#cache = this.normalize({ kpRaw, speedRaw, plasmaRaw, bzRaw,
+                                   scalesRaw, f107Raw });
     this.#fetchedAt = now;
     return this.#cache;
   }
 
-  normalize({ kpRaw, plasmaRaw, magRaw, scalesRaw, f107Raw }) {
+  normalize({ kpRaw, speedRaw, plasmaRaw, bzRaw, magRaw, scalesRaw, f107Raw }) {
     const kp     = readField(kpRaw, 'kp');
-    const speed  = readField(plasmaRaw, 'speed');
+    /* the summary products name the value 'WindSpeed' / 'Bz'; the legacy
+       tables use 'speed' / 'bz_gsm'. The tolerant reader matches either. */
+    const speed  = readField(speedRaw, 'speed') ?? readField(plasmaRaw, 'speed');
     const dens   = readField(plasmaRaw, 'density');
-    const bz     = readField(magRaw, 'bz');
+    const bz     = readField(bzRaw, 'bz') ?? readField(magRaw ?? bzRaw, 'bz');
     const f107   = readField(f107Raw, 'flux');
     const scaleG = readScaleG(scalesRaw);
     const live = [kp, speed, dens, bz, f107, scaleG].filter(v => v !== null).length;

@@ -84,6 +84,14 @@ class Segments {
   }
 }
 
+/* a low-poly marker: the sphereDetail(4) reading from the course examples */
+function marker(radius, hex, detail = 1) {
+  return new THREE.Mesh(
+    new THREE.IcosahedronGeometry(radius, detail),
+    new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: 0.9,
+      blending: THREE.AdditiveBlending, depthWrite: false }));
+}
+
 export class ArmillaryThree {
   #mode = 1;                                  // 0 off, 1 cage, 2 full
   constructor(radius, earthRadius) {
@@ -92,6 +100,18 @@ export class ArmillaryThree {
     this.static = new Segments(1200);
     this.live = new Segments(1400);
     this.group.add(this.static.lines, this.live.lines);
+
+    /* pole caps mark the celestial poles; arm tips mark what each arm points at */
+    const capR = radius * 0.014;
+    this.caps = [marker(capR, 0xdec48c), marker(capR, 0xdec48c)];
+    const L = radius * 1.06;
+    this.caps[0].position.set(0, L, 0); this.caps[1].position.set(0, -L, 0);
+    this.sunTip = marker(earthRadius * 0.028, 0xffdc85);
+    this.moonTip = marker(radius * 0.012, 0xbdc2ce);
+    this.zenithTip = marker(radius * 0.012, 0x9fdca6);
+    this.tips = [this.sunTip, this.moonTip, this.zenithTip];
+    this.group.add(...this.caps, ...this.tips);
+
     this.#buildCage();
     this.observerActive = false;
     this.sight = null;                        // [ax,ay,az,bx,by,bz] or null
@@ -126,10 +146,14 @@ export class ArmillaryThree {
       l.ring(mn[0], mn[1], mn[2], R * 0.94, 120, HOUR, 0.8);
       const sa = rE * 1.16;
       l.push(0, 0, 0, sunEci[0]*sa, sunEci[1]*sa, sunEci[2]*sa, SUN_ARM);
+      this.sunTip.position.set(sunEci[0]*sa, sunEci[1]*sa, sunEci[2]*sa);
+      this.sunTip.visible = true;
       if (moonDir) {
         const ma = R * 0.9;
         l.push(0, 0, 0, moonDir[0]*ma, moonDir[1]*ma, moonDir[2]*ma, MOON_ARM);
-      }
+        this.moonTip.position.set(moonDir[0]*ma, moonDir[1]*ma, moonDir[2]*ma);
+        this.moonTip.visible = true;
+      } else this.moonTip.visible = false;
       if (this.observerActive && zenithCore) {
         l.ring(zenithCore[0], zenithCore[1], zenithCore[2], R * 0.99, 140, HORIZON);
         const lm = localMeridianNormal(zenithCore[0], zenithCore[1], zenithCore[2],
@@ -137,13 +161,18 @@ export class ArmillaryThree {
         l.ring(lm[0], lm[1], lm[2], R * 0.965, 120, LOCAL_MER, 0.85);
         const za = rE * 1.22;
         l.push(0, 0, 0, zenithCore[0]*za, zenithCore[1]*za, zenithCore[2]*za, LOCAL_MER);
+        this.zenithTip.position.set(zenithCore[0]*za, zenithCore[1]*za, zenithCore[2]*za);
+        this.zenithTip.visible = true;
         if (this.sight)
           l.push(this.sight[0], this.sight[1], this.sight[2],
                  this.sight[3], this.sight[4], this.sight[5], SIGHT);
       }
     }
+    if (this.#mode !== 2) for (const t of this.tips) t.visible = false;
+    else if (!this.observerActive) this.zenithTip.visible = false;
     l.commit();
     this.static.lines.visible = this.#mode > 0;
     this.live.lines.visible = this.#mode === 2;
+    for (const c of this.caps) c.visible = this.#mode > 0;
   }
 }

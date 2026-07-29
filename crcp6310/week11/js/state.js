@@ -11,7 +11,6 @@ export const CONFIG = {
   maxRender:  1500,          // client-side cap (starlink group is ~7k)
   altMinKm:   250,           // radius mapping domain
   altMaxKm:   2000,
-  shellRefs:  [400, 550, 800, 1200],  // faint reference rings, km
   timeScales: [60, 240, 600],         // one LEO orbit ≈ 95 s / 24 s / 9.5 s
   altExags:   [4, 1],                  // 4x spreads shells; 1x = true scale
   maxFolds:   8,                       // kaleidoscope ceiling

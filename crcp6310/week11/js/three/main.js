@@ -36,6 +36,7 @@ import { GeomDynamics } from '../core/dynamics.js';
 import { hsv } from '../render/color.js';
 import { sunEphemeris, inShadow, sunDiscRadius } from '../sim/sun.js';
 import { pickNotables } from '../sim/notables.js';
+import { findClosePairs } from '../sim/conjunctions.js';
 import { moonState, eclipticToP5 } from '../sim/planets.js';
 import { Observer, compassPoint, audibleDoppler, MIN_ELEV_DEG } from '../sim/observer.js';
 import { SkyTracker } from '../sim/tracker.js';
@@ -136,6 +137,44 @@ class OrbitaThree {
     this.sightScratch = new Float64Array(3);
     this.tracked = null; this.rangeRate = 0; this.passMin = 0;
     this.above = 0; this.visibleCount = 0;
+    this.conjCount = 0; this.eclipsed = 0;
+    this.fpsAcc = 0; this.fpsN = 0; this.fps = 0;
+
+    /* conjunction flares: pooled additive sprites, recycled oldest-first.
+       The p5 build answers a close pair with a CageBurst structure; here
+       bloom does the work, so a bright short-lived point is the right
+       instrument-of-choice rather than wireframe geometry. */
+    this.flareCap = 24;
+    this.flarePos = new Float32Array(this.flareCap * 3);
+    this.flareCol = new Float32Array(this.flareCap * 3);
+    this.flareSize = new Float32Array(this.flareCap);
+    this.flareLife = new Float32Array(this.flareCap);
+    this.flareCursor = 0;
+    const fg = new THREE.BufferGeometry();
+    fg.setAttribute('position', new THREE.BufferAttribute(this.flarePos, 3));
+    fg.setAttribute('color', new THREE.BufferAttribute(this.flareCol, 3));
+    fg.setAttribute('size', new THREE.BufferAttribute(this.flareSize, 1));
+    this.flareGeo = fg;
+    this.flares = new THREE.Points(fg, new THREE.ShaderMaterial({
+      vertexShader: `attribute float size; varying vec3 vCol;
+        void main(){ vCol = color; vec4 mv = modelViewMatrix * vec4(position,1.0);
+        gl_PointSize = size * (300.0 / -mv.z);
+        gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `varying vec3 vCol;
+        void main(){ float d = length(gl_PointCoord - 0.5);
+        gl_FragColor = vec4(vCol * smoothstep(0.5, 0.0, d), 1.0); }`,
+      vertexColors: true, transparent: true, depthWrite: false,
+      blending: THREE.AdditiveBlending }));
+    this.flares.frustumCulled = false;
+    this.scene.add(this.flares);
+
+    /* the focused object's own marker, pulsing like the p5 build's */
+    this.focusMark = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(R_EARTH_KM * KM2U * 0.03, 1),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true,
+        blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.focusMark.visible = false;
+    this.scene.add(this.focusMark);
     this.idleMs = 0;
     this.lastReal = performance.now();
     this.hudFrame = 0;
@@ -313,6 +352,41 @@ class OrbitaThree {
     this.ensemble.commit(pv);
     this.trails.commit(tv);
 
+    /* close pairs: detection is the shared spatial grid, same as the p5
+       build; only the response differs (flare + bell instead of a cage) */
+    this.eclipsed = 0;
+    for (const o of objs) if (o._dark) this.eclipsed++;
+    if (!state.paused && objs.length > 1) {
+      const pairs = findClosePairs(this.headsKm, objs.length, CONFIG.conjKm);
+      for (const [i, j] of pairs.slice(0, 3)) {
+        const a = objs[i], b = objs[j];
+        let mx = 0, my = 0, mz = 0;
+        for (const idx of [i, j]) {
+          mx += this.headsKm[idx*3]; my += this.headsKm[idx*3+1]; mz += this.headsKm[idx*3+2];
+        }
+        const n = Math.hypot(mx, my, mz) || 1;
+        const rr = scaledRadiusKm(a.altKm, exag) * KM2U;
+        const c = this.flareCursor;
+        this.flarePos[c*3] = mx / n * rr;
+        this.flarePos[c*3+1] = -my / n * rr;
+        this.flarePos[c*3+2] = mz / n * rr;
+        this.flareLife[c] = 1;
+        this.flareCursor = (this.flareCursor + 1) % this.flareCap;
+        this.sonifier.ping(a.freqHz, b.freqHz);
+        this.conjCount++;
+      }
+    }
+    const decay = dtReal / 1400;
+    for (let c = 0; c < this.flareCap; c++) {
+      const life = this.flareLife[c] = Math.max(0, this.flareLife[c] - decay);
+      this.flareSize[c] = life > 0 ? 4 + 34 * (1 - life) : 0;
+      const g = life * life;
+      this.flareCol[c*3] = g; this.flareCol[c*3+1] = 0.92 * g; this.flareCol[c*3+2] = 0.74 * g;
+    }
+    this.flareGeo.attributes.position.needsUpdate = true;
+    this.flareGeo.attributes.color.needsUpdate = true;
+    this.flareGeo.attributes.size.needsUpdate = true;
+
     /* focus: ghost orbit ring + ground track */
     const focusIdx = state.focusStep > 0 && this.notables.length
       ? this.notables[(state.focusStep - 1) % this.notables.length].idx : -1;
@@ -326,6 +400,11 @@ class OrbitaThree {
         arr[s*3+2] = this.scratch[2];
       }
       this.ghost.geometry.attributes.position.needsUpdate = true;
+      const fph = feed.propagate(o, state.simT);
+      orbital3D(o.incl, o.raan, o.argp + fph.meanAnomaly, rF, this.scratch, 0);
+      this.focusMark.position.set(this.scratch[0], -this.scratch[1], this.scratch[2]);
+      this.focusMark.material.opacity = 0.55 + 0.35 * Math.sin(now * 0.006);
+      this.focusMark.visible = true;
       if (!state.paused) {
         eciToEarthFixed(this.headsKm[focusIdx*3], this.headsKm[focusIdx*3+1],
                         this.headsKm[focusIdx*3+2], sun.gmstDeg * Math.PI / 180, this.ef);
@@ -340,7 +419,7 @@ class OrbitaThree {
       this.trackLine.geometry.setDrawRange(0, n);
       this.trackLine.geometry.attributes.position.needsUpdate = true;
       this.trackLine.visible = n > 1;
-    } else this.trackLine.visible = false;
+    } else { this.trackLine.visible = false; this.focusMark.visible = false; }
 
     /* observer mode, via the shared tracker */
     const inst = this.ensureInstrument(exag);
@@ -387,20 +466,36 @@ class OrbitaThree {
       zenithCore: [this.zen[0], -this.zen[1], this.zen[2]],
     });
 
+    this.fpsAcc += dtReal; this.fpsN++;
+    if (this.fpsN >= 30) {
+      this.fps = Math.round(1000 / (this.fpsAcc / this.fpsN));
+      this.fpsAcc = 0; this.fpsN = 0;
+    }
     this.controls.update();
     this.composer.render();
     if (this.hudFrame++ % 20 === 0) this.hud();
   }
 
   hud() {
-    setText('s-src', state.dataMode === 'live' ? 'CelesTrak live'
-      : state.dataMode === 'fixture' ? `recorded ${RECORDED_AT}` : 'loading\u2026');
+    setText('s-src', state.dataMode === 'loading' ? 'loading\u2026'
+      : state.dataMode === 'live'
+        ? (feed.lastSource === 'cached' ? 'CelesTrak (cached)' : 'CelesTrak live')
+        : feed.lastError ? `recorded ${RECORDED_AT} \u2014 ${feed.lastError.message}`
+                         : `recorded ${RECORDED_AT}`);
     setText('s-group', CONFIG.groups[state.groupIdx]);
     setText('s-count', String(state.objects.length));
     setText('s-time', timeScale() + '\u00d7');
     setText('s-exag', altExag() === 1 ? 'true scale' : 'altitude \u00d7' + altExag());
     setText('s-snd', state.soundOn ? 'on' : 'off');
     setText('s-inst', this.instrument ? this.instrument.label : 'off');
+    if (state.objects.length) {
+      const alts = state.objects.map(o => o.altKm);
+      setText('s-alt', Math.round(Math.min(...alts)) + '\u2013'
+        + Math.round(Math.max(...alts)) + ' km');
+      setText('s-ecl', Math.round(100 * this.eclipsed / state.objects.length) + '%');
+    }
+    setText('s-conj', String(this.conjCount));
+    setText('s-fps', this.fps ? this.fps + ' fps' : '\u2014');
     const w = this.weather;
     setText('s-kp', 'Kp ' + w.kp.toFixed(1) + ' \u00b7 G' + w.scaleG + ' \u00b7 '
       + w.liveFields + '/' + w.totalFields + ' live (' + w.source + ')');
@@ -438,11 +533,14 @@ class OrbitaThree {
       const n = this.notables[(state.focusStep - 1) % this.notables.length];
       const o = state.objects[n.idx];
       setText('s-focus', n.key + ' \u00b7 ' + o.name);
+      setText('s-fdet', Math.round(o.altKm) + ' km \u00b7 ' + o.periodMin.toFixed(1)
+        + ' min \u00b7 ' + o.freqHz.toFixed(0) + ' Hz');
       const gd = GeomDynamics.fromOrbit(o, w.f107);
-      setText('s-fdyn', Math.round(o.altKm) + ' km \u00b7 ' + gd.spd.toFixed(2)
+      setText('s-fdyn', gd.spd.toFixed(2)
         + ' km/s \u00b7 node ' + gd.friction.toFixed(2) + '\u00b0/day \u00b7 drag '
         + gd.damping.toExponential(1) + ' rel');
-    } else { setText('s-focus', 'off'); setText('s-fdyn', '\u2014'); }
+    } else { setText('s-focus', 'off'); setText('s-fdet', '\u2014');
+             setText('s-fdyn', '\u2014'); }
   }
 }
 
