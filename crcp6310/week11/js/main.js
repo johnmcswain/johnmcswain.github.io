@@ -1,0 +1,514 @@
+/*
+  main.js — ORBITA spike entry. p5 instance mode: nothing global, no
+  namespace collisions with p5 2.x, and every subsystem gets its
+  dependencies explicitly. DOM chrome is guarded (Seisma convention) so the
+  same bundle runs bare in the p5.js Web Editor.
+
+  CONTROLS
+    drag rotate   scroll zoom   O observer   A instrument   V view   <- -> folds
+    F focus   G group
+    T time scale   E altitude scale   Space pause   M sound   S save PNG
+*/
+
+'use strict';
+
+import feed from './feeds/celestrak.js';
+import { fixtureObjects, RECORDED_AT } from './feeds/fixture.js';
+import { orbitsMotif, scaledRadiusKm, R_EARTH_KM } from './render/orbits.js';
+import { drawEarth } from './render/earth.js';
+import { findClosePairs } from './sim/conjunctions.js';
+import { StructureField, PlaneRing, CageBurst } from './render/structures.js';
+import { Armillary } from './render/armillary.js';
+import { Dim3, GeomDynamics } from './core/dynamics.js';
+import { Observer, coreToEci, visibilityState, solarElevationDeg, compassPoint,
+         audibleDoppler, passEndsInMin, MIN_ELEV_DEG } from './sim/observer.js';
+import { sunEphemeris, sunDiscRadius, inShadow } from './sim/sun.js';
+import { drawSky } from './render/sky.js';
+import { pickNotables } from './sim/notables.js';
+import { GroundTrack, eciToEarthFixed } from './sim/groundtrack.js';
+import { drawSystem } from './render/system.js';
+import { planetStates, moonState, eclipticToP5, planetHz } from './sim/planets.js';
+import { orbital3D } from './render/orbits.js';
+import { latLonToXYZ } from './render/earth.js';
+import { Sonifier } from './audio.js';
+import { CONFIG, state, timeScale, altExag } from './state.js';
+
+const $ = id => document.getElementById(id);
+const setText = (id, v) => { const e = $(id); if (e) e.textContent = v; };
+
+const sonifier = new Sonifier();
+const field = new StructureField(32);
+
+/* the instrument is rebuilt when its scale changes (altitude toggle or
+   window resize); ring construction is trivial so this is cheaper than
+   threading a scale parameter through every part */
+let armillary = null, armSig = '';
+function ensureArmillary(rOuterPx, rEarthPx, sig) {
+  if (armSig !== sig) {
+    const keep = armillary ? armillary.mode : 2;   // first load: full
+    armillary = new Armillary(Dim3.cube(rOuterPx * 2 * 1.06), rEarthPx);
+    while (armillary.mode !== keep) armillary.cycleMode();
+    armSig = sig;
+  }
+  return armillary;
+}
+let headsKm = new Float32Array(0);           // true-scale positions for sim
+let fpsAcc = 0, fpsN = 0;
+const crossings = [];
+let notables = [];
+const ghost = new Float32Array(97 * 3);      // focused orbit polyline scratch
+const track = new GroundTrack(420);
+const efScratch = new Float32Array(3);
+let idleMs = 0, galleryAngle = 0, galleryHold = 0;
+const moonV = new Float32Array(3);
+/* observer tracking: who is overhead, and is it actually visible */
+let tracked = null, prevRange = 0, prevSimT = 0, rangeRate = 0;
+let aboveCount = 0, visibleCount = 0, passMin = 0;
+const satEci = new Float64Array(3), zenCore = new Float32Array(3);
+const futCore = new Float64Array(3), futEci = new Float64Array(3);
+const sightSat = new Float32Array(3);
+
+/* the drone follows the view: LEO ensemble, or the six planet-years
+   octave-shifted into the audible band — Harmonices Mundi, computed */
+function currentVoices() {
+  if (state.view === 'system')
+    return planetStates(state.simT).map(s => ({ id: s.name, hz: planetHz(s.periodDays) }));
+  return orbitsMotif.voices(state.objects);
+}
+
+async function loadGroup() {
+  const group = CONFIG.groups[state.groupIdx];
+  state.dataMode = 'loading'; refreshHud();
+  try {
+    const objs = await feed.load(group);            // cached after first hit
+    state.objects = orbitsMotif.prepare(objs.slice(0, CONFIG.maxRender));
+    headsKm = new Float32Array(state.objects.length * 3);
+    notables = pickNotables(state.objects);
+    state.focusStep = 0; sonifier.solo(null); track.reset();
+    state.dataMode = 'live';
+  } catch {
+    state.objects = orbitsMotif.prepare(fixtureObjects());
+    headsKm = new Float32Array(state.objects.length * 3);
+    notables = pickNotables(state.objects);
+    state.focusStep = 0; sonifier.solo(null); track.reset();
+    state.dataMode = 'fixture';
+  }
+  if (state.soundOn) sonifier.setVoices(orbitsMotif.voices(state.objects));
+  refreshHud();
+}
+
+/* the sky readout changes every frame, so it updates on the fps tick
+   rather than only on input */
+function updateObserverHud() {
+  const banner = $('lookup');
+  if (!state.observer) {
+    setText('s-pass', '\u2014'); setText('s-dop', '\u2014');
+    if (banner) banner.style.display = 'none';
+    return;
+  }
+  if (!tracked) {
+    setText('s-pass', 'nothing above ' + MIN_ELEV_DEG + '\u00b0');
+    setText('s-dop', '\u2014');
+    if (banner) banner.style.display = 'none';
+    return;
+  }
+  setText('s-pass', tracked.name + ' \u00b7 ' + Math.round(tracked.elevDeg)
+    + '\u00b0 ' + compassPoint(tracked.azDeg) + ' \u00b7 '
+    + Math.round(tracked.rangeKm) + ' km \u00b7 ' + tracked.vis
+    + ' (' + visibleCount + '/' + aboveCount + ' up)');
+  setText('s-dop', (rangeRate >= 0 ? '+' : '') + rangeRate.toFixed(2)
+    + ' km/s \u00b7 shift ' + ((audibleDoppler(1000, rangeRate) / 1000 - 1) * 100).toFixed(1)
+    + '% (exaggerated \u00d72000 for audibility)');
+  if (banner) {
+    if (tracked.vis === 'visible') {
+      banner.textContent = 'GO OUTSIDE \u00b7 ' + tracked.name + ' is '
+        + Math.round(tracked.elevDeg) + '\u00b0 above your '
+        + compassPoint(tracked.azDeg) + ' horizon, sunlit \u00b7 '
+        + (passMin >= 20 ? '20+' : '~' + passMin.toFixed(1)) + ' min left';
+      banner.style.display = 'block';
+    } else banner.style.display = 'none';
+  }
+}
+
+function refreshHud() {
+  setText('s-view',  state.view === 'system' ? 'solar system' : 'earth orbit');
+  setText('s-src',   state.dataMode === 'live' ? 'CelesTrak live'
+                   : state.dataMode === 'fixture' ? `recorded ${RECORDED_AT}` : 'loading\u2026');
+  setText('s-group', CONFIG.groups[state.groupIdx]);
+  setText('s-count', String(state.objects.length));
+  setText('s-time',  timeScale() + '\u00d7');
+  setText('s-exag',  altExag() === 1 ? 'true scale' : 'altitude \u00d7' + altExag());
+  if (state.objects.length) {
+    const alts = state.objects.map(o => o.altKm);
+    setText('s-alt', Math.round(Math.min(...alts)) + '\u2013' + Math.round(Math.max(...alts)) + ' km');
+  }
+  setText('s-snd', state.soundOn ? 'on' : 'off');
+  setText('s-fold', state.folds === 1 ? 'off' : state.folds + '-fold');
+  setText('s-inst', armillary ? armillary.label : 'off');
+  setText('s-obs', state.observer
+    ? state.observer.label + ' (' + state.observer.source + ')' : 'off');
+  updateObserverHud();
+  if (state.focusStep > 0 && notables.length) {
+    const n = notables[(state.focusStep - 1) % notables.length];
+    const o = state.objects[n.idx];
+    setText('s-focus', n.key + ' \u00b7 ' + o.name);
+    setText('s-fdet', Math.round(o.altKm) + ' km \u00b7 ' + o.periodMin.toFixed(1)
+      + ' min \u00b7 ' + o.freqHz.toFixed(0) + ' Hz');
+    /* the four GeomDynamics values, measured rather than tuned */
+    const gd = GeomDynamics.fromOrbit(o);
+    setText('s-fdyn', gd.spd.toFixed(2) + ' km/s \u00b7 g '
+      + (gd.gravity * 1000).toFixed(2) + ' m/s\u00b2 \u00b7 node '
+      + gd.friction.toFixed(2) + '\u00b0/day \u00b7 drag '
+      + gd.damping.toExponential(1) + ' rel');
+  } else { setText('s-focus', 'off'); setText('s-fdet', '\u2014');
+           setText('s-fdyn', '\u2014'); }
+  setText('s-conj', String(state.conjCount));
+}
+
+new p5(p => {
+  let lastReal = 0;
+
+  p.setup = () => {
+    p.createCanvas(p.windowWidth, p.windowHeight, p.WEBGL);
+    p.pixelDensity(1);
+    state.reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    lastReal = performance.now();
+    loadGroup();
+  };
+
+  p.windowResized = () => p.resizeCanvas(p.windowWidth, p.windowHeight);
+
+  p.draw = () => {
+    const now = performance.now();
+    const dtReal = now - lastReal;
+    if (!state.paused) state.simT += dtReal * timeScale();
+    lastReal = now;
+
+    /* gallery mode: after 20 s idle the piece performs itself — slow drift
+       plus an auto-advancing focus tour. Any input reclaims control. */
+    idleMs += dtReal;
+    const gallery = idleMs > 20000 && !state.reduceMotion;
+    if (gallery) {
+      galleryAngle += dtReal * 0.000045;
+      galleryHold += dtReal;
+      if (galleryHold > 30000 && notables.length) {
+        galleryHold = 0;
+        state.focusStep = (state.focusStep % notables.length) + 1;
+        track.reset();
+        if (state.soundOn) sonifier.solo(
+          state.objects[notables[(state.focusStep - 1) % notables.length].idx].freqHz);
+        refreshHud();
+      }
+    } else galleryHold = 0;
+
+    p.background(10, 13, 19);
+    p.orbitControl(1.4, 1.4, 0.2);                 // drag rotate, scroll zoom
+    p.rotateY(galleryAngle);
+
+    if (state.view === 'system') {
+      /* THE SYSTEM VIEW — positions true, distances log-compressed */
+      const rSys = Math.min(p.width, p.height) * 0.46;
+      p.blendMode(p.ADD);
+      drawSky(p, rSys * 5.5);
+      p.push(); p.noStroke();                      // the sun, center of it all
+      p.fill(255, 252, 240, 255); p.sphere(7, 12, 9);
+      for (const [mul, r_, g_, b_, a_] of [
+        [2.0, 255, 244, 205, 60], [3.6, 255, 226, 160, 34],
+        [6.0, 255, 200, 120, 18], [9.5, 255, 176, 96, 8],
+      ]) { p.fill(r_, g_, b_, a_); p.sphere(7 * mul, 12, 9); }
+      p.pop();
+      drawSystem(p, { simT: state.simT, rMaxPx: rSys,
+        earthPulse: 0.5 + 0.5 * Math.sin(p.frameCount * 0.05) });
+      p.blendMode(p.BLEND);
+      fpsAcc += p.frameRate(); fpsN++;
+      if (fpsN >= 30) { setText('s-fps', Math.round(fpsAcc / fpsN) + ' fps'); fpsAcc = 0; fpsN = 0; }
+      return;
+    }
+
+    /* km -> px: outermost shell at current exaggeration fills ~46% of the
+       short edge; Earth radius follows from the same factor (honest scale) */
+    const exag = altExag();
+    const rOuterKm = scaledRadiusKm(CONFIG.altMaxKm, exag);
+    const kmToPx = (Math.min(p.width, p.height) * 0.46) / rOuterKm;
+
+    /* the real sky, fixed in the equatorial frame the orbits share */
+    p.blendMode(p.ADD);
+    drawSky(p, scaledRadiusKm(CONFIG.altMaxKm, exag) * kmToPx * 5.5);
+    p.blendMode(p.BLEND);
+
+    /* the sun: one ephemeris feeds the globe, the ensemble, and the score */
+    const sun = sunEphemeris(state.simT);
+    const sunEF = latLonToXYZ(sun.declDeg, sun.subsolarLonDeg);
+
+    /* earth-fixed frame rotates under the orbits at sidereal rate.
+       VISUAL CHECK: continents should drift eastward (against satellite
+       motion in prograde shells) — if reversed, flip this sign. */
+    /* focused object's sub-satellite point (headsKm holds LAST frame's
+       positions here — one frame of lag is invisible at any time scale) */
+    const focused = state.focusStep > 0 && notables.length
+      ? notables[(state.focusStep - 1) % notables.length].idx : -1;
+    if (focused >= 0 && !state.paused && state.objects.length) {
+      const i3 = focused * 3;
+      eciToEarthFixed(headsKm[i3], headsKm[i3+1], headsKm[i3+2],
+                      sun.gmstDeg * Math.PI / 180, efScratch);
+      track.push(efScratch[0], efScratch[1], efScratch[2]);
+    }
+
+    p.push();
+    p.rotateY(-sun.gmstDeg * Math.PI / 180);
+    drawEarth(p, R_EARTH_KM * kmToPx, sunEF);
+    if (focused >= 0 && track.n > 1) {             // the westward sinusoid
+      const rT = R_EARTH_KM * kmToPx * 1.006;
+      p.strokeWeight(1.6);
+      let px = null, py = 0, pz = 0;
+      track.each((x, y, z, rec) => {
+        p.stroke(255, 245, 220, 25 + 150 * rec);
+        if (px !== null) p.line(px * rT, py * rT, pz * rT, x * rT, y * rT, z * rT);
+        px = x; py = y; pz = z;
+      });
+    }
+    p.pop();
+
+    /* the Moon, geocentric, at its true distance — zoom out to find it */
+    const moon = moonState(state.simT);
+    {
+      const mR = moon.distKm * kmToPx;
+      const la = moon.latDeg * Math.PI / 180, lo = moon.lonDeg * Math.PI / 180;
+      eclipticToP5(Math.cos(la) * Math.cos(lo) * mR,
+                   Math.cos(la) * Math.sin(lo) * mR,
+                   Math.sin(la) * mR, moonV);
+      p.push(); p.translate(moonV[0], moonV[1], moonV[2]);
+      p.noStroke(); p.fill(200, 200, 205, 235);
+      p.sphere(Math.max(2.2, 1737 * kmToPx), 10, 8);
+      p.pop();
+    }
+
+    /* THE SUN — direction true, photosphere at true angular size for its
+       distance; the corona is glare, i.e. artistic. Nested additive shells. */
+    const sunD = scaledRadiusKm(CONFIG.altMaxKm, exag) * kmToPx * 2.6;
+    const sx = sun.eciDir[0] * sunD, sy = sun.eciDir[1] * sunD, sz = sun.eciDir[2] * sunD;
+    const disc = Math.max(2.5, sunDiscRadius(sunD));
+    p.blendMode(p.ADD);
+    p.push();
+    p.translate(sx, sy, sz);
+    p.noStroke();
+    p.fill(255, 252, 240, 255); p.sphere(disc, 12, 9);          // photosphere
+    for (const [mul, r_, g_, b_, a_] of [
+      [2.2, 255, 244, 205, 60], [4.0, 255, 226, 160, 34],
+      [7.0, 255, 200, 120, 18], [11.5, 255, 176, 96, 9],
+      [17.0, 255, 150, 80, 4],
+    ]) { p.fill(r_, g_, b_, a_); p.sphere(disc * mul, 12, 9); }  // corona
+    p.pop();
+    p.blendMode(p.BLEND);
+
+    p.blendMode(p.ADD);                    // density -> luminance
+    crossings.length = 0;
+    orbitsMotif.draw(p, {
+      objects: state.objects,
+      simT:    state.simT,
+      kmToPx,
+      altExag: exag,
+      tScale:  timeScale(),
+      folds:   state.folds,
+      headsKm,
+      sunEci:  sun.eciDir,
+      crossings,
+    });
+    for (const c of crossings) {
+      sonifier.crossing(c.hz, c.sunrise);
+      const i3 = c.idx * 3;
+      const rr = scaledRadiusKm(state.objects[c.idx].altKm, exag) * kmToPx;
+      const nx = headsKm[i3], ny = headsKm[i3+1], nz = headsKm[i3+2];
+      const nd = Math.hypot(nx, ny, nz) || 1;
+      const ring = c.sunrise ? PlaneRing.sunrise : PlaneRing.sunset;
+      field.spawn(ring(nx/nd*rr, ny/nd*rr, nz/nd*rr, nx, ny, nz,
+                       Math.min(p.width, p.height) * 0.016));
+    }
+
+    /* focus tour: ghost orbit + pulsing head for the focused object */
+    if (state.focusStep > 0 && notables.length) {
+      const o = state.objects[notables[(state.focusStep - 1) % notables.length].idx];
+      const rF = scaledRadiusKm(o.altKm, exag) * kmToPx;
+      for (let s = 0; s <= 96; s++)
+        orbital3D(o.incl, o.raan, s * 3.75, rF, ghost, s * 3);
+      p.stroke(235, 240, 250, 70); p.strokeWeight(1);
+      p.beginShape();
+      for (let i = 0; i < ghost.length; i += 3)
+        p.vertex(ghost[i], ghost[i+1], ghost[i+2]);
+      p.endShape();
+      const ph = feed.propagate(o, state.simT);
+      orbital3D(o.incl, o.raan, o.argp + ph.meanAnomaly, rF, ghost, 0);
+      p.stroke(255, 255, 255, 160 + 70 * Math.sin(p.frameCount * 0.12));
+      p.strokeWeight(11);
+      p.point(ghost[0], ghost[1], ghost[2]);
+    }
+
+    /* conjunctions on true-scale positions; bloom + chime, fold-replicated */
+    if (!state.paused && state.objects.length > 1) {
+      const pairs = findClosePairs(headsKm, state.objects.length, CONFIG.conjKm);
+      for (const [i, j] of pairs.slice(0, 3)) {
+        const a = state.objects[i], b = state.objects[j];
+        const rr = scaledRadiusKm(a.altKm, exag) * kmToPx;
+        const mid = new Float32Array(3);
+        for (let k = 0; k < 3; k++)
+          mid[k] = (headsKm[i*3+k] + headsKm[j*3+k]) / 2;
+        const norm = Math.hypot(mid[0], mid[1], mid[2]) || 1;
+        field.spawn(CageBurst.conjunction(
+          mid[0]/norm*rr, mid[1]/norm*rr, mid[2]/norm*rr,
+          Math.min(p.width, p.height) * 0.03));
+        sonifier.ping(a.freqHz, b.freqHz);
+        state.conjCount++;
+      }
+      if (pairs.length) refreshHud();
+    }
+    field.update(p.deltaTime / 1000);
+    field.draw(p, state.folds);                    // polymorphic: rings + cages
+
+    /* the armillary instrument, in the celestial frame (outside the
+       earth-fixed rotation, since its rings represent celestial circles) */
+    const arm = ensureArmillary(rOuterKm * kmToPx, R_EARTH_KM * kmToPx,
+                                exag + '|' + p.width + '|' + p.height);
+
+    /* OBSERVER MODE — the viewer's own sky. Naked-eye visibility needs all
+       three conditions: object sunlit, observer in darkness, above the
+       obstruction limit. Coordinates stay in this tab; nothing is sent. */
+    const obs = state.observer;
+    if (obs) {
+      const sunEl = solarElevationDeg(obs.lat, obs.lon, sun.declDeg, sun.subsolarLonDeg);
+      aboveCount = 0; visibleCount = 0;
+      let best = null, bestAny = null;
+      for (let i = 0; i < state.objects.length; i++) {
+        coreToEci(headsKm[i*3], headsKm[i*3+1], headsKm[i*3+2], satEci);
+        const look = obs.lookAt(satEci[0], satEci[1], satEci[2], sun.gmstDeg);
+        if (look.elevDeg < MIN_ELEV_DEG) continue;
+        aboveCount++;
+        const vis = visibilityState({ elevDeg: look.elevDeg,
+          sunlit: !state.objects[i]._dark, solarElevDeg: sunEl });
+        if (!bestAny || look.elevDeg > bestAny.elevDeg) bestAny = { idx: i, ...look, vis };
+        if (vis === 'visible') {
+          visibleCount++;
+          if (!best || look.elevDeg > best.elevDeg) best = { idx: i, ...look, vis };
+        }
+      }
+      const pick = best || bestAny;
+      obs.zenithCore(sun.gmstDeg, zenCore);
+      arm.observer.sync(zenCore);
+      if (pick) {
+        const o = state.objects[pick.idx];
+        const dtSim = (state.simT - prevSimT) / 1000;      // simulated seconds
+        rangeRate = (tracked && tracked.id === o.id && dtSim > 1e-3)
+          ? (pick.rangeKm - prevRange) / dtSim : 0;
+        prevRange = pick.rangeKm; prevSimT = state.simT;
+        const changed = !tracked || tracked.id !== o.id;
+        tracked = { id: o.id, name: o.name, ...pick };
+
+        /* how much longer the pass lasts, by forward search on real geometry */
+        passMin = best ? passEndsInMin(tt => {
+          const fp = feed.propagate(o, tt);
+          orbital3D(o.incl, o.raan, o.argp + fp.meanAnomaly,
+                    scaledRadiusKm(o.altKm, 1), futCore, 0);
+          const s2 = sunEphemeris(tt);
+          coreToEci(futCore[0], futCore[1], futCore[2], futEci);
+          const lk = obs.lookAt(futEci[0], futEci[1], futEci[2], s2.gmstDeg);
+          return { elevDeg: lk.elevDeg,
+            sunlit: !inShadow(futCore[0], futCore[1], futCore[2], s2.eciDir),
+            solarElevDeg: solarElevationDeg(obs.lat, obs.lon, s2.declDeg, s2.subsolarLonDeg) };
+        }, state.simT) : 0;
+
+        /* sight line from the observer to the tracked object (visible only) */
+        if (best) {
+          const ph2 = feed.propagate(o, state.simT);
+          orbital3D(o.incl, o.raan, o.argp + ph2.meanAnomaly,
+                    scaledRadiusKm(o.altKm, exag) * kmToPx, sightSat, 0);
+          const rE = R_EARTH_KM * kmToPx;
+          arm.observer.sight.set(zenCore[0]*rE, zenCore[1]*rE, zenCore[2]*rE,
+                                 sightSat[0], sightSat[1], sightSat[2]);
+        } else arm.observer.sight.clear();
+
+        /* the pass Dopplers its own voice (focus tour keeps priority) */
+        if (state.soundOn && state.focusStep === 0) {
+          if (changed) sonifier.solo(o.freqHz);
+          sonifier.soloPitch(audibleDoppler(o.freqHz, rangeRate));
+        }
+      } else { tracked = null; arm.observer.sight.clear(); }
+    } else if (arm.observer.active) {
+      arm.observer.active = false; arm.observer.sight.clear(); tracked = null;
+    }
+    const md = Math.hypot(moonV[0], moonV[1], moonV[2]) || 1;
+    arm.sync({ sunEci: sun.eciDir, gmstDeg: sun.gmstDeg,
+               moonDir: [moonV[0] / md, moonV[1] / md, moonV[2] / md] });
+    arm.draw(p, state.folds);
+    p.blendMode(p.BLEND);
+
+    /* fps meter (perf work should be measurable) */
+    fpsAcc += p.frameRate(); fpsN++;
+    if (fpsN >= 30) {
+      setText('s-fps', Math.round(fpsAcc / fpsN) + ' fps');
+      let dark = 0;
+      for (const o of state.objects) if (o._dark) dark++;
+      setText('s-ecl', state.objects.length
+        ? Math.round(100 * dark / state.objects.length) + '%' : '\u2014');
+      updateObserverHud();
+      fpsAcc = 0; fpsN = 0;
+    }
+  };
+
+  p.mousePressed = () => { idleMs = 0; };
+  p.mouseDragged = () => { idleMs = 0; };
+  p.mouseWheel   = () => { idleMs = 0; };
+
+  p.keyPressed = () => {
+    idleMs = 0;
+    const k = p.key.toLowerCase();
+    if (k === 'g') { state.groupIdx = (state.groupIdx + 1) % CONFIG.groups.length; loadGroup(); }
+    else if (k === 't') { state.timeIdx = (state.timeIdx + 1) % CONFIG.timeScales.length; refreshHud(); }
+    else if (k === 'e') { state.exagIdx = (state.exagIdx + 1) % CONFIG.altExags.length; refreshHud(); }
+    else if (p.keyCode === 39) { state.folds = Math.min(CONFIG.maxFolds, state.folds + 1); refreshHud(); }
+    else if (p.keyCode === 37) { state.folds = Math.max(1, state.folds - 1); refreshHud(); }
+    else if (k === 'o') {
+      if (state.observer) { state.observer = null; refreshHud(); }
+      else {
+        const useFallback = () => {
+          const f = CONFIG.fallbackObserver;
+          state.observer = new Observer(f.lat, f.lon,
+            { label: f.label, source: 'fallback' });
+          refreshHud();
+        };
+        if (navigator.geolocation) {
+          setText('s-obs', 'requesting\u2026');
+          navigator.geolocation.getCurrentPosition(
+            pos => { state.observer = new Observer(
+                       pos.coords.latitude, pos.coords.longitude,
+                       { label: 'your location', source: 'geolocation' });
+                     refreshHud(); },
+            useFallback, { timeout: 8000 });
+        } else useFallback();
+      }
+    }
+    else if (k === 'a') { if (armillary) armillary.cycleMode(); refreshHud(); }
+    else if (k === 'f') {
+      state.focusStep = (state.focusStep + 1) % (notables.length + 1);
+      track.reset();
+      const on = state.focusStep > 0 && notables.length;
+      sonifier.solo(on
+        ? state.objects[notables[(state.focusStep - 1) % notables.length].idx].freqHz
+        : null);
+      refreshHud();
+    }
+    else if (k === ' ') state.paused = !state.paused;
+    else if (k === 's') p.saveCanvas('orbita', 'png');
+    else if (k === 'm') {
+      state.soundOn = !state.soundOn;
+      if (state.soundOn) sonifier.start(currentVoices());
+      else sonifier.stop();
+      refreshHud();
+    }
+    else if (k === 'v') {
+      state.view = state.view === 'orbit' ? 'system' : 'orbit';
+      if (state.view === 'system') { sonifier.solo(null); }
+      if (state.soundOn) sonifier.setVoices(currentVoices());
+      const leg = $('legend'); if (leg) leg.style.display = state.view === 'system' ? 'block' : 'none';
+      refreshHud();
+    }
+  };
+});
