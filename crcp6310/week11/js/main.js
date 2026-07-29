@@ -5,8 +5,8 @@
   same bundle runs bare in the p5.js Web Editor.
 
   CONTROLS
-    drag rotate   scroll zoom   O observer   A instrument   V view   <- -> folds
-    F focus   G group
+    drag rotate   scroll zoom   O observer   A instrument   W aurora   V view
+    <- -> folds   F focus   G group
     T time scale   E altitude scale   Space pause   M sound   S save PNG
 */
 
@@ -20,9 +20,12 @@ import { findClosePairs } from './sim/conjunctions.js';
 import { StructureField, PlaneRing, CageBurst } from './render/structures.js';
 import { Armillary } from './render/armillary.js';
 import { Dim3, GeomDynamics } from './core/dynamics.js';
-import { Observer, coreToEci, visibilityState, solarElevationDeg, compassPoint,
-         audibleDoppler, passEndsInMin, MIN_ELEV_DEG } from './sim/observer.js';
-import { sunEphemeris, sunDiscRadius, inShadow } from './sim/sun.js';
+import { Observer, compassPoint, audibleDoppler, MIN_ELEV_DEG }
+  from './sim/observer.js';
+import swpc, { QUIET_BASELINE } from './feeds/spaceweather.js';
+import { AuroraLayer } from './render/aurora.js';
+import { SkyTracker } from './sim/tracker.js';
+import { sunEphemeris, sunDiscRadius } from './sim/sun.js';
 import { drawSky } from './render/sky.js';
 import { pickNotables } from './sim/notables.js';
 import { GroundTrack, eciToEarthFixed } from './sim/groundtrack.js';
@@ -62,11 +65,18 @@ const efScratch = new Float32Array(3);
 let idleMs = 0, galleryAngle = 0, galleryHold = 0;
 const moonV = new Float32Array(3);
 /* observer tracking: who is overhead, and is it actually visible */
-let tracked = null, prevRange = 0, prevSimT = 0, rangeRate = 0;
+let tracked = null, rangeRate = 0;
 let aboveCount = 0, visibleCount = 0, passMin = 0;
-const satEci = new Float64Array(3), zenCore = new Float32Array(3);
-const futCore = new Float64Array(3), futEci = new Float64Array(3);
+const zenCore = new Float32Array(3);
 const sightSat = new Float32Array(3);
+/* space weather: the sun's effect on the ensemble */
+const aurora = new AuroraLayer();
+const tracker = new SkyTracker();
+let weather = { ...QUIET_BASELINE, liveFields: 0, totalFields: 6 };
+async function loadWeather() {
+  try { weather = await swpc.load(); } catch { /* keeps the quiet baseline */ }
+  refreshHud();
+}
 
 /* the drone follows the view: LEO ensemble, or the six planet-years
    octave-shifted into the audible band — Harmonices Mundi, computed */
@@ -145,6 +155,14 @@ function refreshHud() {
   setText('s-snd', state.soundOn ? 'on' : 'off');
   setText('s-fold', state.folds === 1 ? 'off' : state.folds + '-fold');
   setText('s-inst', armillary ? armillary.label : 'off');
+  setText('s-kp', 'Kp ' + weather.kp.toFixed(1) + ' \u00b7 G' + weather.scaleG
+    + ' \u00b7 ' + weather.liveFields + '/' + weather.totalFields + ' live ('
+    + weather.source + ')');
+  setText('s-sw', Math.round(weather.windSpeedKmS) + ' km/s \u00b7 '
+    + weather.windDensity.toFixed(1) + ' p/cm\u00b3 \u00b7 Bz '
+    + weather.bzNt.toFixed(1) + ' nT \u00b7 F10.7 ' + Math.round(weather.f107));
+  setText('s-aur', aurora.visible
+    ? aurora.source + ' \u00b7 ' + aurora.activeCount + ' cells' : 'hidden');
   setText('s-obs', state.observer
     ? state.observer.label + ' (' + state.observer.source + ')' : 'off');
   updateObserverHud();
@@ -155,7 +173,7 @@ function refreshHud() {
     setText('s-fdet', Math.round(o.altKm) + ' km \u00b7 ' + o.periodMin.toFixed(1)
       + ' min \u00b7 ' + o.freqHz.toFixed(0) + ' Hz');
     /* the four GeomDynamics values, measured rather than tuned */
-    const gd = GeomDynamics.fromOrbit(o);
+    const gd = GeomDynamics.fromOrbit(o, weather.f107);
     setText('s-fdyn', gd.spd.toFixed(2) + ' km/s \u00b7 g '
       + (gd.gravity * 1000).toFixed(2) + ' m/s\u00b2 \u00b7 node '
       + gd.friction.toFixed(2) + '\u00b0/day \u00b7 drag '
@@ -174,6 +192,8 @@ new p5(p => {
     state.reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     lastReal = performance.now();
     loadGroup();
+    loadWeather();
+    setInterval(loadWeather, swpc.refreshMs);
   };
 
   p.windowResized = () => p.resizeCanvas(p.windowWidth, p.windowHeight);
@@ -257,6 +277,12 @@ new p5(p => {
     p.push();
     p.rotateY(-sun.gmstDeg * Math.PI / 180);
     drawEarth(p, R_EARTH_KM * kmToPx, sunEF);
+    /* auroral ovals: geographic, so inside the earth-fixed frame, at the
+       real 110 km emission altitude and additive like real airglow */
+    aurora.update(weather.kp, sun.subsolarLonDeg);
+    p.blendMode(p.ADD);
+    aurora.draw(p, R_EARTH_KM * kmToPx, kmToPx);
+    p.blendMode(p.BLEND);
     if (focused >= 0 && track.n > 1) {             // the westward sinusoid
       const rT = R_EARTH_KM * kmToPx * 1.006;
       p.strokeWeight(1.6);
@@ -369,68 +395,42 @@ new p5(p => {
     const arm = ensureArmillary(rOuterKm * kmToPx, R_EARTH_KM * kmToPx,
                                 exag + '|' + p.width + '|' + p.height);
 
-    /* OBSERVER MODE — the viewer's own sky. Naked-eye visibility needs all
-       three conditions: object sunlit, observer in darkness, above the
-       obstruction limit. Coordinates stay in this tab; nothing is sent. */
+    /* OBSERVER MODE — the viewer's own sky. The tracking itself lives in
+       sim/tracker.js so the high-fidelity build shares it rather than
+       duplicating it; this root only wires positions in and geometry out. */
     const obs = state.observer;
     if (obs) {
-      const sunEl = solarElevationDeg(obs.lat, obs.lon, sun.declDeg, sun.subsolarLonDeg);
-      aboveCount = 0; visibleCount = 0;
-      let best = null, bestAny = null;
-      for (let i = 0; i < state.objects.length; i++) {
-        coreToEci(headsKm[i*3], headsKm[i*3+1], headsKm[i*3+2], satEci);
-        const look = obs.lookAt(satEci[0], satEci[1], satEci[2], sun.gmstDeg);
-        if (look.elevDeg < MIN_ELEV_DEG) continue;
-        aboveCount++;
-        const vis = visibilityState({ elevDeg: look.elevDeg,
-          sunlit: !state.objects[i]._dark, solarElevDeg: sunEl });
-        if (!bestAny || look.elevDeg > bestAny.elevDeg) bestAny = { idx: i, ...look, vis };
-        if (vis === 'visible') {
-          visibleCount++;
-          if (!best || look.elevDeg > best.elevDeg) best = { idx: i, ...look, vis };
-        }
-      }
-      const pick = best || bestAny;
       obs.zenithCore(sun.gmstDeg, zenCore);
       arm.observer.sync(zenCore);
-      if (pick) {
-        const o = state.objects[pick.idx];
-        const dtSim = (state.simT - prevSimT) / 1000;      // simulated seconds
-        rangeRate = (tracked && tracked.id === o.id && dtSim > 1e-3)
-          ? (pick.rangeKm - prevRange) / dtSim : 0;
-        prevRange = pick.rangeKm; prevSimT = state.simT;
-        const changed = !tracked || tracked.id !== o.id;
-        tracked = { id: o.id, name: o.name, ...pick };
-
-        /* how much longer the pass lasts, by forward search on real geometry */
-        passMin = best ? passEndsInMin(tt => {
+      const res = tracker.update({
+        observer: obs, objects: state.objects, headsKm, sun,
+        sunAt: sunEphemeris, simT: state.simT,
+        isDark: i => !!state.objects[i]._dark,
+        positionAtKm: (o, tt, out) => {
           const fp = feed.propagate(o, tt);
           orbital3D(o.incl, o.raan, o.argp + fp.meanAnomaly,
-                    scaledRadiusKm(o.altKm, 1), futCore, 0);
-          const s2 = sunEphemeris(tt);
-          coreToEci(futCore[0], futCore[1], futCore[2], futEci);
-          const lk = obs.lookAt(futEci[0], futEci[1], futEci[2], s2.gmstDeg);
-          return { elevDeg: lk.elevDeg,
-            sunlit: !inShadow(futCore[0], futCore[1], futCore[2], s2.eciDir),
-            solarElevDeg: solarElevationDeg(obs.lat, obs.lon, s2.declDeg, s2.subsolarLonDeg) };
-        }, state.simT) : 0;
-
-        /* sight line from the observer to the tracked object (visible only) */
-        if (best) {
-          const ph2 = feed.propagate(o, state.simT);
-          orbital3D(o.incl, o.raan, o.argp + ph2.meanAnomaly,
-                    scaledRadiusKm(o.altKm, exag) * kmToPx, sightSat, 0);
-          const rE = R_EARTH_KM * kmToPx;
-          arm.observer.sight.set(zenCore[0]*rE, zenCore[1]*rE, zenCore[2]*rE,
-                                 sightSat[0], sightSat[1], sightSat[2]);
-        } else arm.observer.sight.clear();
-
-        /* the pass Dopplers its own voice (focus tour keeps priority) */
-        if (state.soundOn && state.focusStep === 0) {
-          if (changed) sonifier.solo(o.freqHz);
-          sonifier.soloPitch(audibleDoppler(o.freqHz, rangeRate));
-        }
-      } else { tracked = null; arm.observer.sight.clear(); }
+                    scaledRadiusKm(o.altKm, 1), out, 0);
+        },
+      });
+      aboveCount = res ? res.above : 0;
+      visibleCount = res ? res.visible : 0;
+      tracked = res && res.tracked ? res.tracked : null;
+      rangeRate = res && res.tracked ? res.rangeRate : 0;
+      passMin = res && res.tracked ? res.passMin : 0;
+      if (tracked && res.isVisible) {
+        const o = tracked.obj;
+        const ph2 = feed.propagate(o, state.simT);
+        orbital3D(o.incl, o.raan, o.argp + ph2.meanAnomaly,
+                  scaledRadiusKm(o.altKm, exag) * kmToPx, sightSat, 0);
+        const rE = R_EARTH_KM * kmToPx;
+        arm.observer.sight.set(zenCore[0]*rE, zenCore[1]*rE, zenCore[2]*rE,
+                               sightSat[0], sightSat[1], sightSat[2]);
+      } else arm.observer.sight.clear();
+      /* the pass Dopplers its own voice (focus tour keeps priority) */
+      if (tracked && state.soundOn && state.focusStep === 0) {
+        if (res.changed) sonifier.solo(tracked.obj.freqHz);
+        sonifier.soloPitch(audibleDoppler(tracked.obj.freqHz, rangeRate));
+      }
     } else if (arm.observer.active) {
       arm.observer.active = false; arm.observer.sight.clear(); tracked = null;
     }
@@ -485,6 +485,7 @@ new p5(p => {
         } else useFallback();
       }
     }
+    else if (k === 'w') { aurora.visible = !aurora.visible; refreshHud(); }
     else if (k === 'a') { if (armillary) armillary.cycleMode(); refreshHud(); }
     else if (k === 'f') {
       state.focusStep = (state.focusStep + 1) % (notables.length + 1);

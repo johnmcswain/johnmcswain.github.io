@@ -52,10 +52,21 @@ export function nodalRegression(aKm, e, inclDeg) {
   return rate * 86400 / D2R;                                // deg/day
 }
 
-/* relative drag susceptibility (unitless; ranking and animation only) */
-export function dragProxy(bstar, altKm) {
-  const scaleHeightKm = 60;                // crude exponential falloff
-  return Math.max(0, bstar) * Math.exp(-(altKm - 300) / scaleHeightKm);
+/* Relative drag susceptibility (unitless; ranking and animation only).
+   f107 is the 10.7 cm solar radio flux, the standard proxy for
+   thermospheric density: at solar minimum (~70 sfu) the upper atmosphere
+   is cool and thin, at maximum (~250) it is heated and expanded, and
+   density at 400 km varies by roughly an order of magnitude between them.
+   Modelling that as a scale height that grows with F10.7 replaces the
+   fixed 60 km guess with a measured input. Still relative, still never a
+   lifetime — but now driven by today's sun rather than a constant. */
+export const F107_QUIET = 70;
+export function scaleHeightKm(f107 = F107_QUIET) {
+  const f = Math.max(60, Math.min(300, f107));
+  return 50 + 40 * (f - F107_QUIET) / 180;         // ~50 km quiet, ~90 km active
+}
+export function dragProxy(bstar, altKm, f107 = F107_QUIET) {
+  return Math.max(0, bstar) * Math.exp(-(altKm - 300) / scaleHeightKm(f107));
 }
 
 /* --- the collaborator classes (course idiom) ----------------------------- */
@@ -68,10 +79,10 @@ export class GeomDynamics {
   }
   /* factory standing in for Processing's overloaded constructor: derive
      the whole set from one element set */
-  static fromOrbit({ altKm, ecc = 0, incl = 0, bstar = 0 }) {
+  static fromOrbit({ altKm, ecc = 0, incl = 0, bstar = 0 }, f107 = F107_QUIET) {
     const r = R_EARTH_KM + altKm;
     return new GeomDynamics(
-      orbitalSpeed(r), gravityAt(r), dragProxy(bstar, altKm),
+      orbitalSpeed(r), gravityAt(r), dragProxy(bstar, altKm, f107),
       nodalRegression(r, ecc, incl));
   }
   /* a constant angular rate, for kinetic instrument parts (rad/s in spd) */

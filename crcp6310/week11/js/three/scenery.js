@@ -59,7 +59,12 @@ export class Earth {
     this.group.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial(
       { color: 0x9db8dd, transparent: true, opacity: 0.55 })));
   }
-  setGMST(gmstRad) { this.group.rotation.y = gmstRad; }   // sign: visual check
+  /* Earth-fixed -> celestial. A point at geographic longitude lon must end
+     up at right ascension lon + GMST. In three's right-handed y-up frame
+     R_y(theta) sends (x,z) -> (x cos+z sin, -x sin+z cos), so reaching
+     lon+GMST requires theta = -GMST. The previous +GMST put the wrong
+     hemisphere in daylight — invisible under physical lighting, but wrong. */
+  setGMST(gmstRad) { this.group.rotation.y = -gmstRad; }
 }
 
 export class Sky {

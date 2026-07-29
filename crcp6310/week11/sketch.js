@@ -708,11 +708,11 @@
       }
     }
     draw(p, folds = 1) {
-      const TAU3 = Math.PI * 2;
+      const TAU4 = Math.PI * 2;
       for (let f = 0; f < folds; f++) {
         if (folds > 1) {
           p.push();
-          p.rotateY(f * TAU3 / folds);
+          p.rotateY(f * TAU4 / folds);
         }
         for (const s of this.items) s.draw(p);
         if (folds > 1) p.pop();
@@ -720,174 +720,8 @@
     }
   };
 
-  // src/sim/planets.js
-  var D2R4 = Math.PI / 180;
-  var OBLIQUITY = 23.43928 * D2R4;
-  var ELEMENTS = [
-    [
-      "Mercury",
-      0.38709927,
-      37e-8,
-      0.20563593,
-      1906e-8,
-      7.00497902,
-      -594749e-8,
-      252.2503235,
-      149472.67411175,
-      77.45779628,
-      0.16047689,
-      48.33076593,
-      -0.12534081
-    ],
-    [
-      "Venus",
-      0.72333566,
-      39e-7,
-      677672e-8,
-      -4107e-8,
-      3.39467605,
-      -7889e-7,
-      181.9790995,
-      58517.81538729,
-      131.60246718,
-      268329e-8,
-      76.67984255,
-      -0.27769418
-    ],
-    [
-      "Earth",
-      1.00000261,
-      562e-8,
-      0.01671123,
-      -4392e-8,
-      -1531e-8,
-      -0.01294668,
-      100.46457166,
-      35999.37244981,
-      102.93768193,
-      0.32327364,
-      0,
-      0
-    ],
-    [
-      "Mars",
-      1.52371034,
-      1847e-8,
-      0.0933941,
-      7882e-8,
-      1.84969142,
-      -813131e-8,
-      -4.55343205,
-      19140.30268499,
-      -23.94362959,
-      0.44441088,
-      49.55953891,
-      -0.29257343
-    ],
-    [
-      "Jupiter",
-      5.202887,
-      -11607e-8,
-      0.04838624,
-      -13253e-8,
-      1.30439695,
-      -183714e-8,
-      34.39644051,
-      3034.74612775,
-      14.72847983,
-      0.21252668,
-      100.47390909,
-      0.20469106
-    ],
-    [
-      "Saturn",
-      9.53667594,
-      -12506e-7,
-      0.05386179,
-      -50991e-8,
-      2.48599187,
-      193609e-8,
-      49.95424423,
-      1222.49362201,
-      92.59887831,
-      -0.41897216,
-      113.66242448,
-      -0.28867794
-    ]
-  ];
-  var PLANET_META = {
-    // radius km, sidereal period d, [r,g,b]
-    Mercury: { radiusKm: 2440, periodDays: 87.969, rgb: [169, 160, 152] },
-    Venus: { radiusKm: 6052, periodDays: 224.701, rgb: [232, 202, 152] },
-    Earth: { radiusKm: 6371, periodDays: 365.256, rgb: [110, 150, 210] },
-    Mars: { radiusKm: 3390, periodDays: 686.98, rgb: [214, 121, 79] },
-    Jupiter: { radiusKm: 69911, periodDays: 4332.589, rgb: [216, 176, 132] },
-    Saturn: { radiusKm: 58232, periodDays: 10759.22, rgb: [226, 200, 150] }
-  };
-  function solveKepler(Mrad, e) {
-    let E = e < 0.8 ? Mrad : Math.PI;
-    for (let k = 0; k < 12; k++) {
-      const d = (E - e * Math.sin(E) - Mrad) / (1 - e * Math.cos(E));
-      E -= d;
-      if (Math.abs(d) < 1e-10) break;
-    }
-    return E;
-  }
-  var wrap = (d) => (d % 360 + 360) % 360;
-  function planetStates(tMs) {
-    const T = (tMs / 864e5 + 24405875e-1 - 2451545) / 36525;
-    return ELEMENTS.map(([name, a0, aD, e0, eD, I0, ID, L0, LD, p0, pD, n0, nD]) => {
-      const a = a0 + aD * T, e = e0 + eD * T;
-      const I = (I0 + ID * T) * D2R4, peri = p0 + pD * T, node = n0 + nD * T;
-      const M = wrap(L0 + LD * T - peri) * D2R4;
-      const w = (peri - node) * D2R4, O = node * D2R4;
-      const E = solveKepler(M, e);
-      const xp = a * (Math.cos(E) - e);
-      const yp = a * Math.sqrt(1 - e * e) * Math.sin(E);
-      const cw = Math.cos(w), sw = Math.sin(w), cO = Math.cos(O), sO = Math.sin(O);
-      const ci = Math.cos(I), si = Math.sin(I);
-      const x = (cw * cO - sw * sO * ci) * xp + (-sw * cO - cw * sO * ci) * yp;
-      const y = (cw * sO + sw * cO * ci) * xp + (-sw * sO + cw * cO * ci) * yp;
-      const z = sw * si * xp + cw * si * yp;
-      return {
-        name,
-        xyzAU: [x, y, z],
-        a,
-        lonDeg: wrap(Math.atan2(y, x) / D2R4),
-        distAU: Math.hypot(x, y, z),
-        ...PLANET_META[name]
-      };
-    });
-  }
-  function moonState(tMs) {
-    const n = tMs / 864e5 + 24405875e-1 - 2451545;
-    const L = 218.316 + 13.176396 * n;
-    const M = (134.963 + 13.064993 * n) * D2R4;
-    const F = (93.272 + 13.22935 * n) * D2R4;
-    return {
-      lonDeg: wrap(L + 6.289 * Math.sin(M)),
-      latDeg: 5.128 * Math.sin(F),
-      distKm: 385001 - 20905 * Math.cos(M)
-    };
-  }
-  function eclipticToP5(x, y, z, out, o = 0) {
-    const ce = Math.cos(OBLIQUITY), se = Math.sin(OBLIQUITY);
-    const yq = y * ce - z * se, zq = y * se + z * ce;
-    out[o] = x;
-    out[o + 1] = -zq;
-    out[o + 2] = yq;
-    return out;
-  }
-  function compressAU(rAU, rMaxPx, aMaxAU = 9.6) {
-    const k = (a) => Math.log1p(a / 0.25);
-    return rMaxPx * k(Math.max(0, rAU)) / k(aMaxAU);
-  }
-  function planetHz(periodDays, octaves = 35) {
-    return 1 / (periodDays * 86400) * 2 ** octaves;
-  }
-
   // src/core/dynamics.js
-  var D2R5 = Math.PI / 180;
+  var D2R4 = Math.PI / 180;
   var MU_KM3_S22 = 398600.4418;
   var R_EARTH_KM4 = 6371;
   var J2 = 0.00108262668;
@@ -900,12 +734,16 @@
   function nodalRegression(aKm, e, inclDeg) {
     const n = Math.sqrt(MU_KM3_S22 / (aKm * aKm * aKm));
     const p = aKm * (1 - e * e);
-    const rate = -1.5 * n * J2 * (R_EARTH_KM4 / p) ** 2 * Math.cos(inclDeg * D2R5);
-    return rate * 86400 / D2R5;
+    const rate = -1.5 * n * J2 * (R_EARTH_KM4 / p) ** 2 * Math.cos(inclDeg * D2R4);
+    return rate * 86400 / D2R4;
   }
-  function dragProxy(bstar, altKm) {
-    const scaleHeightKm = 60;
-    return Math.max(0, bstar) * Math.exp(-(altKm - 300) / scaleHeightKm);
+  var F107_QUIET = 70;
+  function scaleHeightKm(f107 = F107_QUIET) {
+    const f = Math.max(60, Math.min(300, f107));
+    return 50 + 40 * (f - F107_QUIET) / 180;
+  }
+  function dragProxy(bstar, altKm, f107 = F107_QUIET) {
+    return Math.max(0, bstar) * Math.exp(-(altKm - 300) / scaleHeightKm(f107));
   }
   var GeomDynamics = class _GeomDynamics {
     constructor(spd = 0, gravity = 0, damping = 0, friction = 0) {
@@ -916,12 +754,12 @@
     }
     /* factory standing in for Processing's overloaded constructor: derive
        the whole set from one element set */
-    static fromOrbit({ altKm, ecc = 0, incl = 0, bstar = 0 }) {
+    static fromOrbit({ altKm, ecc = 0, incl = 0, bstar = 0 }, f107 = F107_QUIET) {
       const r = R_EARTH_KM4 + altKm;
       return new _GeomDynamics(
         orbitalSpeed(r),
         gravityAt(r),
-        dragProxy(bstar, altKm),
+        dragProxy(bstar, altKm, f107),
         nodalRegression(r, ecc, incl)
       );
     }
@@ -944,10 +782,73 @@
     }
   };
 
-  // src/render/armillary.js
+  // src/core/geom.js
+  var D2R5 = Math.PI / 180;
   var TAU2 = Math.PI * 2;
-  var D2R6 = Math.PI / 180;
-  var SIDEREAL_RAD_PER_SEC = TAU2 / 86164.0905;
+  var OBLIQUITY_DEG = 23.43928;
+  function basisFromNormal2(nx, ny, nz, out) {
+    const d = Math.hypot(nx, ny, nz) || 1;
+    nx /= d;
+    ny /= d;
+    nz /= d;
+    let ax = 0, ay = 0, az = 1;
+    if (Math.abs(nz) > 0.9) {
+      ax = 1;
+      az = 0;
+    }
+    let ux = ny * az - nz * ay, uy = nz * ax - nx * az, uz = nx * ay - ny * ax;
+    const du = Math.hypot(ux, uy, uz);
+    ux /= du;
+    uy /= du;
+    uz /= du;
+    out[0] = ux;
+    out[1] = uy;
+    out[2] = uz;
+    out[3] = ny * uz - nz * uy;
+    out[4] = nz * ux - nx * uz;
+    out[5] = nx * uy - ny * ux;
+    return out;
+  }
+  function tickAngles(major, minorPerMajor) {
+    const out = [];
+    for (let i = 0; i < major; i++) {
+      out.push({ theta: i / major * TAU2, major: true });
+      for (let j = 1; j < minorPerMajor; j++)
+        out.push({ theta: (i + j / minorPerMajor) / major * TAU2, major: false });
+    }
+    return out;
+  }
+  function meridianNormal(gmstDeg, out) {
+    const g = gmstDeg * D2R5;
+    out[0] = -Math.sin(g);
+    out[1] = 0;
+    out[2] = Math.cos(g);
+    return out;
+  }
+  function localMeridianNormal(zx, zy, zz, out) {
+    const d = Math.hypot(zz, zx);
+    if (d < 1e-9) {
+      out[0] = 1;
+      out[1] = 0;
+      out[2] = 0;
+      return out;
+    }
+    out[0] = zz / d;
+    out[1] = 0;
+    out[2] = -zx / d;
+    return out;
+  }
+  function eclipticPole(out) {
+    const e = OBLIQUITY_DEG * D2R5;
+    out[0] = 0;
+    out[1] = -Math.cos(e);
+    out[2] = Math.sin(e);
+    return out;
+  }
+
+  // src/render/armillary.js
+  var TAU3 = Math.PI * 2;
+  var SIDEREAL_RAD_PER_SEC = TAU3 / 86164.0905;
   var BRASS = {
     major: new GeomStyle([206, 168, 104], 190, 1.5),
     minor: new GeomStyle([176, 140, 86], 120, 1),
@@ -963,31 +864,12 @@
     zenith: new GeomStyle([206, 236, 206], 175, 1.3),
     sight: new GeomStyle([255, 244, 205], 225, 1.7)
   };
-  function tickAngles(major, minorPerMajor) {
-    const out = [];
-    for (let i = 0; i < major; i++) {
-      out.push({ theta: i / major * TAU2, major: true });
-      for (let j = 1; j < minorPerMajor; j++)
-        out.push({ theta: (i + j / minorPerMajor) / major * TAU2, major: false });
-    }
-    return out;
-  }
-  function meridianNormal(gmstDeg, out) {
-    const g = gmstDeg * D2R6;
-    out[0] = -Math.sin(g);
-    out[1] = 0;
-    out[2] = Math.cos(g);
-    return out;
-  }
-  function eclipticPole(out) {
-    return eclipticToP5(0, 0, 1, out);
-  }
   var Ring = class _Ring extends Structure {
     constructor(nx, ny, nz, radius, segments, style) {
       super(0, 0, 0, Infinity, style);
       this.radius = radius;
       this.segments = segments;
-      this.basis = basisFromNormal(nx, ny, nz, new Float32Array(6));
+      this.basis = basisFromNormal2(nx, ny, nz, new Float32Array(6));
     }
     /* factories in place of Processing's overloaded constructors */
     static equatorial(radius) {
@@ -1007,7 +889,7 @@
       return new _Ring(0, 0, 1, radius, 160, BRASS.hour);
     }
     setNormal(nx, ny, nz) {
-      basisFromNormal(nx, ny, nz, this.basis);
+      basisFromNormal2(nx, ny, nz, this.basis);
     }
     vertexAt(theta, out, o = 0) {
       const [ux, uy, uz, vx, vy, vz] = this.basis;
@@ -1022,7 +904,7 @@
       p.beginShape();
       const t = new Float32Array(3);
       for (let i = 0; i < this.segments; i++) {
-        this.vertexAt(i / this.segments * TAU2, t);
+        this.vertexAt(i / this.segments * TAU3, t);
         p.vertex(t[0], t[1], t[2]);
       }
       p.endShape(p.CLOSE);
@@ -1109,19 +991,6 @@
       p.pop();
     }
   };
-  function localMeridianNormal(zx, zy, zz, out) {
-    const d = Math.hypot(zz, zx);
-    if (d < 1e-9) {
-      out[0] = 1;
-      out[1] = 0;
-      out[2] = 0;
-      return out;
-    }
-    out[0] = zz / d;
-    out[1] = 0;
-    out[2] = -zx / d;
-    return out;
-  }
   var SightLine = class extends Structure {
     constructor(style) {
       super(0, 0, 0, Infinity, style);
@@ -1262,7 +1131,7 @@
       for (let f = 0; f < folds; f++) {
         if (folds > 1) {
           p.push();
-          p.rotateY(f * TAU2 / folds);
+          p.rotateY(f * TAU3 / folds);
         }
         this.cage.draw(p);
         if (this.#mode === 2) {
@@ -1275,7 +1144,7 @@
   };
 
   // src/sim/observer.js
-  var D2R7 = Math.PI / 180;
+  var D2R6 = Math.PI / 180;
   var R2D = 180 / Math.PI;
   var R_EARTH_KM5 = 6371;
   var C_KM_S = 299792.458;
@@ -1294,8 +1163,8 @@
     return out;
   }
   function solarElevationDeg(latDeg, lonDeg, declDeg, subsolarLonDeg) {
-    const H = (lonDeg - subsolarLonDeg) * D2R7;
-    const la = latDeg * D2R7, de = declDeg * D2R7;
+    const H = (lonDeg - subsolarLonDeg) * D2R6;
+    const la = latDeg * D2R6, de = declDeg * D2R6;
     return Math.asin(Math.sin(la) * Math.sin(de) + Math.cos(la) * Math.cos(de) * Math.cos(H)) * R2D;
   }
   var POINTS = [
@@ -1368,7 +1237,7 @@
     }
     /* observer position in ECI, km */
     eci(gmstDeg, out) {
-      const la = this.#lat * D2R7, lst = this.lstDeg(gmstDeg) * D2R7;
+      const la = this.#lat * D2R6, lst = this.lstDeg(gmstDeg) * D2R6;
       const r = R_EARTH_KM5 + this.#altKm;
       out[0] = r * Math.cos(la) * Math.cos(lst);
       out[1] = r * Math.cos(la) * Math.sin(lst);
@@ -1377,7 +1246,7 @@
     }
     /* zenith direction in the CORE frame, for the horizon/meridian rings */
     zenithCore(gmstDeg, out) {
-      const la = this.#lat * D2R7, lst = this.lstDeg(gmstDeg) * D2R7;
+      const la = this.#lat * D2R6, lst = this.lstDeg(gmstDeg) * D2R6;
       return eciToCore(
         Math.cos(la) * Math.cos(lst),
         Math.cos(la) * Math.sin(lst),
@@ -1387,7 +1256,7 @@
     }
     /* look angles to a satellite given in ECI km (Vallado SEZ formulation) */
     lookAt(sx, sy, sz, gmstDeg) {
-      const la = this.#lat * D2R7, lst = this.lstDeg(gmstDeg) * D2R7;
+      const la = this.#lat * D2R6, lst = this.lstDeg(gmstDeg) * D2R6;
       const r = R_EARTH_KM5 + this.#altKm;
       const ox = r * Math.cos(la) * Math.cos(lst);
       const oy = r * Math.cos(la) * Math.sin(lst);
@@ -1406,29 +1275,382 @@
     }
   };
 
+  // src/feeds/spaceweather.js
+  var BASE = "https://services.swpc.noaa.gov";
+  var QUIET_BASELINE = {
+    kp: 2,
+    windSpeedKmS: 400,
+    windDensity: 5,
+    bzNt: 0,
+    f107: 90,
+    scaleG: 0,
+    source: "fallback"
+  };
+  function fromHeaderTable(rows, namePart) {
+    if (!Array.isArray(rows) || rows.length < 2) return null;
+    const header = rows[0];
+    if (!Array.isArray(header)) return null;
+    const col = header.findIndex((h) => String(h).toLowerCase().replace(/[_\s]/g, "").includes(namePart));
+    if (col < 0) return null;
+    for (let i = rows.length - 1; i > 0; i--) {
+      const v2 = Number(rows[i][col]);
+      if (Number.isFinite(v2)) return v2;
+    }
+    return null;
+  }
+  function fromObjectList(list, namePart) {
+    if (!Array.isArray(list) || !list.length) return null;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const o = list[i];
+      if (!o || typeof o !== "object") continue;
+      const key = Object.keys(o).find((k) => k.toLowerCase().replace(/[_\s]/g, "").includes(namePart));
+      if (!key) continue;
+      const v2 = Number(o[key]);
+      if (Number.isFinite(v2)) return v2;
+    }
+    return null;
+  }
+  function readField(payload, namePart) {
+    return fromHeaderTable(payload, namePart) ?? fromObjectList(payload, namePart);
+  }
+  function readScaleG(payload) {
+    if (!payload || typeof payload !== "object") return null;
+    for (const key of Object.keys(payload)) {
+      const g = payload[key] && payload[key].G;
+      const v2 = g && Number(g.Scale ?? g.scale);
+      if (Number.isFinite(v2)) return v2;
+    }
+    return null;
+  }
+  var SpaceWeatherFeed = class {
+    #cache = null;
+    #fetchImpl;
+    #fetchedAt = 0;
+    constructor({ fetchImpl } = {}) {
+      this.#fetchImpl = fetchImpl ?? ((...a) => fetch(...a));
+    }
+    name = "swpc";
+    kind = "conditions";
+    /* conditions change on a ~minutes cadence; one refresh per 10 min is
+       plenty and keeps us a polite client */
+    refreshMs = 6e5;
+    urls() {
+      return {
+        kp: `${BASE}/products/noaa-planetary-k-index.json`,
+        plasma: `${BASE}/products/solar-wind/plasma-1-day.json`,
+        mag: `${BASE}/products/solar-wind/mag-1-day.json`,
+        scales: `${BASE}/products/noaa-scales.json`,
+        f107: `${BASE}/json/f107_cm_flux.json`
+      };
+    }
+    /* Each request is independent: one failure costs one field, not the set. */
+    async load() {
+      const now = Date.now();
+      if (this.#cache && now - this.#fetchedAt < this.refreshMs) return this.#cache;
+      const u = this.urls();
+      const get = async (key) => {
+        try {
+          const res = await this.#fetchImpl(u[key]);
+          if (!res.ok) return null;
+          return await res.json();
+        } catch {
+          return null;
+        }
+      };
+      const [kpRaw, plasmaRaw, magRaw, scalesRaw, f107Raw] = await Promise.all(
+        ["kp", "plasma", "mag", "scales", "f107"].map(get)
+      );
+      this.#cache = this.normalize({ kpRaw, plasmaRaw, magRaw, scalesRaw, f107Raw });
+      this.#fetchedAt = now;
+      return this.#cache;
+    }
+    normalize({ kpRaw, plasmaRaw, magRaw, scalesRaw, f107Raw }) {
+      const kp = readField(kpRaw, "kp");
+      const speed = readField(plasmaRaw, "speed");
+      const dens = readField(plasmaRaw, "density");
+      const bz = readField(magRaw, "bz");
+      const f107 = readField(f107Raw, "flux");
+      const scaleG = readScaleG(scalesRaw);
+      const live = [kp, speed, dens, bz, f107, scaleG].filter((v2) => v2 !== null).length;
+      return {
+        kp: kp ?? QUIET_BASELINE.kp,
+        windSpeedKmS: speed ?? QUIET_BASELINE.windSpeedKmS,
+        windDensity: dens ?? QUIET_BASELINE.windDensity,
+        bzNt: bz ?? QUIET_BASELINE.bzNt,
+        f107: f107 ?? QUIET_BASELINE.f107,
+        scaleG: scaleG ?? QUIET_BASELINE.scaleG,
+        /* per-field provenance: how many of the six arrived live */
+        liveFields: live,
+        totalFields: 6,
+        source: live === 0 ? "fallback" : live === 6 ? "live" : "partial"
+      };
+    }
+  };
+  var spaceweather_default = new SpaceWeatherFeed();
+
+  // src/sim/aurora.js
+  var D2R7 = Math.PI / 180;
+  var R2D2 = 180 / Math.PI;
+  var DIPOLE_POLE = { latDeg: 80.7, lonDeg: -72.7, epoch: "~2025" };
+  var EMISSION_ALT_KM = 110;
+  function geomagneticLatDeg(latDeg, lonDeg) {
+    const la = latDeg * D2R7, lo = lonDeg * D2R7;
+    const lp = DIPOLE_POLE.latDeg * D2R7, gp = DIPOLE_POLE.lonDeg * D2R7;
+    return Math.asin(Math.max(-1, Math.min(
+      1,
+      Math.sin(la) * Math.sin(lp) + Math.cos(la) * Math.cos(lp) * Math.cos(lo - gp)
+    ))) * R2D2;
+  }
+  function solarLocalTimeHours(lonDeg, subsolarLonDeg) {
+    return (((lonDeg - subsolarLonDeg) / 15 + 12) % 24 + 24) % 24;
+  }
+  function ovalEquatorwardDeg(kp, sltHours) {
+    const mlt = sltHours / 24 * Math.PI * 2;
+    return 67 - 2.2 * kp - 3.5 * Math.cos(mlt);
+  }
+  function ovalPolewardDeg(kp, sltHours) {
+    const mlt = sltHours / 24 * Math.PI * 2;
+    return 73 - 0.7 * kp - 1.5 * Math.cos(mlt);
+  }
+  function ovalIntensity(kp, latDeg, lonDeg, subsolarLonDeg) {
+    const mlat = Math.abs(geomagneticLatDeg(latDeg, lonDeg));
+    const slt = solarLocalTimeHours(lonDeg, subsolarLonDeg);
+    const eq = ovalEquatorwardDeg(kp, slt), po = ovalPolewardDeg(kp, slt);
+    if (mlat < eq || mlat > po) return 0;
+    const band = Math.sin(Math.PI * (mlat - eq) / (po - eq));
+    const mlt = slt / 24 * Math.PI * 2;
+    const night2 = 0.55 + 0.45 * Math.cos(mlt);
+    return Math.max(0, Math.min(1, band * night2 * (0.25 + kp / 9 * 0.75)));
+  }
+  var GRID = { latMin: 40, latMax: 88, latStep: 2, lonStep: 5 };
+  function auroraGrid(opts = {}) {
+    const { latMin, latMax, latStep, lonStep } = { ...GRID, ...opts };
+    const vecs = [], ll = [];
+    for (let a = latMin; a <= latMax; a += latStep)
+      for (const lat of [a, -a])
+        for (let lon = 0; lon < 360; lon += lonStep) {
+          const la = lat * D2R7, lo = lon * D2R7;
+          vecs.push(Math.cos(la) * Math.cos(lo), -Math.sin(la), Math.cos(la) * Math.sin(lo));
+          ll.push(lat, lon);
+        }
+    return {
+      vectors: Float32Array.from(vecs),
+      latlon: Float32Array.from(ll),
+      count: ll.length / 2
+    };
+  }
+
+  // src/render/aurora.js
+  var D2R8 = Math.PI / 180;
+  var RECOMPUTE_FRAMES = 10;
+  var BUCKETS = [
+    [0.08, 60, 190, 120, 90, 2],
+    [0.3, 90, 240, 150, 140, 2.6],
+    [0.55, 170, 255, 170, 180, 3.2],
+    [0.78, 245, 150, 130, 200, 3.6]
+  ];
+  var AuroraLayer = class {
+    #samples;
+    // Float32Array of unit vectors, 3 per sample
+    #latlon;
+    // Float32Array of [lat, lon] per sample
+    #buckets;
+    // Float32Array vertex pools, one per bucket
+    #counts;
+    #frame = 0;
+    #ovation = null;
+    constructor() {
+      const grid = auroraGrid();
+      this.#samples = grid.vectors;
+      this.#latlon = grid.latlon;
+      this.#buckets = BUCKETS.map(() => new Float32Array(this.sampleCount * 3));
+      this.#counts = BUCKETS.map(() => 0);
+      this.visible = true;
+    }
+    get sampleCount() {
+      return this.#latlon.length / 2;
+    }
+    get activeCount() {
+      return this.#counts.reduce((a, b) => a + b, 0) / 3;
+    }
+    get source() {
+      return this.#ovation ? "OVATION grid" : "oval from live Kp";
+    }
+    /* an accepted OVATION parse replaces the computed oval; null restores it */
+    setOvation(parsed) {
+      this.#ovation = parsed;
+      if (parsed) {
+        const need = parsed.count * 3;
+        this.#buckets = BUCKETS.map(() => new Float32Array(need));
+      }
+      this.#frame = 0;
+    }
+    /* recompute the bucketed vertex pools (throttled) */
+    update(kp, subsolarLonDeg) {
+      if (this.#frame++ % RECOMPUTE_FRAMES !== 0) return;
+      for (let b = 0; b < BUCKETS.length; b++) this.#counts[b] = 0;
+      if (this.#ovation) {
+        const pts = this.#ovation.points;
+        for (let i = 0; i < pts.length; i += 3)
+          this.#place(pts[i], pts[i + 1], pts[i + 2]);
+        return;
+      }
+      for (let i = 0; i < this.sampleCount; i++) {
+        const lat = this.#latlon[i * 2], lon = this.#latlon[i * 2 + 1];
+        const v2 = ovalIntensity(kp, lat, lon, subsolarLonDeg);
+        if (v2 > BUCKETS[0][0])
+          this.#push(v2, this.#samples[i * 3], this.#samples[i * 3 + 1], this.#samples[i * 3 + 2]);
+      }
+    }
+    /* OVATION points arrive as lat/lon, so build the unit vector here */
+    #place(lat, lon, v2) {
+      if (v2 <= BUCKETS[0][0]) return;
+      const la = lat * D2R8, lo = lon * D2R8;
+      this.#push(v2, Math.cos(la) * Math.cos(lo), -Math.sin(la), Math.cos(la) * Math.sin(lo));
+    }
+    #push(v2, x, y, z) {
+      let b = 0;
+      for (let k = BUCKETS.length - 1; k >= 0; k--) if (v2 >= BUCKETS[k][0]) {
+        b = k;
+        break;
+      }
+      const pool = this.#buckets[b];
+      const n = this.#counts[b];
+      if (n + 3 > pool.length) return;
+      pool[n] = x;
+      pool[n + 1] = y;
+      pool[n + 2] = z;
+      this.#counts[b] = n + 3;
+    }
+    draw(p, rEarthPx, kmToPx) {
+      if (!this.visible) return;
+      const r = rEarthPx + EMISSION_ALT_KM * kmToPx;
+      for (let b = 0; b < BUCKETS.length; b++) {
+        const n = this.#counts[b];
+        if (!n) continue;
+        const [, cr, cg, cb, alpha, weight] = BUCKETS[b];
+        p.stroke(cr, cg, cb, alpha);
+        p.strokeWeight(weight);
+        p.beginShape(p.POINTS);
+        const pool = this.#buckets[b];
+        for (let i = 0; i < n; i += 3)
+          p.vertex(pool[i] * r, pool[i + 1] * r, pool[i + 2] * r);
+        p.endShape();
+      }
+    }
+  };
+
+  // src/sim/tracker.js
+  var SkyTracker = class {
+    #prevId = null;
+    #prevRange = 0;
+    #prevSimT = 0;
+    #eci = new Float64Array(3);
+    #fut = new Float64Array(3);
+    #futEci = new Float64Array(3);
+    /* sun: the ephemeris result; sunAt(tMs): ephemeris at a future instant
+       (only used for the pass-duration search). Returns null when there is
+       no observer or nothing above the horizon. */
+    update({ observer, objects, headsKm: headsKm2, sun, sunAt, simT, positionAtKm, isDark }) {
+      if (!observer || !objects.length) {
+        this.#prevId = null;
+        return null;
+      }
+      const solarElevDeg = solarElevationDeg(
+        observer.lat,
+        observer.lon,
+        sun.declDeg,
+        sun.subsolarLonDeg
+      );
+      let best = null, bestAny = null, above = 0, visible = 0;
+      for (let i = 0; i < objects.length; i++) {
+        coreToEci(headsKm2[i * 3], headsKm2[i * 3 + 1], headsKm2[i * 3 + 2], this.#eci);
+        const look = observer.lookAt(this.#eci[0], this.#eci[1], this.#eci[2], sun.gmstDeg);
+        if (look.elevDeg < MIN_ELEV_DEG) continue;
+        above++;
+        const vis = visibilityState({
+          elevDeg: look.elevDeg,
+          sunlit: !isDark(i),
+          solarElevDeg
+        });
+        if (!bestAny || look.elevDeg > bestAny.elevDeg) bestAny = { idx: i, ...look, vis };
+        if (vis === "visible") {
+          visible++;
+          if (!best || look.elevDeg > best.elevDeg) best = { idx: i, ...look, vis };
+        }
+      }
+      const pick = best || bestAny;
+      if (!pick) {
+        this.#prevId = null;
+        return { tracked: null, above, visible };
+      }
+      const obj = objects[pick.idx];
+      const dtSim = (simT - this.#prevSimT) / 1e3;
+      const rangeRate2 = this.#prevId === obj.id && dtSim > 1e-3 ? (pick.rangeKm - this.#prevRange) / dtSim : 0;
+      const changed = this.#prevId !== obj.id;
+      this.#prevId = obj.id;
+      this.#prevRange = pick.rangeKm;
+      this.#prevSimT = simT;
+      let passMin2 = 0;
+      if (best && sunAt) {
+        passMin2 = passEndsInMin((tt) => {
+          positionAtKm(obj, tt, this.#fut);
+          const s2 = sunAt(tt);
+          coreToEci(this.#fut[0], this.#fut[1], this.#fut[2], this.#futEci);
+          const lk = observer.lookAt(
+            this.#futEci[0],
+            this.#futEci[1],
+            this.#futEci[2],
+            s2.gmstDeg
+          );
+          return {
+            elevDeg: lk.elevDeg,
+            sunlit: !inShadow(this.#fut[0], this.#fut[1], this.#fut[2], s2.eciDir),
+            solarElevDeg: solarElevationDeg(
+              observer.lat,
+              observer.lon,
+              s2.declDeg,
+              s2.subsolarLonDeg
+            )
+          };
+        }, simT);
+      }
+      return {
+        tracked: { id: obj.id, name: obj.name, idx: pick.idx, obj, ...pick },
+        isVisible: !!best,
+        changed,
+        rangeRate: rangeRate2,
+        passMin: passMin2,
+        above,
+        visible,
+        solarElevDeg
+      };
+    }
+  };
+
   // src/render/stars_data.js
   var stars_data_default = [[101.29, -16.72, -1.44], [95.99, -52.7, -0.62], [213.92, 19.18, -0.05], [219.91, -60.83, -0.01], [279.23, 38.78, 0.03], [79.17, 46, 0.08], [78.63, -8.2, 0.18], [114.83, 5.22, 0.4], [24.43, -57.24, 0.45], [88.79, 7.41, 0.45], [210.96, -60.37, 0.61], [297.7, 8.87, 0.76], [186.65, -63.1, 0.77], [68.98, 16.51, 0.87], [79.17, 46, 0.96], [201.3, -11.16, 0.98], [247.35, -26.43, 1.06], [116.33, 28.03, 1.16], [344.41, -29.62, 1.17], [191.93, -59.69, 1.25], [310.36, 45.28, 1.25], [219.91, -60.84, 1.35], [152.09, 11.97, 1.36], [104.66, -28.97, 1.5], [113.65, 31.89, 1.58], [187.79, -57.11, 1.59], [263.4, -37.1, 1.62], [81.28, 6.35, 1.64], [81.57, 28.61, 1.65], [138.3, -69.72, 1.67], [84.05, -1.2, 1.69], [332.06, -46.96, 1.73], [85.19, -1.94, 1.74], [122.38, -47.34, 1.75], [193.51, 55.96, 1.76], [51.08, 49.86, 1.79], [276.04, -34.38, 1.79], [165.93, 61.75, 1.81], [107.1, -26.39, 1.83], [206.89, 49.31, 1.85], [125.63, -59.51, 1.86], [264.33, -43, 1.86], [89.88, 44.95, 1.9], [252.17, -69.03, 1.91], [99.43, 16.4, 1.93], [131.18, -54.71, 1.93], [306.41, -56.74, 1.94], [37.95, 89.26, 1.97], [95.67, -17.96, 1.98], [141.9, -8.66, 1.99], [31.79, 23.46, 2.01], [154.99, 19.84, 2.01], [10.9, -17.99, 2.04], [283.82, -26.3, 2.05], [211.67, -36.37, 2.06], [2.1, 29.09, 2.07], [17.43, 35.62, 2.07], [86.94, -9.67, 2.07], [222.68, 74.16, 2.07], [340.67, -46.88, 2.07], [263.73, 12.56, 2.08], [47.04, 40.96, 2.09], [30.97, 42.33, 2.1], [177.26, 14.57, 2.14], [14.18, 60.72, 2.15], [190.38, -48.96, 2.2], [120.9, -40, 2.21], [139.27, -59.28, 2.21], [233.67, 26.71, 2.22], [137, -43.43, 2.23], [200.98, 54.93, 2.23], [305.56, 40.26, 2.23], [10.13, 56.54, 2.24], [269.15, 51.49, 2.24], [83, -0.3, 2.25], [2.29, 59.15, 2.28], [204.97, -53.47, 2.29], [240.08, -22.62, 2.29], [252.54, -34.29, 2.29], [220.48, -47.39, 2.3], [218.88, -42.16, 2.33], [165.46, 56.38, 2.34], [221.25, 27.07, 2.35], [326.05, 9.88, 2.38], [265.62, -39.03, 2.39], [6.57, -42.31, 2.4], [178.46, 53.69, 2.41], [257.59, -15.72, 2.43], [345.94, 28.08, 2.44], [111.02, -29.3, 2.45], [319.64, 62.59, 2.45], [140.53, -55.01, 2.47], [311.55, 33.97, 2.48], [346.19, 15.21, 2.49], [45.57, 4.09, 2.54], [249.29, -10.57, 2.54], [208.89, -47.29, 2.55], [168.53, 20.52, 2.56], [241.36, -19.81, 2.56], [83.18, -17.82, 2.58], [182.09, -50.72, 2.58], [183.95, -17.54, 2.58], [285.65, -29.88, 2.6], [229.25, -9.38, 2.61], [236.07, 6.43, 2.63], [28.66, 20.81, 2.64], [84.91, -34.07, 2.65], [89.93, 37.21, 2.65], [188.6, -23.4, 2.65], [21.45, 60.24, 2.66], [208.67, 18.4, 2.68], [224.63, -43.13, 2.68], [74.25, 33.17, 2.69], [161.69, -49.42, 2.69], [189.3, -69.14, 2.69], [262.69, -37.3, 2.7], [109.29, -37.1, 2.71], [275.25, -29.83, 2.72], [296.56, 10.61, 2.72], [243.59, -3.69, 2.73], [246, 61.51, 2.73], [160.74, -64.39, 2.74], [190.42, -1.45, 2.74], [83.86, -5.91, 2.75], [200.15, -36.71, 2.75], [222.72, -16.04, 2.75], [265.87, 4.57, 2.76], [76.96, -5.09, 2.78], [247.56, 21.49, 2.78], [258.66, 14.39, 2.78], [183.79, -58.75, 2.79], [262.61, 52.3, 2.79], [233.79, -41.17, 2.8], [82.06, -20.76, 2.81], [250.32, 31.6, 2.81], [6.42, -77.25, 2.82], [248.97, -28.22, 2.82], [276.99, -25.42, 2.82], [3.31, 15.18, 2.83], [121.89, -24.3, 2.83], [238.79, -63.43, 2.83], [58.53, 31.88, 2.84], [261.32, -55.53, 2.84], [262.96, -49.88, 2.84], [56.87, 24.11, 2.85], [195.54, 10.96, 2.85], [326.76, -16.13, 2.85], [113.65, 31.89, 2.85], [29.69, -61.57, 2.86], [296.24, 45.13, 2.86], [95.74, 22.51, 2.87], [229.73, -68.68, 2.87], [334.63, -60.26, 2.87], [44.57, -40.3, 2.88], [287.44, -21.02, 2.88], [111.79, 8.29, 2.89], [194.01, 38.32, 2.89], [239.71, -26.11, 2.89], [59.46, 40.01, 2.9], [245.3, -25.59, 2.9], [322.89, -5.57, 2.9], [46.2, 53.51, 2.91], [146.78, -65.07, 2.92], [340.75, 30.22, 2.93], [102.48, -50.61, 2.94], [187.47, -16.52, 2.94], [331.45, -0.32, 2.95], [59.51, -13.51, 2.97], [84.41, 21.14, 2.97], [146.46, 23.77, 2.97], [271.45, -30.42, 2.98], [199.73, -23.17, 2.99], [266.9, -40.13, 2.99], [286.35, 13.86, 2.99], [32.39, 34.99, 3], [167.42, 44.5, 3], [230.18, 71.83, 3], [252.97, -38.05, 3], [328.48, -37.36, 3], [55.73, 47.79, 3.01], [95.08, -30.06, 3.02], [105.76, -23.83, 3.02], [182.53, -22.62, 3.02], [75.49, 43.82, 3.03], [191.57, -68.11, 3.04], [218.02, 38.31, 3.04], [292.68, 27.96, 3.05], [305.25, -14.78, 3.05], [100.98, 25.13, 3.06], [155.58, 41.5, 3.06], [288.14, 67.66, 3.07], [274.41, -36.76, 3.1], [133.85, 5.95, 3.11], [162.41, -16.19, 3.11], [173.95, -63.02, 3.11], [309.39, -47.29, 3.11], [87.74, -35.77, 3.12], [134.8, 48.04, 3.12], [254.66, -55.99, 3.12], [258.76, 24.84, 3.12], [224.79, -42.1, 3.13], [140.26, 34.39, 3.14], [142.81, -57.03, 3.16], [258.76, 36.81, 3.16], [99.44, -43.2, 3.17], [143.22, 51.68, 3.17], [257.2, 65.71, 3.17], [281.41, -26.99, 3.17], [76.63, 41.23, 3.18], [220.63, -64.98, 3.18], [72.46, 6.96, 3.19], [76.37, -22.37, 3.19], [254.42, 9.38, 3.19], [267.46, -37.04, 3.19], [318.23, 30.23, 3.21], [354.84, 77.63, 3.21], [230.34, -40.65, 3.22], [244.58, -4.69, 3.23], [275.33, -2.9, 3.23], [322.16, 70.56, 3.23], [102.05, -61.94, 3.24], [302.83, -0.82, 3.24], [112.31, -43.3, 3.25], [211.59, -26.68, 3.25], [226.02, -25.28, 3.25], [284.74, 32.69, 3.25], [56.81, -74.24, 3.26], [9.83, 30.86, 3.27], [260.5, -25, 3.27], [343.66, -15.82, 3.27], [78.23, -16.21, 3.29], [153.43, -70.04, 3.29], [231.23, 58.97, 3.29], [68.5, -55.04, 3.3], [158.01, -61.69, 3.3], [93.72, 22.51, 3.31], [261.35, -56.38, 3.31], [16.52, -46.72, 3.32], [46.29, 38.84, 3.32], [183.86, 57.03, 3.32], [258.04, -43.24, 3.32], [269.76, -9.77, 3.32], [286.74, -27.67, 3.32], [63.61, -62.47, 3.33], [168.56, 15.43, 3.33], [117.32, -24.86, 3.34], [28.6, 63.67, 3.35], [81.12, -2.4, 3.35], [101.32, 12.9, 3.35], [127.57, 60.72, 3.35], [291.37, 3.11, 3.36], [230.67, -44.69, 3.37], [131.69, 6.42, 3.38], [203.67, -0.6, 3.38], [83.78, 9.93, 3.39], [154.27, -61.33, 3.39], [193.9, 3.4, 3.39], [332.71, 58.2, 3.39], [67.17, 15.87, 3.4], [257.59, -15.73, 3.4], [22.09, -43.32, 3.41], [60.17, 12.49, 3.41], [207.38, -41.69, 3.41], [228.07, -52.1, 3.41], [311.32, 61.84, 3.41], [340.37, 10.83, 3.41], [28.27, 29.58, 3.42], [240.03, -38.4, 3.42], [266.61, 27.72, 3.42], [311.24, -66.2, 3.42], [137.74, -58.97, 3.43], [154.17, 23.42, 3.43], [286.56, -4.88, 3.43], [154.27, 42.91, 3.45], [12.27, 57.82, 3.46], [17.15, -10.18, 3.46], [119.19, -52.98, 3.46], [228.88, 33.31, 3.46], [40.83, 3.24, 3.47], [207.4, -42.47, 3.47], [151.83, 16.76, 3.48], [250.72, 38.92, 3.48], [26.02, -15.94, 3.49], [105.43, -27.93, 3.49], [169.62, 33.09, 3.49], [225.49, 40.39, 3.49], [276.74, -45.97, 3.49], [342.14, -51.32, 3.49], [102.46, -32.51, 3.5], [110.03, 21.98, 3.5], [342.42, 66.2, 3.5], [299.69, 19.49, 3.51], [342.5, 24.6, 3.51], [55.81, -9.76, 3.52], [145.29, 9.89, 3.52], [149.22, -54.57, 3.52], [282.52, 33.36, 3.52], [284.43, -21.11, 3.52], [332.55, 6.2, 3.52], [190.41, -1.45, 3.52], [67.15, 19.18, 3.53], [124.13, 9.19, 3.53], [173.25, -31.86, 3.54], [237.41, -3.43, 3.54], [264.4, -15.4, 3.54], [64.47, -33.8, 3.55], [86.74, -14.82, 3.55], [214.85, -46.06, 3.55], [275.26, 72.73, 3.55], [302.18, -66.18, 3.55], [4.86, -8.82, 3.56], [34.13, -51.51, 3.56], [169.84, -14.78, 3.56], [253.08, -38.02, 3.56], [116.11, 24.4, 3.57], [135.91, 47.16, 3.57], [217.96, 30.37, 3.57], [230.45, -36.26, 3.57], [109.52, 16.54, 3.58], [304.51, -12.54, 3.58], [24.5, 48.63, 3.59], [79.4, -6.84, 3.59], [86.12, -22.45, 3.59], [177.67, 1.76, 3.59], [185.34, -60.4, 3.59], [21.01, -8.18, 3.6], [103.2, 33.96, 3.6], [130.07, -52.92, 3.6], [142.68, -40.47, 3.6], [234.26, -28.14, 3.6], [262.77, -60.68, 3.6], [42.5, 27.26, 3.61], [51.2, 9.03, 3.61], [152.65, -12.35, 3.61], [195.57, -71.55, 3.61], [266.43, -64.72, 3.61], [22.87, 15.35, 3.62], [57.29, 24.05, 3.62], [116.31, -37.97, 3.62], [253.65, -42.36, 3.62], [345.48, 42.33, 3.62], [176.4, -66.73, 3.63], [309.39, 14.6, 3.64], [64.95, 15.63, 3.65], [142.88, 63.06, 3.65], [236.55, 15.42, 3.65], [271.66, -50.09, 3.65], [337.21, -0.02, 3.65], [231.96, 29.11, 3.66], [234.66, -29.78, 3.66], [211.1, 64.38, 3.67], [313.7, -58.45, 3.67], [72.8, 5.61, 3.68], [130.9, -33.19, 3.68], [296.85, 18.53, 3.68], [347.36, -21.17, 3.68], [9.24, 53.9, 3.69], [28.99, -51.61, 3.69], [75.62, 41.08, 3.69], [146.31, -62.51, 3.69], [176.51, 47.78, 3.69], [325.02, -16.66, 3.69], [49.88, -21.76, 3.7], [269.44, 29.25, 3.7], [349.29, 3.28, 3.7], [73.56, 2.44, 3.71], [89.1, -14.17, 3.71], [118.05, -40.58, 3.71], [237.7, 4.48, 3.71], [271.84, 9.56, 3.71], [298.83, 6.41, 3.71], [53.23, -9.46, 3.72], [56.22, 24.11, 3.72], [89.88, 54.28, 3.72], [316.23, 43.93, 3.72], [51.79, 9.73, 3.73], [221.56, 1.89, 3.73], [268.38, 56.87, 3.73], [325.37, -77.39, 3.73], [343.15, -7.58, 3.73], [27.87, -10.34, 3.74], [245.48, 19.15, 3.74], [318.7, 38.05, 3.74], [136.04, -47.1, 3.75], [266.97, 2.71, 3.75], [83.41, -62.49, 3.76], [87.83, -20.88, 3.76], [97.2, -7.03, 3.76], [286.17, -21.74, 3.76], [292.43, 51.73, 3.76], [337.82, 50.28, 3.76], [42.67, 55.9, 3.77], [56.3, 42.58, 3.77], [65.73, 17.54, 3.77], [84.69, -2.6, 3.77], [126.43, -66.14, 3.77], [130.16, -46.65, 3.77], [252.45, -59.04, 3.77], [309.91, 15.91, 3.77], [321.67, -22.41, 3.77], [331.75, 25.35, 3.77], [107.19, -70.5, 3.78], [111.43, 27.8, 3.78], [147.75, 59.04, 3.78], [163.37, -58.85, 3.78], [220.29, 13.73, 3.78], [311.92, -9.5, 3.78], [47.37, 44.86, 3.79], [163.33, 34.21, 3.79], [48.02, -28.99, 3.8], [114.71, -26.8, 3.8], [233.7, 10.54, 3.8], [289.28, 53.37, 3.8], [303.41, 46.74, 3.8], [68.89, -30.56, 3.81], [156.97, -58.74, 3.81], [235.69, 26.3, 3.81], [354.39, 46.46, 3.81], [30.51, 2.76, 3.82], [139.71, 36.8, 3.82], [172.85, 69.33, 3.82], [247.73, 1.98, 3.82], [264.87, 46.01, 3.82], [156.52, -16.84, 3.83], [209.57, -42.1, 3.83], [221.97, -79.04, 3.83], [56.05, -64.81, 3.84], [56.08, 32.29, 3.84], [67.14, 15.96, 3.84], [133.76, -60.64, 3.84], [158.2, 9.31, 3.84], [159.33, -48.23, 3.84], [188.12, -72.13, 3.84], [271.89, 28.76, 3.84], [273.44, -21.06, 3.84], [297.04, 70.27, 3.84], [63.5, -42.29, 3.85], [86.82, -51.07, 3.85], [95.53, -33.44, 3.85], [153.68, -42.12, 3.85], [188.37, 69.79, 3.85], [189.43, -48.54, 3.85], [239.11, 15.66, 3.85], [275.92, 21.77, 3.85], [278.8, -8.24, 3.85], [14.19, 38.5, 3.86], [69.55, -14.3, 3.86], [82.8, -35.47, 3.86], [243.86, -63.69, 3.86], [248.36, -78.9, 3.86], [269.06, 37.25, 3.86], [335.41, -1.39, 3.86], [56.46, 24.37, 3.87], [131.51, -46.04, 3.87], [209.67, -44.8, 3.87], [220.77, -5.66, 3.87], [239.22, -29.21, 3.87], [298.12, 1.01, 3.87], [2.35, -45.75, 3.88], [28.38, 19.29, 3.88], [148.19, 26.01, 3.88], [227.98, -48.74, 3.88], [347.59, -45.25, 3.88], [44.11, -8.9, 3.89], [103.53, -24.18, 3.89], [138.59, 2.31, 3.89], [184.98, -0.67, 3.89], [299.08, 35.08, 3.89], [144.96, -1.14, 3.9], [170.25, -54.49, 3.9], [202.76, -39.41, 3.9], [60.79, 5.99, 3.91], [126.42, -3.91, 3.91], [187.01, -50.23, 3.91], [226.28, -47.05, 3.91], [233.88, -14.79, 3.91], [244.94, 46.31, 3.91], [255.07, 30.93, 3.92], [290.42, -17.85, 3.92], [318.96, 5.25, 3.92], [6.55, -43.68, 3.93], [22.81, -49.07, 3.93], [43.56, 52.76, 3.93], [69.08, -3.35, 3.93], [115.46, -72.61, 3.93], [167.15, -58.98, 3.93], [241.7, -20.67, 3.93], [270.16, 2.93, 3.93], [17.1, -55.25, 3.94], [115.31, -9.55, 3.94], [115.95, -28.95, 3.94], [131.17, 18.15, 3.94], [314.29, 41.17, 3.94], [30.86, 72.42, 3.95], [99.17, -19.26, 3.95], [200.98, 54.92, 3.95], [62.17, 47.71, 3.96], [89.79, -42.82, 3.96], [135.16, 41.78, 3.96], [137.82, -62.32, 3.96], [290.66, -44.46, 3.96], [290.97, -40.62, 3.96], [303.87, 47.71, 3.96], [350.74, -20.1, 3.96], [66.01, -34.02, 3.97], [87.87, 39.15, 3.97], [109.21, -67.96, 3.97], [130.03, -35.31, 3.97], [182.91, -52.37, 3.97], [237.74, -33.63, 3.97], [300.15, -72.91, 3.97], [337.32, -43.5, 3.97], [341.63, 23.57, 3.97], [59.74, 35.79, 3.98], [323.5, 45.59, 3.98], [30, -21.08, 3.99], [93.71, -6.27, 3.99], [156.1, -74.03, 3.99], [201.31, 54.99, 3.99], [349.36, -58.24, 3.99], [135.61, -66.4, 4], [170.98, 10.53, 4], [243, -19.46, 4]];
 
   // src/render/sky.js
-  var D2R8 = Math.PI / 180;
-  var BUCKETS = [
+  var D2R9 = Math.PI / 180;
+  var BUCKETS2 = [
     // [maxMag, alpha, weight]
     [1.5, 235, 3.2],
     [3, 150, 2.2],
     [4.1, 80, 1.5]
   ];
-  var SHELLS = BUCKETS.map(() => []);
+  var SHELLS = BUCKETS2.map(() => []);
   for (const [ra, dec, mag] of stars_data_default) {
-    const b = BUCKETS.findIndex(([m]) => mag <= m);
+    const b = BUCKETS2.findIndex(([m]) => mag <= m);
     if (b < 0) continue;
-    const d = dec * D2R8, r = ra * D2R8;
+    const d = dec * D2R9, r = ra * D2R9;
     SHELLS[b].push(Math.cos(d) * Math.cos(r), -Math.sin(d), Math.cos(d) * Math.sin(r));
   }
   var SHELL_ARRAYS = SHELLS.map((s) => Float32Array.from(s));
   var STAR_COUNT = stars_data_default.length;
   function drawSky(p, rPx) {
     for (let b = 0; b < SHELL_ARRAYS.length; b++) {
-      const a = SHELL_ARRAYS[b], [, alpha, weight] = BUCKETS[b];
+      const a = SHELL_ARRAYS[b], [, alpha, weight] = BUCKETS2[b];
       p.stroke(205, 215, 235, alpha);
       p.strokeWeight(weight);
       p.beginShape(p.POINTS);
@@ -1498,6 +1720,172 @@
       }
     }
   };
+
+  // src/sim/planets.js
+  var D2R10 = Math.PI / 180;
+  var OBLIQUITY = 23.43928 * D2R10;
+  var ELEMENTS = [
+    [
+      "Mercury",
+      0.38709927,
+      37e-8,
+      0.20563593,
+      1906e-8,
+      7.00497902,
+      -594749e-8,
+      252.2503235,
+      149472.67411175,
+      77.45779628,
+      0.16047689,
+      48.33076593,
+      -0.12534081
+    ],
+    [
+      "Venus",
+      0.72333566,
+      39e-7,
+      677672e-8,
+      -4107e-8,
+      3.39467605,
+      -7889e-7,
+      181.9790995,
+      58517.81538729,
+      131.60246718,
+      268329e-8,
+      76.67984255,
+      -0.27769418
+    ],
+    [
+      "Earth",
+      1.00000261,
+      562e-8,
+      0.01671123,
+      -4392e-8,
+      -1531e-8,
+      -0.01294668,
+      100.46457166,
+      35999.37244981,
+      102.93768193,
+      0.32327364,
+      0,
+      0
+    ],
+    [
+      "Mars",
+      1.52371034,
+      1847e-8,
+      0.0933941,
+      7882e-8,
+      1.84969142,
+      -813131e-8,
+      -4.55343205,
+      19140.30268499,
+      -23.94362959,
+      0.44441088,
+      49.55953891,
+      -0.29257343
+    ],
+    [
+      "Jupiter",
+      5.202887,
+      -11607e-8,
+      0.04838624,
+      -13253e-8,
+      1.30439695,
+      -183714e-8,
+      34.39644051,
+      3034.74612775,
+      14.72847983,
+      0.21252668,
+      100.47390909,
+      0.20469106
+    ],
+    [
+      "Saturn",
+      9.53667594,
+      -12506e-7,
+      0.05386179,
+      -50991e-8,
+      2.48599187,
+      193609e-8,
+      49.95424423,
+      1222.49362201,
+      92.59887831,
+      -0.41897216,
+      113.66242448,
+      -0.28867794
+    ]
+  ];
+  var PLANET_META = {
+    // radius km, sidereal period d, [r,g,b]
+    Mercury: { radiusKm: 2440, periodDays: 87.969, rgb: [169, 160, 152] },
+    Venus: { radiusKm: 6052, periodDays: 224.701, rgb: [232, 202, 152] },
+    Earth: { radiusKm: 6371, periodDays: 365.256, rgb: [110, 150, 210] },
+    Mars: { radiusKm: 3390, periodDays: 686.98, rgb: [214, 121, 79] },
+    Jupiter: { radiusKm: 69911, periodDays: 4332.589, rgb: [216, 176, 132] },
+    Saturn: { radiusKm: 58232, periodDays: 10759.22, rgb: [226, 200, 150] }
+  };
+  function solveKepler(Mrad, e) {
+    let E = e < 0.8 ? Mrad : Math.PI;
+    for (let k = 0; k < 12; k++) {
+      const d = (E - e * Math.sin(E) - Mrad) / (1 - e * Math.cos(E));
+      E -= d;
+      if (Math.abs(d) < 1e-10) break;
+    }
+    return E;
+  }
+  var wrap = (d) => (d % 360 + 360) % 360;
+  function planetStates(tMs) {
+    const T = (tMs / 864e5 + 24405875e-1 - 2451545) / 36525;
+    return ELEMENTS.map(([name, a0, aD, e0, eD, I0, ID, L0, LD, p0, pD, n0, nD]) => {
+      const a = a0 + aD * T, e = e0 + eD * T;
+      const I = (I0 + ID * T) * D2R10, peri = p0 + pD * T, node = n0 + nD * T;
+      const M = wrap(L0 + LD * T - peri) * D2R10;
+      const w = (peri - node) * D2R10, O = node * D2R10;
+      const E = solveKepler(M, e);
+      const xp = a * (Math.cos(E) - e);
+      const yp = a * Math.sqrt(1 - e * e) * Math.sin(E);
+      const cw = Math.cos(w), sw = Math.sin(w), cO = Math.cos(O), sO = Math.sin(O);
+      const ci = Math.cos(I), si = Math.sin(I);
+      const x = (cw * cO - sw * sO * ci) * xp + (-sw * cO - cw * sO * ci) * yp;
+      const y = (cw * sO + sw * cO * ci) * xp + (-sw * sO + cw * cO * ci) * yp;
+      const z = sw * si * xp + cw * si * yp;
+      return {
+        name,
+        xyzAU: [x, y, z],
+        a,
+        lonDeg: wrap(Math.atan2(y, x) / D2R10),
+        distAU: Math.hypot(x, y, z),
+        ...PLANET_META[name]
+      };
+    });
+  }
+  function moonState(tMs) {
+    const n = tMs / 864e5 + 24405875e-1 - 2451545;
+    const L = 218.316 + 13.176396 * n;
+    const M = (134.963 + 13.064993 * n) * D2R10;
+    const F = (93.272 + 13.22935 * n) * D2R10;
+    return {
+      lonDeg: wrap(L + 6.289 * Math.sin(M)),
+      latDeg: 5.128 * Math.sin(F),
+      distKm: 385001 - 20905 * Math.cos(M)
+    };
+  }
+  function eclipticToP5(x, y, z, out, o = 0) {
+    const ce = Math.cos(OBLIQUITY), se = Math.sin(OBLIQUITY);
+    const yq = y * ce - z * se, zq = y * se + z * ce;
+    out[o] = x;
+    out[o + 1] = -zq;
+    out[o + 2] = yq;
+    return out;
+  }
+  function compressAU(rAU, rMaxPx, aMaxAU = 9.6) {
+    const k = (a) => Math.log1p(a / 0.25);
+    return rMaxPx * k(Math.max(0, rAU)) / k(aMaxAU);
+  }
+  function planetHz(periodDays, octaves = 35) {
+    return 1 / (periodDays * 86400) * 2 ** octaves;
+  }
 
   // src/render/system.js
   var v = new Float32Array(3);
@@ -1749,17 +2137,22 @@
   var galleryHold = 0;
   var moonV = new Float32Array(3);
   var tracked = null;
-  var prevRange = 0;
-  var prevSimT = 0;
   var rangeRate = 0;
   var aboveCount = 0;
   var visibleCount = 0;
   var passMin = 0;
-  var satEci = new Float64Array(3);
   var zenCore = new Float32Array(3);
-  var futCore = new Float64Array(3);
-  var futEci = new Float64Array(3);
   var sightSat = new Float32Array(3);
+  var aurora = new AuroraLayer();
+  var tracker = new SkyTracker();
+  var weather = { ...QUIET_BASELINE, liveFields: 0, totalFields: 6 };
+  async function loadWeather() {
+    try {
+      weather = await spaceweather_default.load();
+    } catch {
+    }
+    refreshHud();
+  }
   function currentVoices() {
     if (state.view === "system")
       return planetStates(state.simT).map((s) => ({ id: s.name, hz: planetHz(s.periodDays) }));
@@ -1827,6 +2220,9 @@
     setText("s-snd", state.soundOn ? "on" : "off");
     setText("s-fold", state.folds === 1 ? "off" : state.folds + "-fold");
     setText("s-inst", armillary ? armillary.label : "off");
+    setText("s-kp", "Kp " + weather.kp.toFixed(1) + " · G" + weather.scaleG + " · " + weather.liveFields + "/" + weather.totalFields + " live (" + weather.source + ")");
+    setText("s-sw", Math.round(weather.windSpeedKmS) + " km/s · " + weather.windDensity.toFixed(1) + " p/cm³ · Bz " + weather.bzNt.toFixed(1) + " nT · F10.7 " + Math.round(weather.f107));
+    setText("s-aur", aurora.visible ? aurora.source + " · " + aurora.activeCount + " cells" : "hidden");
     setText("s-obs", state.observer ? state.observer.label + " (" + state.observer.source + ")" : "off");
     updateObserverHud();
     if (state.focusStep > 0 && notables.length) {
@@ -1834,7 +2230,7 @@
       const o = state.objects[n.idx];
       setText("s-focus", n.key + " · " + o.name);
       setText("s-fdet", Math.round(o.altKm) + " km · " + o.periodMin.toFixed(1) + " min · " + o.freqHz.toFixed(0) + " Hz");
-      const gd = GeomDynamics.fromOrbit(o);
+      const gd = GeomDynamics.fromOrbit(o, weather.f107);
       setText("s-fdyn", gd.spd.toFixed(2) + " km/s · g " + (gd.gravity * 1e3).toFixed(2) + " m/s² · node " + gd.friction.toFixed(2) + "°/day · drag " + gd.damping.toExponential(1) + " rel");
     } else {
       setText("s-focus", "off");
@@ -1851,6 +2247,8 @@
       state.reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       lastReal = performance.now();
       loadGroup();
+      loadWeather();
+      setInterval(loadWeather, spaceweather_default.refreshMs);
     };
     p.windowResized = () => p.resizeCanvas(p.windowWidth, p.windowHeight);
     p.draw = () => {
@@ -1932,6 +2330,10 @@
       p.push();
       p.rotateY(-sun.gmstDeg * Math.PI / 180);
       drawEarth(p, R_EARTH_KM3 * kmToPx, sunEF);
+      aurora.update(weather.kp, sun.subsolarLonDeg);
+      p.blendMode(p.ADD);
+      aurora.draw(p, R_EARTH_KM3 * kmToPx, kmToPx);
+      p.blendMode(p.BLEND);
       if (focused >= 0 && track.n > 1) {
         const rT = R_EARTH_KM3 * kmToPx * 1.006;
         p.strokeWeight(1.6);
@@ -2059,83 +2461,57 @@
       );
       const obs = state.observer;
       if (obs) {
-        const sunEl = solarElevationDeg(obs.lat, obs.lon, sun.declDeg, sun.subsolarLonDeg);
-        aboveCount = 0;
-        visibleCount = 0;
-        let best = null, bestAny = null;
-        for (let i = 0; i < state.objects.length; i++) {
-          coreToEci(headsKm[i * 3], headsKm[i * 3 + 1], headsKm[i * 3 + 2], satEci);
-          const look = obs.lookAt(satEci[0], satEci[1], satEci[2], sun.gmstDeg);
-          if (look.elevDeg < MIN_ELEV_DEG) continue;
-          aboveCount++;
-          const vis = visibilityState({
-            elevDeg: look.elevDeg,
-            sunlit: !state.objects[i]._dark,
-            solarElevDeg: sunEl
-          });
-          if (!bestAny || look.elevDeg > bestAny.elevDeg) bestAny = { idx: i, ...look, vis };
-          if (vis === "visible") {
-            visibleCount++;
-            if (!best || look.elevDeg > best.elevDeg) best = { idx: i, ...look, vis };
-          }
-        }
-        const pick = best || bestAny;
         obs.zenithCore(sun.gmstDeg, zenCore);
         arm.observer.sync(zenCore);
-        if (pick) {
-          const o = state.objects[pick.idx];
-          const dtSim = (state.simT - prevSimT) / 1e3;
-          rangeRate = tracked && tracked.id === o.id && dtSim > 1e-3 ? (pick.rangeKm - prevRange) / dtSim : 0;
-          prevRange = pick.rangeKm;
-          prevSimT = state.simT;
-          const changed = !tracked || tracked.id !== o.id;
-          tracked = { id: o.id, name: o.name, ...pick };
-          passMin = best ? passEndsInMin((tt) => {
+        const res = tracker.update({
+          observer: obs,
+          objects: state.objects,
+          headsKm,
+          sun,
+          sunAt: sunEphemeris,
+          simT: state.simT,
+          isDark: (i) => !!state.objects[i]._dark,
+          positionAtKm: (o, tt, out) => {
             const fp = celestrak_default.propagate(o, tt);
             orbital3D(
               o.incl,
               o.raan,
               o.argp + fp.meanAnomaly,
               scaledRadiusKm(o.altKm, 1),
-              futCore,
+              out,
               0
             );
-            const s2 = sunEphemeris(tt);
-            coreToEci(futCore[0], futCore[1], futCore[2], futEci);
-            const lk = obs.lookAt(futEci[0], futEci[1], futEci[2], s2.gmstDeg);
-            return {
-              elevDeg: lk.elevDeg,
-              sunlit: !inShadow(futCore[0], futCore[1], futCore[2], s2.eciDir),
-              solarElevDeg: solarElevationDeg(obs.lat, obs.lon, s2.declDeg, s2.subsolarLonDeg)
-            };
-          }, state.simT) : 0;
-          if (best) {
-            const ph2 = celestrak_default.propagate(o, state.simT);
-            orbital3D(
-              o.incl,
-              o.raan,
-              o.argp + ph2.meanAnomaly,
-              scaledRadiusKm(o.altKm, exag) * kmToPx,
-              sightSat,
-              0
-            );
-            const rE = R_EARTH_KM3 * kmToPx;
-            arm.observer.sight.set(
-              zenCore[0] * rE,
-              zenCore[1] * rE,
-              zenCore[2] * rE,
-              sightSat[0],
-              sightSat[1],
-              sightSat[2]
-            );
-          } else arm.observer.sight.clear();
-          if (state.soundOn && state.focusStep === 0) {
-            if (changed) sonifier.solo(o.freqHz);
-            sonifier.soloPitch(audibleDoppler(o.freqHz, rangeRate));
           }
-        } else {
-          tracked = null;
-          arm.observer.sight.clear();
+        });
+        aboveCount = res ? res.above : 0;
+        visibleCount = res ? res.visible : 0;
+        tracked = res && res.tracked ? res.tracked : null;
+        rangeRate = res && res.tracked ? res.rangeRate : 0;
+        passMin = res && res.tracked ? res.passMin : 0;
+        if (tracked && res.isVisible) {
+          const o = tracked.obj;
+          const ph2 = celestrak_default.propagate(o, state.simT);
+          orbital3D(
+            o.incl,
+            o.raan,
+            o.argp + ph2.meanAnomaly,
+            scaledRadiusKm(o.altKm, exag) * kmToPx,
+            sightSat,
+            0
+          );
+          const rE = R_EARTH_KM3 * kmToPx;
+          arm.observer.sight.set(
+            zenCore[0] * rE,
+            zenCore[1] * rE,
+            zenCore[2] * rE,
+            sightSat[0],
+            sightSat[1],
+            sightSat[2]
+          );
+        } else arm.observer.sight.clear();
+        if (tracked && state.soundOn && state.focusStep === 0) {
+          if (res.changed) sonifier.solo(tracked.obj.freqHz);
+          sonifier.soloPitch(audibleDoppler(tracked.obj.freqHz, rangeRate));
         }
       } else if (arm.observer.active) {
         arm.observer.active = false;
@@ -2219,6 +2595,9 @@
             );
           } else useFallback();
         }
+      } else if (k === "w") {
+        aurora.visible = !aurora.visible;
+        refreshHud();
       } else if (k === "a") {
         if (armillary) armillary.cycleMode();
         refreshHud();

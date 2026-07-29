@@ -31,6 +31,10 @@
   #panel{max-width:min(48vw,340px)}
   #lookup{max-width:min(92vw,660px);text-align:center;line-height:1.5}
   #legend{max-width:min(34vw,230px)}
+  #lookup{display:none;position:fixed;top:16px;left:50%;transform:translateX(-50%);
+    background:rgba(38,26,10,.9);border:1px solid #7a5c22;border-radius:6px;
+    padding:8px 18px;color:#ffdf9e;letter-spacing:.06em;pointer-events:none;
+    max-width:min(92vw,660px);text-align:center;line-height:1.5}
 </style>
 <script type="importmap">
 { "imports": {
@@ -49,14 +53,28 @@
     <tr><td>time</td><td id="s-time">—</td></tr>
     <tr><td>scale</td><td id="s-exag">—</td></tr>
     <tr><td>sound</td><td id="s-snd">off</td></tr>
+    <tr><td>space wx</td><td id="s-kp">—</td></tr>
+    <tr><td>solar wind</td><td id="s-sw">—</td></tr>
+    <tr><td>aurora</td><td id="s-aur">—</td></tr>
+    <tr><td>observer</td><td id="s-obs">off</td></tr>
+    <tr><td>overhead</td><td id="s-pass">—</td></tr>
+    <tr><td>range rate</td><td id="s-dop">—</td></tr>
+    <tr><td>instrument</td><td id="s-inst">cage</td></tr>
+    <tr><td>focus</td><td id="s-focus">off</td></tr>
+    <tr><td></td><td id="s-fdyn">—</td></tr>
   </table>
 </div>
+<div id="lookup"></div>
 <div id="footer">
   <div id="prov">
-    <div>elements: CelesTrak &middot; stars: HYG &middot; sun: computed ephemeris</div>
+    <div>elements: CelesTrak &middot; stars: HYG &middot; space weather: NOAA SWPC &middot; sun &amp; moon: computed</div>
+    <div>aurora oval is a dipole approximation &middot; observer coordinates stay in this tab</div>
     <div>same tested core as the mandala build &mdash; this one trades the kaleidoscope for fidelity</div>
   </div>
-  <div id="keys">drag rotate &middot; scroll zoom &middot; F focus &middot; G group &middot; T time &middot; E scale &middot; Space pause &middot; M sound</div>
+  <div id="keys">
+    <div>drag rotate &middot; scroll zoom &middot; O observer &middot; A instrument &middot; W aurora</div>
+    <div>F focus &middot; G group &middot; T time &middot; E scale &middot; Space pause &middot; M sound &middot; S save</div>
+  </div>
 </div>
 <script type="module" src="./js/three/main.js"></script>
 </body>

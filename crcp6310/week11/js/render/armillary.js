@@ -29,12 +29,15 @@
 
 'use strict';
 
-import { Structure, GeomStyle, basisFromNormal } from './structures.js';
-import { eclipticToP5 } from '../sim/planets.js';
+import { Structure, GeomStyle } from './structures.js';
 import { GeomDynamics } from '../core/dynamics.js';
+/* orientation + graduation math is shared with the Three build */
+import { basisFromNormal, tickAngles, meridianNormal, localMeridianNormal,
+         eclipticPole, OBLIQUITY_DEG } from '../core/geom.js';
+export { tickAngles, meridianNormal, localMeridianNormal, eclipticPole,
+         OBLIQUITY_DEG };
 
-const TAU = Math.PI * 2, D2R = Math.PI / 180;
-export const OBLIQUITY_DEG = 23.43928;
+const TAU = Math.PI * 2;
 /* Earth's rotation: one sidereal day = 86164.0905 s */
 export const SIDEREAL_RAD_PER_SEC = TAU / 86164.0905;
 
@@ -56,29 +59,6 @@ export const BRASS = {
 };
 
 /* --- pure geometry, exported for the headless suite ---------------------- */
-
-/* tick angles around a circle: major divisions with minor subdivisions */
-export function tickAngles(major, minorPerMajor) {
-  const out = [];
-  for (let i = 0; i < major; i++) {
-    out.push({ theta: i / major * TAU, major: true });
-    for (let j = 1; j < minorPerMajor; j++)
-      out.push({ theta: (i + j / minorPerMajor) / major * TAU, major: false });
-  }
-  return out;
-}
-
-/* the Greenwich meridian plane's normal, in the celestial frame, at GMST */
-export function meridianNormal(gmstDeg, out) {
-  const g = gmstDeg * D2R;
-  out[0] = -Math.sin(g); out[1] = 0; out[2] = Math.cos(g);
-  return out;
-}
-
-/* the ecliptic pole in the core frame (tilted from the celestial pole) */
-export function eclipticPole(out) {
-  return eclipticToP5(0, 0, 1, out);
-}
 
 /* --- 2D structure: a great-circle ring on an oriented plane ------------- */
 
@@ -202,15 +182,6 @@ export class Pointer extends Structure {
     p.sphere(this.tipRadius, 6, 5);
     p.pop();
   }
-}
-
-/* the local meridian plane's normal: perpendicular to both the zenith and
-   the celestial pole. With north = -Y this reduces to (zz, 0, -zx). */
-export function localMeridianNormal(zx, zy, zz, out) {
-  const d = Math.hypot(zz, zx);
-  if (d < 1e-9) { out[0] = 1; out[1] = 0; out[2] = 0; return out; }  // at a pole
-  out[0] = zz / d; out[1] = 0; out[2] = -zx / d;
-  return out;
 }
 
 /* --- 3D structure: a sight line from the observer to a tracked object --- */
