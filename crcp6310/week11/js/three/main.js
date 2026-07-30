@@ -45,6 +45,7 @@ import { Sonifier } from '../audio.js';
 import { EnsemblePoints, TrailLines } from './ensemble.js';
 import { Earth, Sky, Sun } from './scenery.js';
 import { AuroraPoints } from './aurora.js';
+import { parseOvation } from '../sim/aurora.js';
 import { ArmillaryThree } from './instrument.js';
 
 const $ = id => document.getElementById(id);
@@ -196,6 +197,11 @@ class OrbitaThree {
 
   async loadWeather() {
     try { this.weather = await swpc.load(); } catch { /* quiet baseline */ }
+    this.hud();
+    try {
+      const grid = await swpc.loadAurora(parseOvation);
+      if (grid) this.aurora.setOvation(grid);
+    } catch { /* the computed oval stands in */ }
     this.hud();
   }
 
@@ -502,7 +508,7 @@ class OrbitaThree {
     setText('s-sw', Math.round(w.windSpeedKmS) + ' km/s \u00b7 Bz '
       + w.bzNt.toFixed(1) + ' nT \u00b7 F10.7 ' + Math.round(w.f107));
     setText('s-aur', this.aurora.visible
-      ? 'oval from live Kp \u00b7 ' + this.aurora.activeCount + ' cells' : 'hidden');
+      ? this.aurora.source + ' \u00b7 ' + this.aurora.activeCount + ' cells' : 'hidden');
     setText('s-obs', state.observer
       ? state.observer.label + ' (' + state.observer.source + ')' : 'off');
     const banner = $('lookup');

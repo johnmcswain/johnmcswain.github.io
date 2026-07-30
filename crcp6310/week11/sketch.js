@@ -1418,13 +1418,17 @@
     /* ordered candidates per field; first success wins */
     chains() {
       return {
-        kp: [`${BASE}/products/noaa-planetary-k-index.json`],
-        speed: [
+        kp: [
+          `${BASE}/products/noaa-planetary-k-index.json`,
+          `${BASE}/json/planetary_k_index_1m.json`
+        ],
+        wind: [
+          `${BASE}/json/rtsw/rtsw_wind_1m.json`,
           `${BASE}/products/summary/solar-wind-speed.json`,
           `${BASE}/products/solar-wind/plasma-1-day.json`
         ],
-        plasma: [`${BASE}/products/solar-wind/plasma-1-day.json`],
         bz: [
+          `${BASE}/json/rtsw/rtsw_mag_1m.json`,
           `${BASE}/products/summary/solar-wind-mag-field.json`,
           `${BASE}/products/solar-wind/mag-1-day.json`
         ],
@@ -1437,6 +1441,34 @@
     }
     get failedUrls() {
       return this.#failed;
+    }
+    /* The OVATION grid is ~899 KB and the model updates every few minutes;
+       refetching it on the conditions cadence would be rude and pointless, so
+       it has its own slow cadence and its own cache. Returns the parsed grid
+       or null, in which case the aurora falls back to the Kp-driven oval. */
+    auroraRefreshMs = 18e5;
+    #auroraCache = null;
+    #auroraAt = 0;
+    async loadAurora(parse) {
+      const now = Date.now();
+      if (this.#auroraCache && now - this.#auroraAt < this.auroraRefreshMs)
+        return this.#auroraCache;
+      const url = `${BASE}/json/ovation_aurora_latest.json`;
+      if (this.#failed.has(url)) return null;
+      try {
+        const res = await this.#fetchImpl(url);
+        if (!res.ok) {
+          this.#failed.add(url);
+          return null;
+        }
+        this.#auroraCache = parse(await res.json());
+        this.#auroraAt = now;
+        if (!this.#auroraCache) this.#failed.add(url);
+        return this.#auroraCache;
+      } catch {
+        this.#failed.add(url);
+        return null;
+      }
     }
     /* Each field is independent: one failure costs one number, not the set. */
     async load() {
@@ -1459,24 +1491,17 @@
         }
         return null;
       };
-      const keys = ["kp", "speed", "plasma", "bz", "scales", "f107"];
-      const [kpRaw, speedRaw, plasmaRaw, bzRaw, scalesRaw, f107Raw] = await Promise.all(keys.map(tryChain));
-      this.#cache = this.normalize({
-        kpRaw,
-        speedRaw,
-        plasmaRaw,
-        bzRaw,
-        scalesRaw,
-        f107Raw
-      });
+      const keys = ["kp", "wind", "bz", "scales", "f107"];
+      const [kpRaw, windRaw, bzRaw, scalesRaw, f107Raw] = await Promise.all(keys.map(tryChain));
+      this.#cache = this.normalize({ kpRaw, windRaw, bzRaw, scalesRaw, f107Raw });
       this.#fetchedAt = now;
       return this.#cache;
     }
-    normalize({ kpRaw, speedRaw, plasmaRaw, bzRaw, magRaw, scalesRaw, f107Raw }) {
+    normalize({ kpRaw, windRaw, bzRaw, scalesRaw, f107Raw }) {
       const kp = readField(kpRaw, "kp");
-      const speed = readField(speedRaw, "speed") ?? readField(plasmaRaw, "speed");
-      const dens = readField(plasmaRaw, "density");
-      const bz = readField(bzRaw, "bz") ?? readField(magRaw ?? bzRaw, "bz");
+      const speed = readField(windRaw, "speed");
+      const dens = readField(windRaw, "density");
+      const bz = readField(bzRaw, "bz");
       const f107 = readField(f107Raw, "flux");
       const scaleG = readScaleG(scalesRaw);
       const live = [kp, speed, dens, bz, f107, scaleG].filter((v2) => v2 !== null).length;
@@ -1545,6 +1570,28 @@
       vectors: Float32Array.from(vecs),
       latlon: Float32Array.from(ll),
       count: ll.length / 2
+    };
+  }
+  function parseOvation(payload, { stride = 6, minValue = 4 } = {}) {
+    const coords = payload && payload.coordinates;
+    if (!Array.isArray(coords) || coords.length < 1e3) return null;
+    const probe = coords[0];
+    if (!Array.isArray(probe) || probe.length < 3) return null;
+    if (!probe.every((v2) => Number.isFinite(Number(v2)))) return null;
+    const out = [];
+    for (let i = 0; i < coords.length; i += stride) {
+      const c = coords[i];
+      if (!Array.isArray(c) || c.length < 3) continue;
+      const lon = Number(c[0]), lat = Number(c[1]), val = Number(c[2]);
+      if (!Number.isFinite(lon) || !Number.isFinite(lat) || !Number.isFinite(val)) continue;
+      if (lat < -90 || lat > 90 || val < minValue) continue;
+      out.push(lat, ((lon + 180) % 360 + 360) % 360 - 180, Math.min(1, val / 100));
+    }
+    if (out.length < 30) return null;
+    return {
+      points: Float32Array.from(out),
+      count: out.length / 3,
+      observationTime: payload["Observation Time"] ?? payload.observationTime ?? null
     };
   }
 
@@ -2255,6 +2302,12 @@
   async function loadWeather() {
     try {
       weather = await spaceweather_default.load();
+    } catch {
+    }
+    refreshHud();
+    try {
+      const grid = await spaceweather_default.loadAurora(parseOvation);
+      if (grid) aurora.setOvation(grid);
     } catch {
     }
     refreshHud();

@@ -24,6 +24,7 @@ import { Observer, compassPoint, audibleDoppler, MIN_ELEV_DEG }
   from './sim/observer.js';
 import swpc, { QUIET_BASELINE } from './feeds/spaceweather.js';
 import { AuroraLayer } from './render/aurora.js';
+import { parseOvation } from './sim/aurora.js';
 import { SkyTracker } from './sim/tracker.js';
 import { sunEphemeris, sunDiscRadius } from './sim/sun.js';
 import { drawSky } from './render/sky.js';
@@ -75,6 +76,12 @@ const tracker = new SkyTracker();
 let weather = { ...QUIET_BASELINE, liveFields: 0, totalFields: 6 };
 async function loadWeather() {
   try { weather = await swpc.load(); } catch { /* keeps the quiet baseline */ }
+  refreshHud();
+  /* the real model output, if it is reachable and its shape is recognised */
+  try {
+    const grid = await swpc.loadAurora(parseOvation);
+    if (grid) aurora.setOvation(grid);
+  } catch { /* the computed oval stands in */ }
   refreshHud();
 }
 

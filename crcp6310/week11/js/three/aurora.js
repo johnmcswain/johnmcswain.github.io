@@ -30,6 +30,7 @@ export class AuroraPoints {
   #pos; #col; #size;
   #frame = 0;
   #count = 0;
+  #ovation = null;
 
   constructor(earthRadiusUnits, kmToUnits) {
     this.#grid = auroraGrid();
@@ -60,21 +61,51 @@ export class AuroraPoints {
   }
 
   get activeCount() { return this.#count; }
+  get source() { return this.#ovation ? 'OVATION grid' : 'oval from live Kp'; }
+
+  /* an accepted OVATION parse replaces the computed oval; null restores it */
+  setOvation(parsed) {
+    this.#ovation = parsed;
+    if (parsed && parsed.count * 3 > this.#pos.length) {
+      this.#pos = new Float32Array(parsed.count * 3);
+      this.#col = new Float32Array(parsed.count * 3);
+      this.#size = new Float32Array(parsed.count);
+      this.geo.setAttribute('position', new THREE.BufferAttribute(this.#pos, 3));
+      this.geo.setAttribute('color', new THREE.BufferAttribute(this.#col, 3));
+      this.geo.setAttribute('size', new THREE.BufferAttribute(this.#size, 1));
+    }
+    this.#frame = 0;
+  }
 
   update(kp, subsolarLonDeg) {
     this.points.visible = this.visible;
     if (!this.visible || this.#frame++ % RECOMPUTE_FRAMES !== 0) return;
-    const { vectors, latlon, count } = this.#grid;
     let n = 0;
-    for (let i = 0; i < count; i++) {
-      const v = ovalIntensity(kp, latlon[i*2], latlon[i*2+1], subsolarLonDeg);
-      if (v <= 0.05) continue;
-      this.#pos[n*3]   = vectors[i*3]   * this.radius;
-      this.#pos[n*3+1] = vectors[i*3+1] * this.radius;
-      this.#pos[n*3+2] = vectors[i*3+2] * this.radius;
-      auroraColour(v, this.#col, n * 3);
-      this.#size[n] = 2.0 + 3.4 * v;
-      n++;
+    if (this.#ovation) {
+      const pts = this.#ovation.points;
+      for (let i = 0; i < pts.length && n * 3 + 3 <= this.#pos.length; i += 3) {
+        const v = pts[i + 2];
+        if (v <= 0.05) continue;
+        const la = pts[i] * Math.PI / 180, lo = pts[i + 1] * Math.PI / 180;
+        this.#pos[n*3]   = Math.cos(la) * Math.cos(lo) * this.radius;
+        this.#pos[n*3+1] = -Math.sin(la) * this.radius;
+        this.#pos[n*3+2] = Math.cos(la) * Math.sin(lo) * this.radius;
+        auroraColour(v, this.#col, n * 3);
+        this.#size[n] = 2.0 + 3.4 * v;
+        n++;
+      }
+    } else {
+      const { vectors, latlon, count } = this.#grid;
+      for (let i = 0; i < count; i++) {
+        const v = ovalIntensity(kp, latlon[i*2], latlon[i*2+1], subsolarLonDeg);
+        if (v <= 0.05) continue;
+        this.#pos[n*3]   = vectors[i*3]   * this.radius;
+        this.#pos[n*3+1] = vectors[i*3+1] * this.radius;
+        this.#pos[n*3+2] = vectors[i*3+2] * this.radius;
+        auroraColour(v, this.#col, n * 3);
+        this.#size[n] = 2.0 + 3.4 * v;
+        n++;
+      }
     }
     this.#count = n;
     this.geo.setDrawRange(0, n);

@@ -11,13 +11,21 @@
   and are tried first.
 
     Kp        products/noaa-planetary-k-index.json
-    speed     products/summary/solar-wind-speed.json
-              -> products/solar-wind/plasma-1-day.json   (legacy, no CORS)
-    density   products/solar-wind/plasma-1-day.json       (legacy only)
-    Bz        products/summary/solar-wind-mag-field.json
+              -> json/planetary_k_index_1m.json
+    wind      json/rtsw/rtsw_wind_1m.json     (speed AND density)
+              -> products/summary/solar-wind-speed.json
+              -> products/solar-wind/plasma-1-day.json    (legacy, no CORS)
+    Bz        json/rtsw/rtsw_mag_1m.json
+              -> products/summary/solar-wind-mag-field.json
               -> products/solar-wind/mag-1-day.json       (legacy, no CORS)
     scales    products/noaa-scales.json
     F10.7     products/10cm-flux-30-day.json -> json/f107_cm_flux.json
+    aurora    json/ovation_aurora_latest.json (899 KB, its own slow cadence)
+
+  The /json/rtsw/ pair are SWPC's own documented replacements for the
+  deprecated /products/solar-wind/ files, they live in the tree that does
+  serve CORS, and they carry numeric (unquoted) values plus source/active
+  metadata. They are tried first for exactly those reasons.
 
   A blocked cross-origin request is logged by the browser no matter how the
   code handles it, so the console will show CORS lines for any legacy URL
@@ -114,11 +122,13 @@ export class SpaceWeatherFeed {
   /* ordered candidates per field; first success wins */
   chains() {
     return {
-      kp:     [`${BASE}/products/noaa-planetary-k-index.json`],
-      speed:  [`${BASE}/products/summary/solar-wind-speed.json`,
+      kp:     [`${BASE}/products/noaa-planetary-k-index.json`,
+               `${BASE}/json/planetary_k_index_1m.json`],
+      wind:   [`${BASE}/json/rtsw/rtsw_wind_1m.json`,
+               `${BASE}/products/summary/solar-wind-speed.json`,
                `${BASE}/products/solar-wind/plasma-1-day.json`],
-      plasma: [`${BASE}/products/solar-wind/plasma-1-day.json`],
-      bz:     [`${BASE}/products/summary/solar-wind-mag-field.json`,
+      bz:     [`${BASE}/json/rtsw/rtsw_mag_1m.json`,
+               `${BASE}/products/summary/solar-wind-mag-field.json`,
                `${BASE}/products/solar-wind/mag-1-day.json`],
       scales: [`${BASE}/products/noaa-scales.json`],
       f107:   [`${BASE}/products/10cm-flux-30-day.json`,
@@ -127,6 +137,30 @@ export class SpaceWeatherFeed {
   }
 
   get failedUrls() { return this.#failed; }
+
+  /* The OVATION grid is ~899 KB and the model updates every few minutes;
+     refetching it on the conditions cadence would be rude and pointless, so
+     it has its own slow cadence and its own cache. Returns the parsed grid
+     or null, in which case the aurora falls back to the Kp-driven oval. */
+  auroraRefreshMs = 1800000;
+  #auroraCache = null;
+  #auroraAt = 0;
+
+  async loadAurora(parse) {
+    const now = Date.now();
+    if (this.#auroraCache && now - this.#auroraAt < this.auroraRefreshMs)
+      return this.#auroraCache;
+    const url = `${BASE}/json/ovation_aurora_latest.json`;
+    if (this.#failed.has(url)) return null;
+    try {
+      const res = await this.#fetchImpl(url);
+      if (!res.ok) { this.#failed.add(url); return null; }
+      this.#auroraCache = parse(await res.json());
+      this.#auroraAt = now;
+      if (!this.#auroraCache) this.#failed.add(url);   // shape not recognised
+      return this.#auroraCache;
+    } catch { this.#failed.add(url); return null; }
+  }
 
   /* Each field is independent: one failure costs one number, not the set. */
   async load() {
@@ -144,22 +178,22 @@ export class SpaceWeatherFeed {
       }
       return null;
     };
-    const keys = ['kp', 'speed', 'plasma', 'bz', 'scales', 'f107'];
-    const [kpRaw, speedRaw, plasmaRaw, bzRaw, scalesRaw, f107Raw] =
+    const keys = ['kp', 'wind', 'bz', 'scales', 'f107'];
+    const [kpRaw, windRaw, bzRaw, scalesRaw, f107Raw] =
       await Promise.all(keys.map(tryChain));
-    this.#cache = this.normalize({ kpRaw, speedRaw, plasmaRaw, bzRaw,
-                                   scalesRaw, f107Raw });
+    this.#cache = this.normalize({ kpRaw, windRaw, bzRaw, scalesRaw, f107Raw });
     this.#fetchedAt = now;
     return this.#cache;
   }
 
-  normalize({ kpRaw, speedRaw, plasmaRaw, bzRaw, magRaw, scalesRaw, f107Raw }) {
+  normalize({ kpRaw, windRaw, bzRaw, scalesRaw, f107Raw }) {
     const kp     = readField(kpRaw, 'kp');
-    /* the summary products name the value 'WindSpeed' / 'Bz'; the legacy
-       tables use 'speed' / 'bz_gsm'. The tolerant reader matches either. */
-    const speed  = readField(speedRaw, 'speed') ?? readField(plasmaRaw, 'speed');
-    const dens   = readField(plasmaRaw, 'density');
-    const bz     = readField(bzRaw, 'bz') ?? readField(magRaw ?? bzRaw, 'bz');
+    /* rtsw names its fields 'speed'/'density'/'bz'; the summary products use
+       'WindSpeed'/'Bz'; the legacy tables 'speed'/'bz_gsm'. The tolerant
+       reader matches any of them, which is why the chain can mix sources. */
+    const speed  = readField(windRaw, 'speed');
+    const dens   = readField(windRaw, 'density');
+    const bz     = readField(bzRaw, 'bz');
     const f107   = readField(f107Raw, 'flux');
     const scaleG = readScaleG(scalesRaw);
     const live = [kp, speed, dens, bz, f107, scaleG].filter(v => v !== null).length;
