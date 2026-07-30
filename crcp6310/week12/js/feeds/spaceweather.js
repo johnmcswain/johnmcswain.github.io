@@ -1,0 +1,355 @@
+/*
+  feeds/spaceweather.js — NOAA SWPC, the sun's effect on the ensemble.
+  Implements the FEEDS interface shape (name, kind, load, normalize).
+
+  Endpoints (public, keyless, services.swpc.noaa.gov). Each field has a
+  CANDIDATE CHAIN, tried in order, because two things bite in the browser:
+  the legacy /products/solar-wind/ paths do not send Access-Control-Allow-
+  Origin (so a page on another domain cannot read them), and SWPC listed
+  those RTSW products for deprecation around 2026-04-30. The
+  /products/summary/ equivalents are the supported, much smaller products
+  and are tried first.
+
+    Kp        products/noaa-planetary-k-index.json
+              -> json/planetary_k_index_1m.json
+    wind      json/rtsw/rtsw_wind_1m.json     (speed AND density)
+              -> products/summary/solar-wind-speed.json
+              -> products/solar-wind/plasma-1-day.json    (legacy, no CORS)
+    Bz        json/rtsw/rtsw_mag_1m.json
+              -> products/summary/solar-wind-mag-field.json
+              -> products/solar-wind/mag-1-day.json       (legacy, no CORS)
+    scales    products/noaa-scales.json
+    F10.7     products/10cm-flux-30-day.json -> json/f107_cm_flux.json
+    aurora    json/ovation_aurora_latest.json (899 KB, its own slow cadence)
+
+  The /json/rtsw/ pair are SWPC's own documented replacements for the
+  deprecated /products/solar-wind/ files, they live in the tree that does
+  serve CORS, and they carry numeric (unquoted) values plus source/active
+  metadata. They are tried first for exactly those reasons.
+
+  A blocked cross-origin request is logged by the browser no matter how the
+  code handles it, so the console will show CORS lines for any legacy URL
+  that gets tried. FAILED_URLS remembers them for the session so each is
+  attempted at most once rather than on every refresh.
+
+  TOLERANT PARSING, ON PURPOSE. SWPC serves several shapes: arrays of
+  arrays with a header row, and arrays of objects. Rather than hard-code
+  one, each reader finds its column by name and fails to null. A null
+  field is reported as such and the HUD shows which values are live —
+  per-field provenance, not a single all-or-nothing flag. This also means
+  a format change degrades one number instead of the whole layer.
+
+  FALLBACK: quiet-baseline values, clearly labeled 'fallback'. They are
+  plausible solar-minimum conditions, never invented "current" readings.
+*/
+
+'use strict';
+
+const BASE = 'https://services.swpc.noaa.gov';
+
+/* the honest quiet baseline used when a fetch or a field fails */
+export const QUIET_BASELINE = {
+  kp: 2, windSpeedKmS: 400, windDensity: 5, bzNt: 0, f107: 90,
+  scaleG: 0, source: 'fallback',
+};
+
+/* ---- module-private tolerant readers ------------------------------------ */
+
+/* SWPC "array of arrays with a header row" -> value from the last row */
+function fromHeaderTable(rows, namePart) {
+  if (!Array.isArray(rows) || rows.length < 2) return null;
+  const header = rows[0];
+  if (!Array.isArray(header)) return null;
+  const col = header.findIndex(h =>
+    String(h).toLowerCase().replace(/[_\s]/g, '').includes(namePart));
+  if (col < 0) return null;
+  for (let i = rows.length - 1; i > 0; i--) {          // last non-null upward
+    const v = Number(rows[i][col]);
+    if (Number.isFinite(v)) return v;
+  }
+  return null;
+}
+
+/* "array of objects" -> value from the last entry whose key matches */
+function fromObjectList(list, namePart) {
+  if (!Array.isArray(list) || !list.length) return null;
+  for (let i = list.length - 1; i >= 0; i--) {
+    const o = list[i];
+    if (!o || typeof o !== 'object') continue;
+    const key = Object.keys(o).find(k =>
+      k.toLowerCase().replace(/[_\s]/g, '').includes(namePart));
+    if (!key) continue;
+    const v = Number(o[key]);
+    if (Number.isFinite(v)) return v;
+  }
+  return null;
+}
+
+/* either shape */
+export function readField(payload, namePart) {
+  return fromHeaderTable(payload, namePart) ?? fromObjectList(payload, namePart);
+}
+
+/* Read a whole TIME SERIES rather than one latest value. Same tolerance:
+   header-table or object-list, columns found by name. Returns samples in
+   chronological order, or null. */
+/* SWPC timestamps appear as "2026-07-30 12:00:00.000", ISO with a T, and
+   sometimes already carrying Z or an offset. Blindly appending Z produced
+   NaN on the last of those and silently dropped every row, which is how a
+   working endpoint can look like a shape mismatch. */
+export function parseTimeTag(raw) {
+  const t = String(raw).trim();
+  if (!t) return NaN;
+  const iso = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(t)
+    ? t.replace(' ', 'T')
+    : t.replace(' ', 'T') + 'Z';
+  return Date.parse(iso);
+}
+
+export function readSeries(payload, fields) {
+  const out = [];
+  const push = (t, get) => {
+    const row = { tMs: parseTimeTag(t) };
+    for (const [key, part] of Object.entries(fields)) {
+      const v = Number(get(part));
+      if (!Number.isFinite(v)) return;
+      row[key] = v;
+    }
+    if (Number.isFinite(row.tMs)) out.push(row);
+  };
+  if (Array.isArray(payload) && Array.isArray(payload[0])) {
+    const header = payload[0].map(h =>
+      String(h).toLowerCase().replace(/[_\s]/g, ''));
+    const idx = {};
+    for (const part of Object.values(fields))
+      idx[part] = header.findIndex(h => h.includes(part));
+    const tCol = header.findIndex(h => h.includes('time'));
+    if (tCol < 0 || Object.values(idx).some(i => i < 0)) return null;
+    for (let i = 1; i < payload.length; i++)
+      push(payload[i][tCol], part => payload[i][idx[part]]);
+  } else if (Array.isArray(payload) && payload[0] && typeof payload[0] === 'object') {
+    const keys = Object.keys(payload[0]);
+    const find = part => keys.find(k =>
+      k.toLowerCase().replace(/[_\s]/g, '').includes(part));
+    const tKey = find('time');
+    if (!tKey) return null;
+    for (const row of payload) push(row[tKey], part => row[find(part)]);
+  } else return null;
+  return out.length >= 4 ? out.sort((a, b) => a.tMs - b.tMs) : null;
+}
+
+/* noaa-scales.json is keyed by day index with { G: { Scale } } */
+export function readScaleG(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+  for (const key of Object.keys(payload)) {
+    const g = payload[key] && payload[key].G;
+    const v = g && Number(g.Scale ?? g.scale);
+    if (Number.isFinite(v)) return v;
+  }
+  return null;
+}
+
+/* ---- the feed ------------------------------------------------------------ */
+
+export class SpaceWeatherFeed {
+  #cache = null;
+  #fetchImpl;
+  #fetchedAt = 0;
+  #failed = new Set();          // URLs that failed this session; not retried
+
+  constructor({ fetchImpl } = {}) {
+    this.#fetchImpl = fetchImpl ?? ((...a) => fetch(...a));
+  }
+
+  name = 'swpc';
+  kind = 'conditions';
+  /* conditions change on a ~minutes cadence; one refresh per 10 min is
+     plenty and keeps us a polite client */
+  refreshMs = 600000;
+
+  /* ordered candidates per field; first success wins */
+  chains() {
+    return {
+      kp:     [`${BASE}/products/noaa-planetary-k-index.json`,
+               `${BASE}/json/planetary_k_index_1m.json`],
+      wind:   [`${BASE}/json/rtsw/rtsw_wind_1m.json`,
+               `${BASE}/products/summary/solar-wind-speed.json`,
+               `${BASE}/products/solar-wind/plasma-1-day.json`],
+      bz:     [`${BASE}/json/rtsw/rtsw_mag_1m.json`,
+               `${BASE}/products/summary/solar-wind-mag-field.json`,
+               `${BASE}/products/solar-wind/mag-1-day.json`],
+      scales: [`${BASE}/products/noaa-scales.json`],
+      f107:   [`${BASE}/products/10cm-flux-30-day.json`,
+               `${BASE}/json/f107_cm_flux.json`],
+    };
+  }
+
+  get failedUrls() { return this.#failed; }
+
+  /* The OVATION grid is ~899 KB and the model updates every few minutes;
+     refetching it on the conditions cadence would be rude and pointless, so
+     it has its own slow cadence and its own cache. Returns the parsed grid
+     or null, in which case the aurora falls back to the Kp-driven oval. */
+  /* The Geospace product's solar wind is ballistically PROPAGATED from L1
+     to 32 Re, the upstream boundary of the model — i.e. to near-Earth,
+     which is the volume we actually draw. One hour of 1-minute samples is
+     7.5 KB, so the magnetopause can breathe on measured pressure instead of
+     sitting at one static value between refreshes. */
+  seriesRefreshMs = 300000;
+  #series = null;
+  #seriesAt = 0;
+  seriesSource = null;      // which endpoint supplied it
+  seriesError = null;       // why it did not, in words
+
+  async #tryJson(url) {
+    if (this.#failed.has(url)) return { err: 'skipped (failed earlier)' };
+    try {
+      const res = await this.#fetchImpl(url);
+      if (!res.ok) { this.#failed.add(url); return { err: `HTTP ${res.status}` }; }
+      return { json: await res.json() };
+    } catch { this.#failed.add(url); return { err: 'blocked or unreachable' }; }
+  }
+
+  /* Preferred: the Geospace product, already propagated from L1 to 32 Re.
+     Fallback: the rtsw 1-minute pair, which we know loads — wind carries
+     speed and density (which set the pressure), mag carries Bz. A partial
+     series still animates the boundary, which is the point. */
+  async loadSeries() {
+    const now = Date.now();
+    if (this.#series && now - this.#seriesAt < this.seriesRefreshMs) return this.#series;
+    this.seriesError = null; this.seriesSource = null;
+
+    const geoUrl = `${BASE}/products/geospace/propagated-solar-wind-1-hour.json`;
+    const geo = await this.#tryJson(geoUrl);
+    if (geo.json) {
+      const parsed = readSeries(geo.json,
+        { speedKmS: 'speed', density: 'density', bzNt: 'bz' });
+      if (parsed) {
+        this.#series = parsed; this.#seriesAt = now;
+        this.seriesSource = 'geospace (propagated to 32 Re)';
+        return parsed;
+      }
+      this.#failed.add(geoUrl);
+      this.seriesError = 'geospace shape not recognised';
+    } else {
+      this.seriesError = `geospace ${geo.err}`;
+    }
+
+    const wind = await this.#tryJson(`${BASE}/json/rtsw/rtsw_wind_1m.json`);
+    if (!wind.json) {
+      this.seriesError += `; rtsw ${wind.err}`;
+      return null;
+    }
+    const wSeries = readSeries(wind.json, { speedKmS: 'speed', density: 'density' });
+    if (!wSeries) { this.seriesError += '; rtsw shape not recognised'; return null; }
+
+    const mag = await this.#tryJson(`${BASE}/json/rtsw/rtsw_mag_1m.json`);
+    const bSeries = mag.json ? readSeries(mag.json, { bzNt: 'bz' }) : null;
+    if (bSeries) {
+      /* nearest-in-time join; the two instruments share a cadence */
+      let j = 0;
+      for (const row of wSeries) {
+        while (j < bSeries.length - 1 &&
+               Math.abs(bSeries[j + 1].tMs - row.tMs) < Math.abs(bSeries[j].tMs - row.tMs)) j++;
+        row.bzNt = bSeries[j].bzNt;
+      }
+    }
+    this.#series = wSeries; this.#seriesAt = now;
+    this.seriesSource = bSeries ? 'rtsw wind + mag (1 min)' : 'rtsw wind only (1 min)';
+    return wSeries;
+  }
+
+  /* GOES soft X-rays: six hours at one-minute cadence, in the /json/ tree
+     that serves CORS. Replaying it makes flares fire when they fired. */
+  xrayRefreshMs = 300000;
+  #xray = null;
+  #xrayAt = 0;
+  xrayError = null;
+
+  async loadXray(parse) {
+    const now = Date.now();
+    if (this.#xray && now - this.#xrayAt < this.xrayRefreshMs) return this.#xray;
+    this.xrayError = null;
+    for (const url of [`${BASE}/json/goes/primary/xrays-6-hour.json`,
+                       `${BASE}/json/goes/primary/xrays-1-day.json`]) {
+      const got = await this.#tryJson(url);
+      if (!got.json) { this.xrayError = got.err; continue; }
+      const parsed = parse(got.json);
+      if (parsed) { this.#xray = parsed; this.#xrayAt = now; return parsed; }
+      this.#failed.add(url);
+      this.xrayError = 'shape not recognised';
+    }
+    return null;
+  }
+
+  auroraRefreshMs = 1800000;
+  #auroraCache = null;
+  #auroraAt = 0;
+
+  async loadAurora(parse) {
+    const now = Date.now();
+    if (this.#auroraCache && now - this.#auroraAt < this.auroraRefreshMs)
+      return this.#auroraCache;
+    const url = `${BASE}/json/ovation_aurora_latest.json`;
+    if (this.#failed.has(url)) return null;
+    try {
+      const res = await this.#fetchImpl(url);
+      if (!res.ok) { this.#failed.add(url); return null; }
+      this.#auroraCache = parse(await res.json());
+      this.#auroraAt = now;
+      if (!this.#auroraCache) this.#failed.add(url);   // shape not recognised
+      return this.#auroraCache;
+    } catch { this.#failed.add(url); return null; }
+  }
+
+  /* Each field is independent: one failure costs one number, not the set. */
+  async load() {
+    const now = Date.now();
+    if (this.#cache && now - this.#fetchedAt < this.refreshMs) return this.#cache;
+    const chains = this.chains();
+    const tryChain = async key => {
+      for (const url of chains[key]) {
+        if (this.#failed.has(url)) continue;      // known bad this session
+        try {
+          const res = await this.#fetchImpl(url);
+          if (!res.ok) { this.#failed.add(url); continue; }
+          return await res.json();
+        } catch { this.#failed.add(url); }
+      }
+      return null;
+    };
+    const keys = ['kp', 'wind', 'bz', 'scales', 'f107'];
+    const [kpRaw, windRaw, bzRaw, scalesRaw, f107Raw] =
+      await Promise.all(keys.map(tryChain));
+    this.#cache = this.normalize({ kpRaw, windRaw, bzRaw, scalesRaw, f107Raw });
+    this.#fetchedAt = now;
+    return this.#cache;
+  }
+
+  normalize({ kpRaw, windRaw, bzRaw, scalesRaw, f107Raw }) {
+    const kp     = readField(kpRaw, 'kp');
+    /* rtsw names its fields 'speed'/'density'/'bz'; the summary products use
+       'WindSpeed'/'Bz'; the legacy tables 'speed'/'bz_gsm'. The tolerant
+       reader matches any of them, which is why the chain can mix sources. */
+    const speed  = readField(windRaw, 'speed');
+    const dens   = readField(windRaw, 'density');
+    const bz     = readField(bzRaw, 'bz');
+    const f107   = readField(f107Raw, 'flux');
+    const scaleG = readScaleG(scalesRaw);
+    const live = [kp, speed, dens, bz, f107, scaleG].filter(v => v !== null).length;
+    return {
+      kp:           kp     ?? QUIET_BASELINE.kp,
+      windSpeedKmS: speed  ?? QUIET_BASELINE.windSpeedKmS,
+      windDensity:  dens   ?? QUIET_BASELINE.windDensity,
+      bzNt:         bz     ?? QUIET_BASELINE.bzNt,
+      f107:         f107   ?? QUIET_BASELINE.f107,
+      scaleG:       scaleG ?? QUIET_BASELINE.scaleG,
+      /* per-field provenance: how many of the six arrived live */
+      liveFields: live,
+      totalFields: 6,
+      source: live === 0 ? 'fallback' : live === 6 ? 'live' : 'partial',
+    };
+  }
+}
+
+export default new SpaceWeatherFeed();

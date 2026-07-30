@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ORBITA · high-fidelity build</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0d13;overflow:hidden;
+    font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;color:#9fb0c8}
+  canvas{display:block}
+  #panel{position:fixed;top:14px;left:14px;background:rgba(10,13,19,.78);
+    border:1px solid #26314a;border-radius:6px;padding:10px 14px;pointer-events:none}
+  #panel h1{margin:0 0 6px;font-size:12px;letter-spacing:.18em;color:#e8eef8}
+  #panel td{padding:0 0 1px 10px}#panel td:first-child{padding-left:0;color:#5f7191}
+  /* The bottom band is ONE stacked flex column spanning the full width.
+     Previously #keys (bottom-left) and #prov (bottom-right) were separate
+     fixed elements on the same baseline, so they overlapped as soon as
+     their combined natural width exceeded the viewport. Stacking removes
+     the horizontal competition entirely: neither can ever collide, and
+     both wrap normally at any width. The scrim keeps them legible over
+     the starfield. */
+  #footer{position:fixed;left:0;right:0;bottom:0;box-sizing:border-box;
+    display:flex;flex-direction:column;gap:5px;padding:10px 14px 11px;
+    pointer-events:none;
+    background:linear-gradient(to top,rgba(10,13,19,.95) 25%,rgba(10,13,19,0))}
+  #prov{align-self:flex-end;max-width:100%;text-align:right;
+    color:#3d4c66;font-size:11px;line-height:1.5}
+  #keys{max-width:100%;color:#5a6c8c;line-height:1.55}
+  /* the same latent collision at the top: cap widths so the panel, legend
+     and banner wrap instead of overlapping on narrow viewports */
+  #panel{max-width:min(48vw,340px)}
+  #lookup{max-width:min(92vw,660px);text-align:center;line-height:1.5}
+  #legend{max-width:min(34vw,230px)}
+  #lookup{display:none;position:fixed;top:16px;left:50%;transform:translateX(-50%);
+    background:rgba(38,26,10,.9);border:1px solid #7a5c22;border-radius:6px;
+    padding:8px 18px;color:#ffdf9e;letter-spacing:.06em;pointer-events:none;
+    max-width:min(92vw,660px);text-align:center;line-height:1.5}
+  #wxlegend{display:none;align-self:flex-end;max-width:min(38vw,330px);
+    background:rgba(10,13,19,.8);border:1px solid #26314a;border-radius:6px;
+    padding:9px 12px;color:#8fa2be;font-size:11px;line-height:1.45;pointer-events:none}
+  #wxlegend div{margin:2px 0}
+  #wxlegend b{display:inline-block;width:9px;height:9px;border-radius:5px;margin-right:7px}
+  #demobanner{display:none;position:fixed;top:16px;left:50%;transform:translateX(-50%);
+    background:rgba(58,20,20,.92);border:1px solid #a5493c;border-radius:6px;
+    padding:8px 18px;color:#ffc0ae;letter-spacing:.08em;pointer-events:none;
+    max-width:min(92vw,720px);text-align:center;z-index:5}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="panel">
+  <h1>ORBITA &middot; HF</h1>
+  <table>
+    <tr><td>source</td><td id="s-src">loading…</td></tr>
+    <tr><td>group</td><td id="s-group">—</td></tr>
+    <tr><td>objects</td><td id="s-count">—</td></tr>
+    <tr><td>time</td><td id="s-time">—</td></tr>
+    <tr><td>scale</td><td id="s-exag">—</td></tr>
+    <tr><td>sound</td><td id="s-snd">off</td></tr>
+    <tr><td>space wx</td><td id="s-kp">—</td></tr>
+    <tr><td>solar wind</td><td id="s-sw">—</td></tr>
+    <tr><td>solar wind</td><td id="s-wind">—</td></tr>
+    <tr><td>substorm</td><td id="s-storm">—</td></tr>
+    <tr><td>X-ray</td><td id="s-xray">—</td></tr>
+    <tr><td>wind series</td><td id="s-swseries">—</td></tr>
+    <tr><td>framing</td><td id="s-frame">close — orbital shells</td></tr>
+    <tr><td>magnetosphere</td><td id="s-belt">hidden</td></tr>
+    <tr><td>aurora</td><td id="s-aur">—</td></tr>
+    <tr><td>observer</td><td id="s-obs">off</td></tr>
+    <tr><td>overhead</td><td id="s-pass">—</td></tr>
+    <tr><td>range rate</td><td id="s-dop">—</td></tr>
+    <tr><td>altitude</td><td id="s-alt">—</td></tr>
+    <tr><td>in eclipse</td><td id="s-ecl">—</td></tr>
+    <tr><td>close pairs</td><td id="s-conj">0</td></tr>
+    <tr><td>instrument</td><td id="s-inst">cage</td></tr>
+    <tr><td>focus</td><td id="s-focus">off</td></tr>
+    <tr><td></td><td id="s-fdet">—</td></tr>
+    <tr><td></td><td id="s-fdyn">—</td></tr>
+    <tr><td>render</td><td id="s-fps">—</td></tr>
+  </table>
+</div>
+<div id="lookup"></div>
+<div id="demobanner"></div>
+<div id="footer">
+<div id="wxlegend">
+  <div><b style="background:#6cb4f5"></b>magnetopause &mdash; the boundary where Earth's
+    field halts the solar wind. Nose distance from live pressure; flaring from Bz.</div>
+  <div><b style="background:#57a0f5"></b>solar wind, Bz northward &mdash; quiet coupling</div>
+  <div><b style="background:#f06a4a"></b>solar wind, Bz southward &mdash; storm coupling</div>
+  <div><b style="background:#78f0a0"></b>aurora at 110 km &mdash; where that energy lands</div>
+</div>
+
+  <div id="prov">
+    <div>elements: CelesTrak &middot; stars: HYG &middot; space weather: NOAA SWPC &middot; sun &amp; moon: computed</div>
+    <div>solar wind: propagated from L1 to 32 R&#8337; &middot; flow rate scaled, relative speed true</div>
+    <div>observer coordinates stay in this tab</div>
+    <div>same tested core as the mandala build &mdash; this one trades the kaleidoscope for fidelity</div>
+  </div>
+  <div id="keys">
+    <div>drag rotate &middot; scroll zoom &middot; O observer &middot; A instrument &middot; W aurora &middot; R wind &middot; B belts &middot; D demo</div>
+    <div>F focus &middot; G group &middot; T time &middot; E scale &middot; Space pause &middot; M sound &middot; S save</div>
+  </div>
+</div>
+<script type="module" src="./js/three/main.js"></script>
+</body>
+</html>
