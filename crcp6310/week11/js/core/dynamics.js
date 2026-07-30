@@ -69,6 +69,16 @@ export function dragProxy(bstar, altKm, f107 = F107_QUIET) {
   return Math.max(0, bstar) * Math.exp(-(altKm - 300) / scaleHeightKm(f107));
 }
 
+/* 0..1 emphasis for rendering: how susceptible this object is to drag right
+   now, log-scaled because dragProxy spans several orders of magnitude. This
+   is what lets F10.7 change what you SEE — as solar flux rises, the
+   low-perigee objects swell and brighten while high shells barely move. */
+export function dragEmphasis(bstar, altKm, f107 = F107_QUIET) {
+  const d = dragProxy(bstar, altKm, f107);
+  if (!(d > 0)) return 0;
+  return Math.max(0, Math.min(1, (Math.log10(d) + 6.5) / 3.5));
+}
+
 /* --- the collaborator classes (course idiom) ----------------------------- */
 
 /* course: GeomDynamics { spd, gravity, damping, friction } */

@@ -46,6 +46,8 @@ import { EnsemblePoints, TrailLines } from './ensemble.js';
 import { Earth, Sky, Sun } from './scenery.js';
 import { AuroraPoints } from './aurora.js';
 import { parseOvation } from '../sim/aurora.js';
+import { WindPoints } from './solarwind.js';
+import { dragEmphasis } from '../core/dynamics.js';
 import { ArmillaryThree } from './instrument.js';
 
 const $ = id => document.getElementById(id);
@@ -126,6 +128,9 @@ class OrbitaThree {
         opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false }));
     this.trackLine.frustumCulled = false;
     this.earth.group.add(this.trackLine);
+
+    this.wind = new WindPoints(260, KM2U);
+    this.scene.add(this.wind.points, this.wind.ring);
 
     this.sonifier = new Sonifier();
     this.tracker = new SkyTracker();
@@ -244,6 +249,7 @@ class OrbitaThree {
     else if (k === 'e') { state.exagIdx = (state.exagIdx + 1) % CONFIG.altExags.length; this.hud(); }
     else if (k === 'a') { if (this.instrument) this.instrument.cycleMode(); this.hud(); }
     else if (k === 'w') { this.aurora.visible = !this.aurora.visible; this.hud(); }
+    else if (k === 'r') { this.wind.visible = !this.wind.visible; this.hud(); }
     else if (k === ' ') { state.paused = !state.paused; e.preventDefault(); }
     else if (k === 's') {
       const a = document.createElement('a');
@@ -314,6 +320,8 @@ class OrbitaThree {
                  Math.sin(la) * mR, this.scratch);
     this.moon.position.set(this.scratch[0], -this.scratch[1], this.scratch[2]);
 
+    this.wind.update(dtReal / 1000, this.weather, sun.eciDir);
+
     const objs = state.objects;
     let pv = 0, tv = 0;
     for (let i = 0; i < objs.length; i++) {
@@ -340,7 +348,9 @@ class OrbitaThree {
       this.ensemble.col[pv*3] = cr / 255 * a;
       this.ensemble.col[pv*3+1] = cg / 255 * a;
       this.ensemble.col[pv*3+2] = cb / 255 * a;
-      this.ensemble.size[pv] = 6.5;
+      /* F10.7 made visible: per-vertex size, so the objects the current sun
+         is pulling on swell continuously as flux rises */
+      this.ensemble.size[pv] = 6.5 + 7 * dragEmphasis(o.bstar, o.altKm, this.weather.f107);
       pv++;
       for (let s = 0; s < SEGS; s++) {
         const fade = a * 0.55 * (1 - s / SEGS);
@@ -507,6 +517,9 @@ class OrbitaThree {
       + w.liveFields + '/' + w.totalFields + ' live (' + w.source + ')');
     setText('s-sw', Math.round(w.windSpeedKmS) + ' km/s \u00b7 Bz '
       + w.bzNt.toFixed(1) + ' nT \u00b7 F10.7 ' + Math.round(w.f107));
+    setText('s-wind', this.wind.visible
+      ? this.wind.standoffRe.toFixed(1) + ' R\u2091 standoff \u00b7 '
+        + this.wind.activeCount + ' parcels (flow rate scaled)' : 'hidden');
     setText('s-aur', this.aurora.visible
       ? this.aurora.source + ' \u00b7 ' + this.aurora.activeCount + ' cells' : 'hidden');
     setText('s-obs', state.observer

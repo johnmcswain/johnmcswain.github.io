@@ -18,6 +18,7 @@
 import feed from '../feeds/celestrak.js';
 import { inShadow } from '../sim/sun.js';
 import { hsv } from './color.js';
+import { dragEmphasis } from '../core/dynamics.js';
 
 const TAU = Math.PI * 2;
 
@@ -46,6 +47,13 @@ class Pool {
 }
 
 const SEGS = 3;
+/* F10.7 made visible: objects most susceptible to drag get a larger, warmer
+   glow. p5's immediate mode cannot vary point size without a state change,
+   so emphasis is quantised into three extra pools — three more draw calls
+   rather than a per-object one. (The Three build varies size per vertex.) */
+export const EMPHASIS_LEVELS = 3;
+const emphasisPools = Array.from({ length: EMPHASIS_LEVELS }, () => new Pool());
+const EMPHASIS_STYLE = [[9, 26], [13, 40], [18, 58]];   // weight, alpha
 const pointPools = Array.from({ length: HUE_BUCKETS * ALPHA_LEVELS }, () => new Pool());
 const linePools  = Array.from({ length: HUE_BUCKETS * ALPHA_LEVELS }, () => new Pool());
 const scratch = new Float32Array(3 * (SEGS + 1));
@@ -65,9 +73,11 @@ export const orbitsMotif = {
      Also writes true-scale km head positions into ctx.headsKm (Float32Array,
      provided by caller) for conjunction detection — one propagation, two uses. */
   build(ctx) {
-    const { objects, simT, kmToPx, altExag, tScale, folds, headsKm, sunEci, crossings } = ctx;
+    const { objects, simT, kmToPx, altExag, tScale, folds, headsKm, sunEci,
+            crossings, f107 } = ctx;
     for (const pool of pointPools) pool.reset();
     for (const pool of linePools)  pool.reset();
+    for (const pool of emphasisPools) pool.reset();
 
     for (let idx = 0; idx < objects.length; idx++) {
       const o = objects[idx];
@@ -97,6 +107,11 @@ export const orbitsMotif = {
         if (dark) al *= 0.3;
       }
       const headKey = o._hb * ALPHA_LEVELS + alphaLevel(al);
+      /* drag emphasis, live with solar flux: which objects the current sun
+         is actually pulling on. Quantised to three levels for batching. */
+      const emph = f107 ? dragEmphasis(o.bstar, o.altKm, f107) : 0;
+      const emphLevel = emph > 0.34
+        ? Math.min(EMPHASIS_LEVELS - 1, Math.floor((emph - 0.34) / 0.22)) : -1;
 
       for (let f = 0; f < folds; f++) {
         const th = f * TAU / folds;
@@ -104,6 +119,12 @@ export const orbitsMotif = {
         pp.ensure(3);
         foldRotate(scratch[0], scratch[1], scratch[2], th, pp.a, pp.n);
         pp.n += 3;                          // rotate-in-place push
+        if (emphLevel >= 0) {
+          const ep = emphasisPools[emphLevel];
+          ep.ensure(3);
+          foldRotate(scratch[0], scratch[1], scratch[2], th, ep.a, ep.n);
+          ep.n += 3;
+        }
         for (let s = 0; s < SEGS; s++) {
           const segA = al * 0.5 * (1 - s / SEGS);
           const lp = linePools[o._hb * ALPHA_LEVELS + alphaLevel(segA)];
@@ -128,6 +149,17 @@ export const orbitsMotif = {
       p.stroke(r, g, bb, ALPHA_VAL[b % ALPHA_LEVELS]);
       p.strokeWeight(1.3);
       p.beginShape(p.LINES);
+      for (let i = 0; i < pool.n; i += 3) p.vertex(pool.a[i], pool.a[i+1], pool.a[i+2]);
+      p.endShape();
+    }
+    /* the drag-emphasis glow sits under the ensemble's own passes */
+    for (let e = 0; e < EMPHASIS_LEVELS; e++) {
+      const pool = emphasisPools[e];
+      if (!pool.n) continue;
+      const [weight, alpha] = EMPHASIS_STYLE[e];
+      p.stroke(255, 190, 120, alpha);
+      p.strokeWeight(weight);
+      p.beginShape(p.POINTS);
       for (let i = 0; i < pool.n; i += 3) p.vertex(pool.a[i], pool.a[i+1], pool.a[i+2]);
       p.endShape();
     }

@@ -5,7 +5,8 @@
   same bundle runs bare in the p5.js Web Editor.
 
   CONTROLS
-    drag rotate   scroll zoom   O observer   A instrument   W aurora   V view
+    drag rotate   scroll zoom   O observer   A instrument   W aurora   R wind
+    V view
     <- -> folds   F focus   G group
     T time scale   E altitude scale   Space pause   M sound   S save PNG
 */
@@ -25,6 +26,7 @@ import { Observer, compassPoint, audibleDoppler, MIN_ELEV_DEG }
 import swpc, { QUIET_BASELINE } from './feeds/spaceweather.js';
 import { AuroraLayer } from './render/aurora.js';
 import { parseOvation } from './sim/aurora.js';
+import { WindLayer } from './render/solarwind.js';
 import { SkyTracker } from './sim/tracker.js';
 import { sunEphemeris, sunDiscRadius } from './sim/sun.js';
 import { drawSky } from './render/sky.js';
@@ -73,6 +75,7 @@ const sightSat = new Float32Array(3);
 /* space weather: the sun's effect on the ensemble */
 const aurora = new AuroraLayer();
 const tracker = new SkyTracker();
+const wind = new WindLayer(260);
 let weather = { ...QUIET_BASELINE, liveFields: 0, totalFields: 6 };
 async function loadWeather() {
   try { weather = await swpc.load(); } catch { /* keeps the quiet baseline */ }
@@ -178,6 +181,9 @@ function refreshHud() {
   setText('s-sw', Math.round(weather.windSpeedKmS) + ' km/s \u00b7 '
     + weather.windDensity.toFixed(1) + ' p/cm\u00b3 \u00b7 Bz '
     + weather.bzNt.toFixed(1) + ' nT \u00b7 F10.7 ' + Math.round(weather.f107));
+  setText('s-wind', wind.visible
+    ? wind.standoffRe.toFixed(1) + ' R\u2091 standoff \u00b7 ' + wind.activeCount
+      + ' parcels (flow rate scaled)' : 'hidden');
   setText('s-aur', aurora.visible
     ? aurora.source + ' \u00b7 ' + aurora.activeCount + ' cells' : 'hidden');
   setText('s-obs', state.observer
@@ -356,6 +362,7 @@ new p5(p => {
       headsKm,
       sunEci:  sun.eciDir,
       crossings,
+      f107:    weather.f107,
     });
     for (const c of crossings) {
       sonifier.crossing(c.hz, c.sunrise);
@@ -406,6 +413,11 @@ new p5(p => {
     }
     field.update(p.deltaTime / 1000);
     field.draw(p, state.folds);                    // polymorphic: rings + cages
+
+    /* the measured solar wind, flowing down the sun line into the
+       magnetopause it compresses */
+    wind.update(p.deltaTime / 1000, weather, sun.eciDir);
+    wind.draw(p, kmToPx, sun.eciDir);
 
     /* the armillary instrument, in the celestial frame (outside the
        earth-fixed rotation, since its rings represent celestial circles) */
@@ -503,6 +515,7 @@ new p5(p => {
       }
     }
     else if (k === 'w') { aurora.visible = !aurora.visible; refreshHud(); }
+    else if (k === 'r') { wind.visible = !wind.visible; refreshHud(); }
     else if (k === 'a') { if (armillary) armillary.cycleMode(); refreshHud(); }
     else if (k === 'f') {
       state.focusStep = (state.focusStep + 1) % (notables.length + 1);
