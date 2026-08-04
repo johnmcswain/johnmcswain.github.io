@@ -1,0 +1,2148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deep Cuts: every lesson is a track</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://api.elevenlabs.io">
+<link rel="preload" as="image" href="img/mick-haupt-fDW-BoHRMKE-unsplash.jpg">
+<!--
+  Every file in img/ keeps the name it was downloaded under. All are cropped
+  and compressed for the web; the originals are 3 to 6 MB each.
+
+  Photography, Unsplash License (free to use, attribution appreciated):
+    mick-haupt-fDW-BoHRMKE ........ Mick Haupt ............ splash, frame 1
+    mr-cup-fabien-barral-o6GEPQXnqMY  Mr Cup / Fabien Barral  splash, frame 2
+    samuel-regan-asante-5j7nQv-jaVM   Samuel Regan-Asante ... splash, frame 3
+    ciocan-ciprian-IFlTsdoU9Mo .... Ciocan Ciprian ........ splash, frame 4
+    joyce-g-ITVCF_F1_00 ........... Joyce G ............... behind the empty platter
+    eran-menashri-Ae7pSsfzEHs ..... Eran Menashri ......... behind the empty shelf
+
+  Motion, Pexels License:
+    6614768-uhd_3840_2160_25fps.mp4  the splash footage, trimmed to the
+      7 seconds from 12.0s and rescaled to 1600x900, audio removed
+
+  Sleeve artwork is computed at runtime by this file and is never loaded
+  from disk.
+-->
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   DEEP CUTS
+   The press room is achromatic until a record is cut. Every
+   chroma token below starts gray and is overwritten from the
+   pressed sleeve's own palette. The record colours the room.
+   ============================================================ */
+:root{
+  --void:#0d0e11; --deck:#141619; --deck-2:#1a1d22; --edge:#272b33;
+  --dust:#868c98; --label:#e9ebef;
+  /* adopted from the sleeve at press time */
+  --ink-a:#9aa0ac; --ink-b:#6e737e; --paper:#e9ebef;
+  --glow:rgba(154,160,172,.22);
+  --display:'Space Grotesk',sans-serif;
+  --r:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+/* The UA rule for [hidden] is display:none, and any author display rule beats
+   it. .plate-idle and .plate-work both set display:flex, so setStage() could
+   set .hidden and the element stayed on screen. This restores the attribute. */
+[hidden]{display:none !important}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--void); color:var(--label);
+  font:400 15px/1.55 'Space Grotesk',system-ui,sans-serif;
+  min-height:100vh; overflow-x:hidden;
+}
+::selection{background:var(--ink-a);color:var(--void)}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+:focus-visible{outline:2px solid var(--ink-a);outline-offset:2px;border-radius:4px}
+input,select,textarea{font:inherit;color:var(--label)}
+
+/* ---------- splash ----------
+   Four photographs of the world this thing borrows from: a shop, a crate,
+   a wall of spines, someone already walking. Held in grayscale, because the
+   room does not get colour until a record is cut. Skippable, once a session. */
+.splash{
+  position:fixed;inset:0;z-index:100;background:var(--void);
+  display:grid;place-items:center;overflow:hidden;cursor:pointer;
+  transition:opacity .75s ease;
+}
+.splash.gone{opacity:0;pointer-events:none}
+.splash .frame{
+  position:absolute;inset:0;background-size:cover;background-position:center;
+  opacity:0;filter:grayscale(1) contrast(1.06) brightness(.46);
+  transform:scale(1.09);animation:frameIn 1.9s cubic-bezier(.3,.7,.4,1) forwards;
+}
+.splash .frame.last{animation:frameHold 2.1s cubic-bezier(.3,.7,.4,1) forwards}
+/* The footage is the primary intro. The four photographs above stay in the
+   markup as the fallback, and are only dropped once the video is actually
+   playing, so a blocked or unsupported video degrades to the stills. */
+.splash video{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  filter:grayscale(1) contrast(1.04) brightness(.62);
+  opacity:0;transition:opacity .9s ease;
+}
+.splash.video-on video{opacity:1}
+.splash.video-on .frame{display:none}
+@keyframes frameIn{
+  0%{opacity:0;transform:scale(1.09)}
+  16%{opacity:1}
+  74%{opacity:1}
+  100%{opacity:0;transform:scale(1.0)}
+}
+@keyframes frameHold{
+  0%{opacity:0;transform:scale(1.09);filter:grayscale(1) contrast(1.06) brightness(.34)}
+  22%{opacity:1}
+  100%{opacity:1;transform:scale(1.0);filter:grayscale(1) contrast(1.06) brightness(.52)}
+}
+.splash .scrim{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(13,14,17,.25) 0%,rgba(13,14,17,.88) 78%)}
+.splash .mark-lg{position:relative;text-align:center;padding:24px;opacity:0;animation:markIn 1s ease .35s forwards}
+@keyframes markIn{to{opacity:1}}
+.splash .mark-lg h1{
+  font:700 clamp(38px,9vw,86px)/1 'Space Mono',monospace;
+  letter-spacing:.16em;color:var(--label);text-indent:.16em;
+}
+.splash .mark-lg p{
+  margin-top:16px;font:400 clamp(10px,2.4vw,12px)/1.7 'Space Mono',monospace;
+  letter-spacing:.24em;text-transform:uppercase;color:var(--dust);
+}
+.splash .skip{
+  position:absolute;bottom:26px;left:50%;transform:translateX(-50%);
+  font:400 10px/1 'Space Mono',monospace;letter-spacing:.2em;color:var(--dust);
+  opacity:0;animation:markIn .8s ease 1.8s forwards;text-transform:uppercase;
+}
+
+/* photographs used as quiet backdrops inside the app */
+.photo-bed{
+  position:absolute;inset:0;background-size:cover;background-position:center;
+  filter:grayscale(1) brightness(.34) contrast(1.02);opacity:.38;
+  pointer-events:none;
+}
+.plate-idle .photo-bed{opacity:.3}
+/* #shelfBed is positioned unconditionally. The decorative class only adds the
+   frame. Previously position:relative rode along with the class, so removing
+   the class let the absolutely positioned photograph escape to the viewport
+   and cover the whole page. */
+#shelfBed{position:relative}
+#shelfBed .empty-shelf{position:relative}
+.shelf-bed{
+  border-radius:var(--r);overflow:hidden;
+  padding:26px clamp(18px,4vw,34px);border:1px solid var(--edge);
+}
+
+/* ---------- rail ---------- */
+.rail{
+  display:flex;align-items:center;gap:14px;
+  padding:14px clamp(16px,4vw,34px);
+  border-bottom:1px solid var(--edge);
+  position:sticky;top:0;z-index:30;
+  background:rgba(13,14,17,.9);
+  backdrop-filter:blur(10px);
+}
+.mark{display:flex;align-items:center;gap:9px;cursor:pointer}
+.mark svg{width:19px;height:19px;flex:none}
+.mark b{font:700 14px/1 'Space Mono',monospace;letter-spacing:.22em}
+.rail .cat{font:400 11px/1 'Space Mono',monospace;color:var(--dust);letter-spacing:.13em}
+.rail nav{margin-left:auto;display:flex;gap:4px}
+.rail nav button{
+  font:400 11px/1 'Space Mono',monospace;letter-spacing:.11em;
+  color:var(--dust);padding:8px 13px;border-radius:99px;
+  border:1px solid transparent;transition:color .25s,border-color .25s,background-color .25s;
+}
+.rail nav button:hover{color:var(--label)}
+.rail nav button.on{color:var(--void);background:var(--ink-a);border-color:var(--ink-a)}
+
+/* ---------- studio ---------- */
+.studio{
+  display:grid;grid-template-columns:minmax(0,440px) minmax(0,1fr);
+  gap:clamp(22px,4vw,52px);align-items:start;
+  padding:clamp(20px,4vw,40px) clamp(16px,4vw,34px) 26px;
+  max-width:1240px;margin:0 auto;
+}
+@media(max-width:880px){.studio{grid-template-columns:1fr;gap:26px}}
+
+/* ---------- the platter: one square, every state ---------- */
+.platter-col{position:sticky;top:78px}
+@media(max-width:880px){.platter-col{position:static}}
+.platter{
+  position:relative;width:100%;aspect-ratio:1;border-radius:var(--r);
+  overflow:hidden;background:var(--deck);border:1px solid var(--edge);
+  box-shadow:0 24px 70px -30px var(--glow);
+  transition:box-shadow 1.1s ease,border-color 1.1s ease;
+}
+.platter .layer{position:absolute;inset:0;width:100%;height:100%}
+.platter .layer svg{display:block;width:100%;height:100%}
+#plateArt{transition:opacity .5s ease}
+#plateRing{pointer-events:none;opacity:0;transition:opacity .5s ease}
+.stage-playing #plateRing{opacity:1}
+.stage-playing #plateArt{animation:breathe 5.2s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.018)}}
+
+.plate-idle{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:30px;text-align:center}
+.plate-idle svg{width:92px;height:92px;opacity:.5}
+.plate-idle p{font:400 11px/1.7 'Space Mono',monospace;color:var(--dust);letter-spacing:.13em;max-width:24ch}
+
+.plate-work{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px}
+.lathe{width:58%;max-width:280px}
+.lathe .disc{animation:spin 3.6s linear infinite;transform-origin:512px 512px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.lathe .groove{stroke-dasharray:100;stroke-dashoffset:100;animation:cut 3s ease-in-out infinite}
+@keyframes cut{0%{stroke-dashoffset:100}60%{stroke-dashoffset:0}100%{stroke-dashoffset:0;opacity:.75}}
+.lathe .arm{transform-origin:880px 190px;animation:sweep 3s ease-in-out infinite alternate}
+@keyframes sweep{from{transform:rotate(0deg)}to{transform:rotate(-15deg)}}
+.work-word{font:400 10px/1 'Space Mono',monospace;color:var(--dust);letter-spacing:.2em;text-transform:uppercase;min-height:1em}
+
+.caption{display:flex;flex-wrap:wrap;gap:6px;margin-top:13px;min-height:22px}
+.tag{
+  font:400 10px/1 'Space Mono',monospace;letter-spacing:.1em;color:var(--dust);
+  border:1px solid var(--edge);padding:5px 9px;border-radius:99px;
+  transition:border-color .9s,color .9s,background-color .9s
+}
+.tag.lit{color:var(--void);background:var(--ink-a);border-color:var(--ink-a)}
+
+/* ---------- panels ---------- */
+.panel{position:relative;min-height:380px}
+.face{display:none;animation:rise .42s cubic-bezier(.2,.8,.3,1) both}
+.face.on{display:block}
+@keyframes rise{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+
+.eyebrow{font:400 10px/1 'Space Mono',monospace;letter-spacing:.2em;color:var(--dust);text-transform:uppercase;margin-bottom:9px}
+.lede{font:600 clamp(26px,4.2vw,38px)/1.08 var(--display);letter-spacing:-.02em;margin-bottom:8px;transition:font-family .5s}
+.sub{color:var(--dust);font-size:14px;margin-bottom:24px;max-width:46ch}
+
+.field{margin-bottom:15px}
+.field label{display:block;font:400 10px/1 'Space Mono',monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--dust);margin-bottom:7px}
+input[type=text],input[type=password],textarea,select{
+  width:100%;background:var(--deck);border:1px solid var(--edge);
+  border-radius:8px;padding:11px 13px;font-size:14px;
+  transition:border-color .2s,background-color .2s
+}
+input:hover,textarea:hover,select:hover{border-color:#343943}
+textarea{min-height:112px;resize:vertical;line-height:1.5}
+select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--dust) 50%),linear-gradient(135deg,var(--dust) 50%,transparent 50%);background-position:calc(100% - 17px) 50%,calc(100% - 12px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:34px}
+
+.cast{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+@media(max-width:430px){.cast{grid-template-columns:1fr}}
+.cast button{text-align:left;background:var(--deck);border:1px solid var(--edge);border-radius:8px;padding:11px 12px;transition:border-color .2s,background-color .2s}
+.cast button:hover{border-color:#3a404a}
+.cast button.on{border-color:var(--ink-a);background:var(--deck-2);box-shadow:0 0 0 1px var(--ink-a) inset}
+.cast b{display:block;font-size:13px;font-weight:600;margin-bottom:2px}
+.cast span{font-size:11px;color:var(--dust);line-height:1.35}
+
+.cut-btn{
+  width:100%;margin-top:20px;padding:15px;border-radius:9px;
+  background:var(--ink-a);color:var(--void);
+  font:700 14px/1 'Space Mono',monospace;letter-spacing:.13em;
+  transition:filter .2s,transform .1s,background-color 1s
+}
+.cut-btn:hover{filter:brightness(1.1)}
+.cut-btn:active{transform:translateY(1px)}
+.cut-btn:disabled{opacity:.45;cursor:default}
+
+.note{font:400 11px/1.6 'Space Mono',monospace;color:var(--dust);margin-top:12px;min-height:1.4em}
+
+details{margin-top:26px;border-top:1px solid var(--edge);padding-top:15px}
+summary{font:400 10px/1 'Space Mono',monospace;letter-spacing:.15em;text-transform:uppercase;color:var(--dust);cursor:pointer;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"▸ "}
+details[open] summary::before{content:"▾ "}
+details .field{margin-top:15px}
+.hint{font:400 11px/1.6 'Space Mono',monospace;color:var(--dust);margin-top:6px}
+
+.log{display:flex;flex-direction:column;gap:2px;margin-top:6px}
+.step{
+  display:flex;align-items:center;gap:12px;padding:12px 0;
+  border-bottom:1px solid var(--edge);
+  font:400 12px/1.4 'Space Mono',monospace;color:var(--dust);transition:color .3s
+}
+.step .pip{width:7px;height:7px;border-radius:50%;background:var(--edge);flex:none;transition:background-color .3s}
+.step .txt{flex:1}
+.step .aux{font-size:10px;opacity:.85;text-align:right;max-width:20ch;line-height:1.35}
+.step.doing{color:var(--label)}
+.step.doing .pip{background:var(--ink-a);animation:blip 1s ease-in-out infinite alternate}
+@keyframes blip{from{opacity:.35}to{opacity:1}}
+.step.done .pip{background:var(--ink-b)}
+.step.skip{opacity:.45}
+
+.track-title{font:600 clamp(24px,3.6vw,34px)/1.08 var(--display);letter-spacing:-.02em;margin-bottom:7px;transition:font-family .5s}
+.track-meta{font:400 11px/1.6 'Space Mono',monospace;color:var(--dust);letter-spacing:.05em;margin-bottom:20px}
+.readout{
+  background:var(--deck);border:1px solid var(--edge);border-left:2px solid var(--ink-a);
+  border-radius:8px;padding:16px 17px;margin-bottom:18px;min-height:104px;transition:border-color 1s
+}
+.readout .cue{display:block;font:400 9px/1 'Space Mono',monospace;letter-spacing:.19em;color:var(--dust);text-transform:uppercase;margin-bottom:9px}
+.readout p{font-size:14.5px;line-height:1.6}
+.transport{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tbtn{padding:12px 17px;border-radius:8px;border:1px solid var(--edge);background:var(--deck);font:600 12px/1 'Space Grotesk',sans-serif;transition:border-color .2s,background-color .2s}
+.tbtn:hover{border-color:var(--ink-a)}
+.tbtn.key{background:var(--ink-a);color:var(--void);border-color:var(--ink-a);font-weight:700;min-width:104px;text-align:center}
+.tbtn.key:hover{filter:brightness(1.1)}
+.tbtn.what{border-style:dashed}
+
+.chapters{margin-top:22px;border-top:1px solid var(--edge)}
+.chap{display:flex;gap:13px;align-items:baseline;padding:11px 2px;border-bottom:1px solid var(--edge);font-size:13.5px;color:var(--dust);transition:color .25s}
+.chap .n{font:400 10px/1 'Space Mono',monospace;letter-spacing:.08em;min-width:20px}
+.chap .rc{font:400 9px/1 'Space Mono',monospace;letter-spacing:.1em;margin-left:auto;opacity:.7}
+.chap.now{color:var(--label)}
+.chap.now .n{color:var(--ink-a)}
+
+/* ---------- shelf ---------- */
+.shelf{border-top:1px solid var(--edge);padding:20px clamp(16px,4vw,34px) 46px;max-width:1240px;margin:0 auto}
+.shelf h2{font:400 10px/1 'Space Mono',monospace;letter-spacing:.2em;text-transform:uppercase;color:var(--dust);margin-bottom:15px}
+.racks{display:grid;grid-template-columns:repeat(auto-fill,minmax(122px,1fr));gap:15px}
+.sleeve{text-align:left;content-visibility:auto;contain-intrinsic-size:122px 158px}
+.sleeve .art{aspect-ratio:1;border-radius:5px;overflow:hidden;background:var(--deck);border:1px solid var(--edge);transition:transform .28s cubic-bezier(.2,.8,.3,1),box-shadow .28s}
+.sleeve .art svg{display:block;width:100%;height:100%}
+.sleeve:hover .art{transform:translateY(-4px);box-shadow:0 14px 28px -14px rgba(0,0,0,.85)}
+.sleeve .t{font-size:12px;margin-top:8px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sleeve .c{font:400 9.5px/1 'Space Mono',monospace;color:var(--dust);letter-spacing:.09em;margin-top:3px}
+.empty-shelf{font:400 11px/1.7 'Space Mono',monospace;color:var(--dust);max-width:52ch}
+
+/* ---------- dry run ----------
+   A writer-only test. It contacts the model and nothing else, so no ElevenLabs
+   credit is spent while a prompt or a local model is being tuned. */
+.dry-btn{width:100%;margin-top:9px;padding:13px;border-radius:9px;border:1px dashed var(--edge);
+  background:transparent;color:var(--dust);font:400 12px/1 'Space Mono',monospace;letter-spacing:.1em;
+  transition:border-color .2s,color .2s}
+.dry-btn:hover{border-color:var(--ink-a);color:var(--label)}
+.dry-btn:disabled{opacity:.5;cursor:default}
+.dry{margin-top:14px;border:1px solid var(--edge);border-left:2px solid var(--ink-a);
+  border-radius:10px;padding:15px 16px;background:var(--deck)}
+.dry h4{font:400 9px/1 'Space Mono',monospace;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--dust);margin-bottom:11px}
+.dry .line{display:flex;gap:12px;align-items:baseline;padding:6px 0;
+  border-bottom:1px solid var(--edge);font:400 11.5px/1.6 'Space Mono',monospace;color:var(--dust)}
+.dry .line:last-of-type{border-bottom:none}
+.dry .line b{color:var(--label);font-weight:400;min-width:118px;flex:none}
+.dry .line span{flex:1;overflow-wrap:anywhere}
+.dry .tick{flex:none;font-size:10px;letter-spacing:.1em}
+.dry .good{color:var(--ink-b)}
+.dry .warn{color:var(--ink-a)}
+.dry pre{margin-top:11px;font:400 10.5px/1.55 'Space Mono',monospace;color:var(--dust);
+  background:var(--void);border-radius:7px;padding:11px;max-height:240px;overflow:auto;
+  white-space:pre-wrap;overflow-wrap:anywhere}
+.dry summary{font:400 10px/1 'Space Mono',monospace;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--dust);cursor:pointer;margin-top:12px;list-style:none}
+
+/* ---------- recovery ----------
+   Shown only when the app cannot start. Saved data should never be able to
+   brick the page, and if it somehow does, the page has to say so and offer
+   a way out. */
+.recover{
+  position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
+  padding:22px;background:rgba(8,9,11,.94);backdrop-filter:blur(7px);
+}
+.recover-card{
+  width:100%;max-width:520px;background:var(--deck);border:1px solid var(--edge);
+  border-left:2px solid var(--ink-a);border-radius:14px;padding:26px;
+}
+.recover-card .cue{font:400 9px/1 'Space Mono',monospace;letter-spacing:.2em;color:var(--ink-a);text-transform:uppercase}
+.recover-card h3{font:600 19px/1.4 'Space Grotesk',sans-serif;margin:11px 0 12px}
+.recover-card code{
+  display:block;font:400 11px/1.6 'Space Mono',monospace;color:var(--dust);
+  background:var(--void);border-radius:6px;padding:10px 12px;margin-bottom:14px;
+  overflow-wrap:anywhere;
+}
+.recover-card p{font-size:13.5px;line-height:1.6;color:var(--dust);margin-bottom:18px}
+
+/* ---------- recall ---------- */
+.recall{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(8,9,11,.9);backdrop-filter:blur(7px)}
+.recall.on{display:flex;animation:fadein .3s both}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.recall-card{width:100%;max-width:470px;background:var(--deck);border:1px solid var(--edge);border-radius:14px;padding:26px;animation:rise .4s cubic-bezier(.2,.8,.3,1) both}
+.recall-card .cue{font:400 9px/1 'Space Mono',monospace;letter-spacing:.2em;color:var(--ink-a);text-transform:uppercase}
+.recall-card h3{font:600 19px/1.35 'Space Grotesk',sans-serif;margin:11px 0 19px}
+.opts{display:grid;gap:7px}
+.opts button{text-align:left;padding:13px 15px;border-radius:8px;background:var(--deck-2);border:1px solid var(--edge);font-size:13.5px;transition:border-color .2s}
+.opts button:hover{border-color:var(--ink-a)}
+.opts button.right{border-color:var(--ink-a);box-shadow:0 0 0 1px var(--ink-a) inset}
+.riff{margin-top:15px;font-size:13px;line-height:1.6;color:var(--dust);min-height:1.4em}
+
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+  .lathe .groove{stroke-dashoffset:0}
+}
+</style>
+</head>
+<body>
+
+<div class="splash" id="splash" role="button" tabindex="0" aria-label="Skip intro">
+  <div class="frame" style="background-image:url('img/mick-haupt-fDW-BoHRMKE-unsplash.jpg');animation-delay:0s"></div>
+  <div class="frame" style="background-image:url('img/mr-cup-fabien-barral-o6GEPQXnqMY-unsplash.jpg');animation-delay:1.05s"></div>
+  <div class="frame" style="background-image:url('img/samuel-regan-asante-5j7nQv-jaVM-unsplash.jpg');animation-delay:2.1s"></div>
+  <div class="frame last" style="background-image:url('img/ciocan-ciprian-IFlTsdoU9Mo-unsplash.jpg');animation-delay:3.15s"></div>
+  <video id="splashVid" muted playsinline preload="auto" aria-hidden="true">
+    <source src="img/6614768-uhd_3840_2160_25fps.mp4" type="video/mp4">
+  </video>
+  <div class="scrim"></div>
+  <div class="mark-lg">
+    <h1>DEEP CUTS</h1>
+    <p>every lesson is a track</p>
+  </div>
+  <span class="skip">press anything to skip</span>
+</div>
+
+<header class="rail">
+  <div class="mark" id="markHome" role="button" tabindex="0" aria-label="Deep Cuts home">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="10.2" stroke="currentColor" stroke-width="1.5"/>
+      <circle cx="12" cy="12" r="6.4" stroke="currentColor" stroke-width="1" opacity=".55"/>
+      <circle cx="12" cy="12" r="3" fill="var(--ink-a)"/>
+      <circle cx="12" cy="12" r="1" fill="var(--void)"/>
+    </svg>
+    <b>DEEP CUTS</b>
+  </div>
+  <span class="cat" id="railCat">no sides pressed</span>
+  <nav>
+    <button id="navCut" class="on">Cut</button>
+    <button id="navShelf">Shelf</button>
+  </nav>
+</header>
+
+<main class="studio" id="studio">
+  <section class="platter-col">
+    <div class="platter" id="platter">
+      <div class="plate-idle" id="plateIdle">
+        <div class="photo-bed" style="background-image:url('img/joyce-g-ITVCF_F1_00-unsplash.jpg')"></div>
+        <svg viewBox="0 0 100 100" fill="none" aria-hidden="true" style="position:relative">
+          <circle cx="50" cy="50" r="44" stroke="var(--edge)" stroke-width="1.5"/>
+          <circle cx="50" cy="50" r="33" stroke="var(--edge)" stroke-width="1"/>
+          <circle cx="50" cy="50" r="22" stroke="var(--edge)" stroke-width="1"/>
+          <circle cx="50" cy="50" r="12" stroke="var(--dust)" stroke-width="1.5"/>
+          <circle cx="50" cy="50" r="2" fill="var(--dust)"/>
+        </svg>
+        <p style="position:relative">the platter is empty</p>
+      </div>
+
+      <div class="plate-work" id="plateWork" hidden aria-live="polite">
+        <svg class="lathe" viewBox="0 0 1024 1024" aria-hidden="true">
+          <g class="disc">
+            <circle cx="512" cy="512" r="470" fill="#0a0b0d"/>
+            <circle cx="512" cy="512" r="470" fill="none" stroke="var(--edge)" stroke-width="2"/>
+            <circle class="groove" cx="512" cy="512" r="420" fill="none" stroke="var(--ink-a)" stroke-width="4" opacity=".4" pathLength="100" style="animation-delay:0s"/>
+            <circle class="groove" cx="512" cy="512" r="360" fill="none" stroke="var(--ink-a)" stroke-width="4" opacity=".34" pathLength="100" style="animation-delay:.3s"/>
+            <circle class="groove" cx="512" cy="512" r="300" fill="none" stroke="var(--ink-a)" stroke-width="4" opacity=".3" pathLength="100" style="animation-delay:.6s"/>
+            <circle class="groove" cx="512" cy="512" r="240" fill="none" stroke="var(--ink-a)" stroke-width="4" opacity=".26" pathLength="100" style="animation-delay:.9s"/>
+            <circle cx="512" cy="512" r="160" fill="var(--ink-a)" opacity=".9"/>
+            <circle cx="512" cy="512" r="158" fill="none" stroke="#0a0b0d" stroke-width="3" opacity=".35"/>
+            <circle cx="512" cy="512" r="18" fill="#0a0b0d"/>
+          </g>
+          <g class="arm">
+            <rect x="866" y="176" width="28" height="28" rx="6" fill="var(--dust)"/>
+            <rect x="546" y="186" width="330" height="9" rx="4.5" fill="var(--dust)" opacity=".8"/>
+            <rect x="536" y="182" width="26" height="20" rx="4" fill="var(--ink-a)"/>
+          </g>
+        </svg>
+        <span class="work-word" id="workWord">warming the lathe</span>
+      </div>
+
+      <div class="layer" id="plateArt"></div>
+      <div class="layer" id="plateType"></div>
+      <svg class="layer" id="plateRing" viewBox="0 0 1024 1024" aria-hidden="true">
+        <circle cx="512" cy="512" r="496" fill="none" stroke="rgba(0,0,0,.3)" stroke-width="9"/>
+        <circle id="ringArc" cx="512" cy="512" r="496" fill="none" stroke="var(--ink-b)" stroke-width="9"
+          stroke-linecap="round" pathLength="1000" stroke-dasharray="0 1000" transform="rotate(-90 512 512)"/>
+      </svg>
+    </div>
+    <div class="caption" id="caption"></div>
+  </section>
+
+  <section class="panel">
+    <div class="face on" id="faceCut">
+      <p class="eyebrow">A record label for micro-lessons</p>
+      <h1 class="lede">Cut a track from<br>whatever you're learning.</h1>
+      <p class="sub">Hand it a topic or paste your notes. It comes back as a spoken lesson with a music bed, a sleeve of its own, and questions that land on the bar line.</p>
+
+      <div class="field">
+        <label for="title">Track title</label>
+        <input type="text" id="title" maxlength="80" placeholder="The Spacing Effect" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="topic">Topic or notes</label>
+        <textarea id="topic" placeholder="Paste a reading, your lecture notes, or just name the thing you can't let go of."></textarea>
+      </div>
+      <div class="field">
+        <label>Instructor</label>
+        <div class="cast" id="cast"></div>
+      </div>
+      <div class="field">
+        <label for="genre">Music bed</label>
+        <select id="genre"></select>
+      </div>
+
+      <button class="cut-btn" id="cutBtn">CUT THE TRACK</button>
+      <button class="dry-btn" id="dryBtn">DRY RUN THE WRITER &nbsp;/&nbsp; no audio, no credit spent</button>
+      <p class="note" id="cutNote"></p>
+      <div class="dry" id="dryOut" hidden></div>
+
+      <details>
+        <summary>Studio settings</summary>
+        <div class="field">
+          <label for="wProvider">Writer</label>
+          <select id="wProvider">
+            <option value="ollama">Ollama (on this machine)</option>
+            <option value="nvidia">NVIDIA Nemotron Nano 8B</option>
+            <option value="anthropic">Anthropic Claude</option>
+            <option value="gemini">Google Gemini</option>
+            <option value="openai">OpenAI</option>
+          </select>
+          <p class="hint" id="wHint"></p>
+        </div>
+        <div class="field" id="ollamaField">
+          <label for="wBase">Ollama address</label>
+          <input type="text" id="wBase" placeholder="http://localhost:11434" autocomplete="off">
+          <p class="hint">Runs on your own machine, so there is no key and no relay. Ollama refuses browser requests until you allow this page's origin: set the environment variable <code>OLLAMA_ORIGINS</code> to <code>*</code> and restart Ollama.</p>
+        </div>
+        <div class="field" id="relayField">
+          <label for="wRelay">Relay URL</label>
+          <input type="text" id="wRelay" placeholder="https://…/write" autocomplete="off">
+          <p class="hint">NVIDIA refuses browser calls, so the relay holds the key server-side. Leave the key below empty when a relay is set.</p>
+        </div>
+        <div class="field" id="keyField">
+          <label for="wKey">Writer key</label>
+          <input type="password" id="wKey" placeholder="key for the selected writer" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="wModel">Writer model</label>
+          <input type="text" id="wModel" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="elKey">ElevenLabs key</label>
+          <input type="password" id="elKey" placeholder="xi-…" autocomplete="off">
+          <p class="hint">Voices the instructor and lays the bed. Without it your browser reads the lesson and the bed stays silent.</p>
+        </div>
+        <div id="voiceCast"></div>
+      </details>
+    </div>
+
+    <div class="face" id="facePress">
+      <p class="eyebrow">On the lathe</p>
+      <h1 class="lede" id="pressTitle">Cutting…</h1>
+      <p class="sub">Four passes. Each one says what it is doing, and what it did instead when something was not available.</p>
+      <div class="log" id="log"></div>
+    </div>
+
+    <div class="face" id="facePlay">
+      <p class="eyebrow">Now spinning</p>
+      <h1 class="track-title" id="playTitle"></h1>
+      <p class="track-meta" id="playMeta"></p>
+      <div class="readout">
+        <span class="cue" id="readCue">press play</span>
+        <p id="readText">The lesson appears here as it plays, so you can follow along. Or put the screen away and just walk.</p>
+      </div>
+      <div class="transport">
+        <button class="tbtn key" id="playBtn">Play</button>
+        <button class="tbtn what" id="whatBtn">wait, what?</button>
+        <button class="tbtn" id="shareBtn">Copy link</button>
+        <button class="tbtn" id="newBtn">Cut another</button>
+      </div>
+      <p class="note" id="playNote"></p>
+      <div class="chapters" id="chapters"></div>
+    </div>
+  </section>
+</main>
+
+<section class="shelf">
+  <h2>Discography</h2>
+  <div class="racks" id="racks"></div>
+  <div class="shelf-bed" id="shelfBed">
+  <p class="empty-shelf" id="emptyShelf">Nothing pressed yet. Every track you finish lands here with its own sleeve. A shelf of everything you were stubborn enough to learn.</p>
+  </div>
+</section>
+
+<div class="recover" id="recover" hidden role="alertdialog" aria-labelledby="recoverMsg">
+  <div class="recover-card">
+    <span class="cue">Deep Cuts could not start</span>
+    <h3 id="recoverMsg">Something went wrong while loading.</h3>
+    <code id="recoverWhy"></code>
+    <p>This is almost always saved data left by an earlier build. Every project on this domain shares one storage drawer, so an old Kept or Hype Lab entry can end up here. Clearing it only removes tracks saved in this browser and cannot affect anything on the server.</p>
+    <button class="tbtn key" id="recoverBtn">Clear saved data and reload</button>
+  </div>
+</div>
+
+<div class="recall" id="recall" role="dialog" aria-modal="true" aria-labelledby="recallQ">
+  <div class="recall-card">
+    <span class="cue">Recall on the bar line</span>
+    <h3 id="recallQ"></h3>
+    <div class="opts" id="opts"></div>
+    <p class="riff" id="riff"></p>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ==========================================================================
+   DEEP CUTS
+   notes -> script (4 writers, relay-capable)
+         -> sleeve (7-renderer generative art engine)
+         -> voice  (ElevenLabs v3, pooled 2 at a time)
+         -> bed    (ElevenLabs Music, cached by prompt)
+   Every stage degrades out loud. Nothing silently substitutes.
+   ========================================================================== */
+const $ = id => document.getElementById(id);
+
+/* ---------- last resort ----------
+   Registered before any stored data is touched. If start-up throws for any
+   reason, the splash is torn down so the page is not left under a dead
+   overlay, and the reason is put on screen with a way to clear state. */
+const STORE_KEYS=["dc_tracks","dc_voice_ids","dc_persona","dc_genre","dc_writer","dc_relay"];
+let recovered=false;
+function showRecovery(why){
+  if(recovered) return;
+  recovered=true;
+  try{
+    const sp=document.getElementById("splash");
+    if(sp) sp.remove();
+    const el=document.getElementById("recover");
+    if(!el) return;
+    el.hidden=false;
+    const w=document.getElementById("recoverWhy");
+    if(w) w.textContent=String(why||"unknown error");
+    const b=document.getElementById("recoverBtn");
+    if(b) b.onclick=function(){
+      try{ STORE_KEYS.forEach(k=>localStorage.removeItem(k)); }catch(e){}
+      try{ sessionStorage.removeItem("dc_splash"); }catch(e){}
+      try{ indexedDB.deleteDatabase("deepcuts"); }catch(e){}
+      location.reload();
+    };
+  }catch(e){}
+}
+window.addEventListener("error",e=>showRecovery(e.message||e.error));
+
+/* ---------- seeded math ---------- */
+function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+/* Colour is authored in HSL because harmony maths lives there, but every
+   value is emitted as hex: browsers accept hsl(), rasterisers and export
+   pipelines frequently do not, and a sleeve should render anywhere. */
+function hsl(h,s,l){
+  h=(((h%360)+360)%360)/360; s=clamp(s,0,100)/100; l=clamp(l,0,100)/100;
+  const q=l<.5?l*(1+s):l+s-l*s, p=2*l-q;
+  const ch=t=>{
+    t=(t+1)%1;
+    const v=t<1/6?p+(q-p)*6*t:t<1/2?q:t<2/3?p+(q-p)*(2/3-t)*6:p;
+    return Math.round(clamp(v,0,1)*255);
+  };
+  const to=n=>n.toString(16).padStart(2,"0");
+  return s===0 ? "#"+to(Math.round(l*255)).repeat(3)
+               : "#"+to(ch(h+1/3))+to(ch(h))+to(ch(h-1/3));
+}
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+/* Computed colour harmony: every non-riso style derives its scheme from a
+   seeded base hue, so no two sleeves ever share the same scheme. */
+function harmony(seed,type){
+  const r=mulberry32(seed^0xabcdef01), base=Math.floor(r()*360);
+  const offs={mono:[0,0,0],analog:[0,26,-26],complement:[0,180,18],split:[0,152,208],triad:[0,120,240]}[type]||[0,120,240];
+  return {base,hues:offs.map(d=>(base+d+360)%360),r};
+}
+/* Lattice value noise + fractal Brownian motion: the pixel terrain and the
+   flow field both read from this. Deterministic per seed. */
+function makeFbm(seed){
+  const h2=(ix,iy)=>{
+    let n=Math.imul(ix,374761393)+Math.imul(iy,668265263)+Math.imul(seed|0,974711);
+    n=Math.imul(n^(n>>>13),1274126177);
+    return ((n^(n>>>16))>>>0)%100000/100000;
+  };
+  const sm=t=>t*t*(3-2*t);
+  const noise=(x,y)=>{
+    const ix=Math.floor(x),iy=Math.floor(y),fx=x-ix,fy=y-iy;
+    const a=h2(ix,iy),b=h2(ix+1,iy),c=h2(ix,iy+1),d=h2(ix+1,iy+1),u=sm(fx),v=sm(fy);
+    return a*(1-u)*(1-v)+b*u*(1-v)+c*(1-u)*v+d*u*v;
+  };
+  return (x,y,oct)=>{let acc=0,amp=1,f=1,tot=0;oct=oct||3;
+    for(let i=0;i<oct;i++){acc+=noise(x*f,y*f)*amp;tot+=amp;amp*=.5;f*=2;}return acc/tot;};
+}
+const polyArea=p=>{let a=0;for(let i=0;i<p.length;i++){const A=p[i],B=p[(i+1)%p.length];a+=A[0]*B[1]-B[0]*A[1];}return Math.abs(a/2);};
+const centroid=p=>{let x=0,y=0;p.forEach(q=>{x+=q[0];y+=q[1];});return[x/p.length,y/p.length];};
+function splitPoly(poly,r){
+  const n=poly.length,i=Math.floor(r()*n),j=(i+1+Math.floor(r()*(n-2)))%n;
+  const lerp=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
+  const A=lerp(poly[i],poly[(i+1)%n],.3+r()*.4),B=lerp(poly[j],poly[(j+1)%n],.3+r()*.4);
+  const pa=[A],pb=[B];let k=(i+1)%n;
+  while(true){pa.push(poly[k]);if(k===j)break;k=(k+1)%n;} pa.push(B);
+  k=(j+1)%n;
+  while(true){pb.push(poly[k]);if(k===i)break;k=(k+1)%n;} pb.push(A);
+  return [pa,pb];
+}
+const ptStr=p=>p.map(q=>q[0].toFixed(1)+","+q[1].toFixed(1)).join(" ");
+
+/* ---------- styles ---------- */
+const STYLE_IDS=["riso","pixel","cubist","brutalist","ambient","liminal","flow"];
+const STYLE_LABEL={riso:"two-ink riso",pixel:"pixel field",cubist:"cubist fracture",
+  brutalist:"brutalist",ambient:"ambient wash",liminal:"liminal space",flow:"flow field"};
+/* A display face per style, fetched from Google Fonts only when that style is
+   first pressed. `w` is the average glyph-width ratio, used to size titles. */
+const STYLE_FONT={
+  riso:{fam:"Archivo Black",q:"Archivo+Black",stack:"'Archivo Black',sans-serif",w:.70,wt:400},
+  pixel:{fam:"Silkscreen",q:"Silkscreen:wght@700",stack:"'Silkscreen',monospace",w:.78,wt:700},
+  cubist:{fam:"Playfair Display",q:"Playfair+Display:wght@900",stack:"'Playfair Display',serif",w:.60,wt:900},
+  brutalist:{fam:"Anton",q:"Anton",stack:"'Anton',sans-serif",w:.47,wt:400},
+  ambient:{fam:"Cormorant Garamond",q:"Cormorant+Garamond:wght@700",stack:"'Cormorant Garamond',serif",w:.50,wt:700},
+  liminal:{fam:"Spline Sans Mono",q:"Spline+Sans+Mono:wght@700",stack:"'Spline Sans Mono',monospace",w:.62,wt:700},
+  flow:{fam:"Outfit",q:"Outfit:wght@800",stack:"'Outfit',sans-serif",w:.58,wt:800}
+};
+const PALETTES=[
+  {name:"federal blue / fluoro orange",a:"#0b4f9e",b:"#ff5e2b"},
+  {name:"deep teal / riso red",a:"#0f6b6b",b:"#e63b2e"},
+  {name:"violet / sunflower",a:"#5b3aa8",b:"#f2b705"},
+  {name:"forest / hot pink",a:"#1e5c3a",b:"#f0559c"},
+  {name:"midnight / peach",a:"#232a5c",b:"#ffb08a"},
+  {name:"burgundy / mint",a:"#7a1f2b",b:"#57c99b"},
+  {name:"charcoal / gold",a:"#2b2b28",b:"#d9a021"},
+  {name:"cobalt / chartreuse",a:"#1d3fbf",b:"#b8d431"}
+];
+const PAPER="#f3ecda";
+const MOTIFS=["orbits","strata","lattice","arcs","shards","loops"];
+
+const loadedFonts=new Set();
+function loadFont(style){
+  const f=STYLE_FONT[style];
+  if(!f||loadedFonts.has(style)) return Promise.resolve(false);
+  loadedFonts.add(style);
+  const l=document.createElement("link");
+  l.rel="stylesheet";
+  l.href="https://fonts.googleapis.com/css2?family="+f.q+"&display=swap";
+  document.head.appendChild(l);
+  if(!document.fonts||!document.fonts.load) return Promise.resolve(false);
+  return document.fonts.load(f.wt+' 72px "'+f.fam+'"').then(()=>true).catch(()=>false);
+}
+
+/* Theme-relevant colours, computed exactly the way each renderer computes
+   them, so the interface and the sleeve can never drift apart. */
+function paletteOf(spec){
+  const s=spec.style;
+  if(s==="riso"){const p=PALETTES[spec.paletteIdx]||PALETTES[0];return{a:p.a,b:p.b,paper:PAPER,name:p.name};}
+  if(s==="pixel"){const h=harmony(spec.seed,"triad").hues;return{a:hsl(h[2],76,64),b:hsl(h[1],66,52),paper:hsl(h[1],26,88),name:"triad ramp"};}
+  if(s==="cubist"){const h=harmony(spec.seed,"split").hues;return{a:hsl(h[1],52,60),b:hsl(h[2],46,48),paper:PAPER,name:"split complement"};}
+  if(s==="brutalist"){const h=harmony(spec.seed,"mono").hues;return{a:hsl(h[0],72,54),b:hsl(h[0],12,58),paper:hsl(h[0],10,84),name:"concrete + one accent"};}
+  if(s==="ambient"){const h=harmony(spec.seed,"analog").hues;return{a:hsl(h[1],62,68),b:hsl(h[2],54,60),paper:hsl(h[0],40,90),name:"analogous wash"};}
+  if(s==="liminal"){const r=mulberry32(spec.seed^0x77777),h1=250+r()*60;return{a:hsl(45,92,70),b:hsl(h1,40,52),paper:hsl(h1,30,16),name:"dusk + sodium light"};}
+  const h=harmony(spec.seed,"triad").hues;
+  return{a:hsl(h[0],68,58),b:hsl(h[2],62,50),paper:PAPER,name:"triad field"};
+}
+
+/* ---------- shared finish: grain + vignette on every sleeve ---------- */
+function finish(seed,thumb){
+  if(thumb) return{defs:"",over:""};
+  const g="fg"+seed,v="fv"+seed;
+  return{
+    defs:'<filter id="'+g+'" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.82" numOctaves="3" seed="'+(seed%997)+'" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter>'+
+      '<radialGradient id="'+v+'" cx="50%" cy="47%" r="74%"><stop offset="52%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity="0.32"/></radialGradient>',
+    over:'<rect width="1024" height="1024" filter="url(#'+g+')" opacity="0.085" style="mix-blend-mode:multiply"/>'+
+      '<rect width="1024" height="1024" fill="url(#'+v+')"/>'
+  };
+}
+function regMarks(c){
+  const m=(x,y)=>'<g stroke="'+c+'" stroke-width="2" opacity=".5"><line x1="'+(x-13)+'" y1="'+y+'" x2="'+(x+13)+'" y2="'+y+'"/><line x1="'+x+'" y1="'+(y-13)+'" x2="'+x+'" y2="'+(y+13)+'"/><circle cx="'+x+'" cy="'+y+'" r="7.5" fill="none"/></g>';
+  return m(44,44)+m(980,44)+m(44,980)+m(980,980);
+}
+
+/* motif geometry for the riso renderer */
+function inkShapes(spec,thumb){
+  const rnd=mulberry32(spec.seed^0x9e3779b9),A=[],B=[],S=1024;
+  const push=(arr,s)=>arr.push(s);
+  switch(spec.motif){
+    case "orbits":{
+      const cx=300+rnd()*424,cy=300+rnd()*380,n=thumb?3:(4+Math.floor(rnd()*3));
+      for(let i=0;i<n;i++)push(i%2?B:A,'<circle cx="'+cx.toFixed(0)+'" cy="'+cy.toFixed(0)+'" r="'+(90+i*(92+rnd()*40)).toFixed(0)+'" fill="none" stroke-width="'+(26-i*3)+'" class="ink-el"/>');
+      push(A,'<circle cx="'+cx.toFixed(0)+'" cy="'+cy.toFixed(0)+'" r="'+(46+rnd()*30).toFixed(0)+'" class="ink-el"/>');
+      push(B,'<circle cx="'+(cx+Math.cos(rnd()*6.28)*(200+rnd()*160)).toFixed(0)+'" cy="'+(cy+Math.sin(rnd()*6.28)*(200+rnd()*160)).toFixed(0)+'" r="'+(30+rnd()*24).toFixed(0)+'" class="ink-el"/>');
+      break;}
+    case "strata":{
+      const n=thumb?4:(6+Math.floor(rnd()*3));
+      for(let i=0;i<n;i++){const y=120+i*(S-240)/n+rnd()*30,h=44+rnd()*70,w=20+rnd()*60;
+        push(i%2?B:A,'<path d="M0 '+y.toFixed(0)+' Q 256 '+(y-w).toFixed(0)+', 512 '+y.toFixed(0)+' T 1024 '+y.toFixed(0)+' L 1024 '+(y+h).toFixed(0)+' Q 768 '+(y+h+w).toFixed(0)+', 512 '+(y+h).toFixed(0)+' T 0 '+(y+h).toFixed(0)+' Z" class="ink-el"/>');}
+      break;}
+    case "lattice":{
+      const st=thumb?256:128;
+      for(let x=st;x<S;x+=st){
+        push(A,'<line x1="'+x+'" y1="60" x2="'+x+'" y2="'+(S-60)+'" stroke-width="7" class="ink-el"/>');
+        push(A,'<line x1="60" y1="'+x+'" x2="'+(S-60)+'" y2="'+x+'" stroke-width="7" class="ink-el"/>');}
+      const n=thumb?4:(7+Math.floor(rnd()*5));
+      for(let i=0;i<n;i++)push(B,'<circle cx="'+128*(1+Math.floor(rnd()*7))+'" cy="'+128*(1+Math.floor(rnd()*7))+'" r="'+(32+rnd()*46).toFixed(0)+'" class="ink-el"/>');
+      break;}
+    case "arcs":{
+      const cx=rnd()<.5?0:S,cy=S+80,n=thumb?4:(6+Math.floor(rnd()*4));
+      for(let i=0;i<n;i++)push(i%2?B:A,'<circle cx="'+cx+'" cy="'+cy+'" r="'+(200+i*(112+rnd()*30)).toFixed(0)+'" fill="none" stroke-width="'+(34-i*2)+'" class="ink-el"/>');
+      push(B,'<circle cx="'+(S-cx||180)+'" cy="'+(190+rnd()*140).toFixed(0)+'" r="'+(62+rnd()*40).toFixed(0)+'" class="ink-el"/>');
+      break;}
+    case "shards":{
+      const n=thumb?5:(8+Math.floor(rnd()*6));
+      for(let i=0;i<n;i++){const s=90+rnd()*220;
+        push(i%2?B:A,'<polygon points="0,'+(-s).toFixed(0)+' '+(s*.85).toFixed(0)+','+(s*.6).toFixed(0)+' '+(-s*.85).toFixed(0)+','+(s*.6).toFixed(0)+'" transform="translate('+(rnd()*S).toFixed(0)+' '+(rnd()*S).toFixed(0)+') rotate('+(rnd()*360).toFixed(0)+')" class="ink-el"/>');}
+      break;}
+    default:{
+      const n=thumb?3:(5+Math.floor(rnd()*3));
+      for(let i=0;i<n;i++)push(i%2?B:A,'<circle cx="'+(250+rnd()*524).toFixed(0)+'" cy="'+(250+rnd()*524).toFixed(0)+'" r="'+(100+rnd()*180).toFixed(0)+'" fill="none" stroke-width="'+(40+rnd()*30).toFixed(0)+'" class="ink-el"/>');}
+  }
+  return {A:A,B:B};
+}
+
+/* ---------- the seven renderers ---------- */
+const BAYER=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+const RENDER={
+  /* Real risograph behaviour: two spot inks multiplying where they overlap,
+     a rotated halftone screen, deliberate misregistration, printer's marks. */
+  riso:function(spec,thumb){
+    const p=PALETTES[spec.paletteIdx]||PALETTES[0], r=mulberry32(spec.seed^0x9911);
+    const sh=inkShapes(spec,thumb);
+    const hid="ht"+spec.seed, bid="rb"+spec.seed;
+    let defs="";
+    if(!thumb){
+      defs='<pattern id="'+hid+'" width="13" height="13" patternUnits="userSpaceOnUse" patternTransform="rotate(22)"><circle cx="6.5" cy="6.5" r="3.9" fill="'+p.b+'"/></pattern>'+
+        '<linearGradient id="'+bid+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="'+p.a+'" stop-opacity=".8"/><stop offset="1" stop-color="'+p.a+'" stop-opacity="0"/></linearGradient>';
+    }
+    const band=thumb?"":'<rect x="0" y="'+(r()<.5?0:600)+'" width="1024" height="424" fill="url(#'+bid+')" opacity=".45" style="mix-blend-mode:multiply"/>';
+    const screen=thumb?"":'<rect x="'+(90+r()*300).toFixed(0)+'" y="'+(110+r()*300).toFixed(0)+'" width="'+(300+r()*280).toFixed(0)+'" height="'+(300+r()*280).toFixed(0)+'" fill="url(#'+hid+')" opacity=".5" style="mix-blend-mode:multiply"/>';
+    return {bg:PAPER,defs:defs,body:
+      band+
+      '<g fill="'+p.a+'" stroke="'+p.a+'" opacity=".9" style="mix-blend-mode:multiply">'+sh.A.join("")+'</g>'+
+      screen+
+      '<g fill="'+p.b+'" stroke="'+p.b+'" opacity=".86" transform="translate(8 6)" style="mix-blend-mode:multiply">'+sh.B.join("")+'</g>'+
+      (thumb?"":regMarks(p.a))};
+  },
+  /* An fBm terrain quantised to a six-step ramp with 4x4 Bayer ordered
+     dithering on the band edges, the trick 8-bit artists used to fake
+     gradients on a fixed palette, plus a sun disc and CRT scanlines. */
+  pixel:function(spec,thumb){
+    const H=harmony(spec.seed,"triad"), hues=H.hues, r=H.r, fbm=makeFbm(spec.seed);
+    const N=thumb?14:30, c=1024/N, f=.1+r()*.05;
+    const ramp=[hsl(hues[0],66,16),hsl(hues[0],62,30),hsl(hues[1],66,45),
+                hsl(hues[2],72,60),hsl(hues[2],78,74),hsl(hues[1],26,88)];
+    const sx=N*(.24+r()*.5), sy=N*(.2+r()*.16), sr=N*.115;
+    let body="";
+    for(let y=0;y<N;y++){
+      let row="";
+      for(let x=0;x<N;x++){
+        let v=fbm(x*f,y*f,4)*.72+(y/N)*.45;
+        if(Math.sqrt((x-sx)*(x-sx)+(y-sy)*(y-sy))<sr) v=.95;
+        const t=clamp(v,0,1)*(ramp.length-1);
+        let i=Math.floor(t);
+        if(t-i>BAYER[y&3][x&3]/16) i++;
+        row+='<rect x="'+(x*c).toFixed(1)+'" y="'+(y*c).toFixed(1)+'" width="'+(c+.6).toFixed(1)+'" height="'+(c+.6).toFixed(1)+'" fill="'+ramp[clamp(i,0,5)]+'"/>';
+      }
+      body+='<g class="ink-el">'+row+'</g>';
+    }
+    if(!thumb){
+      let scan="";
+      for(let i=0;i<57;i++) scan+='<rect x="0" y="'+(i*18)+'" width="1024" height="7"/>';
+      body+='<g fill="#000" opacity=".13">'+scan+'</g>';
+    }
+    return {bg:ramp[0],defs:"",body:body};
+  },
+  /* The canvas starts as one plane and is fractured by repeatedly splitting
+     whichever facet is largest. Facets are hatched inside their own clip
+     paths and overlaid with translucent discs: one subject, several views. */
+  cubist:function(spec,thumb){
+    const H=harmony(spec.seed,"split"), hues=H.hues, r=H.r;
+    let polys=[[[0,0],[1024,0],[1024,1024],[0,1024]]];
+    const cuts=thumb?7:16;
+    for(let t=0;t<cuts;t++){
+      polys.sort((a,b)=>polyArea(b)-polyArea(a));
+      const q=splitPoly(polys[0],r);
+      polys=[q[0],q[1]].concat(polys.slice(1));
+    }
+    const planes=polys.map(function(p,i){
+      const cen=centroid(p);
+      return '<polygon points="'+ptStr(p)+'" fill="'+hsl(hues[i%3],28+((i*19)%34),24+((i*31)%54))+'" stroke="#16130e" stroke-width="2.5" transform="rotate('+(r()*3-1.5).toFixed(2)+' '+cen[0].toFixed(1)+' '+cen[1].toFixed(1)+')" class="ink-el"/>';
+    }).join("");
+    let defs="",hatch="";
+    if(!thumb){
+      polys.slice(0,6).forEach(function(p,i){
+        const id="cc"+spec.seed+"_"+i, cen=centroid(p);
+        defs+='<clipPath id="'+id+'"><polygon points="'+ptStr(p)+'"/></clipPath>';
+        let lines="";
+        for(let k=-9;k<=9;k++)
+          lines+='<line x1="'+(cen[0]-300).toFixed(0)+'" y1="'+(cen[1]+k*14).toFixed(0)+'" x2="'+(cen[0]+300).toFixed(0)+'" y2="'+(cen[1]+k*14).toFixed(0)+'"/>';
+        hatch+='<g clip-path="url(#'+id+')" stroke="#16130e" stroke-width="1.3" opacity=".3" transform="rotate('+((i*41)%180)+' '+cen[0].toFixed(0)+' '+cen[1].toFixed(0)+')">'+lines+'</g>';
+      });
+    }
+    const fx=340+r()*340, fy=370+r()*300;
+    let focal="";
+    for(let i=0;i<3;i++)
+      focal+='<circle cx="'+(fx+i*48-48).toFixed(0)+'" cy="'+(fy+i*32-32).toFixed(0)+'" r="'+(152-i*24).toFixed(0)+'" fill="'+hsl(hues[i%3],60,64)+'" opacity=".32" stroke="#16130e" stroke-width="2" class="ink-el"/>';
+    return {bg:PAPER,defs:defs,body:planes+hatch+focal};
+  },
+  /* Monoliths snapped to a strict eight-column grid, lit from one side,
+     window slots punched at a fixed rhythm, and exactly one accent. */
+  brutalist:function(spec,thumb){
+    const H=harmony(spec.seed,"mono"), hues=H.hues, r=H.r;
+    const accent=hsl(hues[0],72,54), sky="bs"+spec.seed, lit="bl"+spec.seed;
+    let defs='<linearGradient id="'+sky+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="'+hsl(hues[0],16,72)+'"/><stop offset="1" stop-color="'+hsl(hues[0],10,88)+'"/></linearGradient>';
+    if(!thumb) defs+='<linearGradient id="'+lit+'" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".2"/></linearGradient>';
+    const sunX=200+r()*620, sunY=140+r()*150;
+    let body='<circle cx="'+sunX.toFixed(0)+'" cy="'+sunY.toFixed(0)+'" r="'+(72+r()*48).toFixed(0)+'" fill="'+accent+'" class="ink-el"/>';
+    const col=x=>Math.round(x*128), n=thumb?4:(5+Math.floor(r()*3)), accentAt=Math.floor(r()*n);
+    for(let i=0;i<n;i++){
+      const w=col(1+Math.floor(r()*3)), h=col(2+Math.floor(r()*5));
+      const x=col(Math.floor(r()*(8-w/128))), y=1024-h;
+      body+='<g class="ink-el">'+
+        '<rect x="'+(x+26)+'" y="'+(y+16)+'" width="'+w+'" height="'+h+'" fill="#0a0a0b" opacity=".28"/>'+
+        '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" fill="'+(i===accentAt?accent:hsl(0,0,18+((i*23)%32)))+'"/>';
+      if(!thumb){
+        body+='<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" fill="url(#'+lit+')"/>';
+        const rows=Math.floor(h/92);
+        for(let k=0;k<rows;k++)
+          body+='<rect x="'+(x+18)+'" y="'+(y+34+k*92)+'" width="'+(w-36)+'" height="17" fill="#0a0a0b" opacity="'+(.16+(k%3)*.07).toFixed(2)+'"/>';
+      }
+      body+='</g>';
+    }
+    if(!thumb){
+      let ticks="";
+      for(let i=0;i<=32;i++) ticks+='<rect x="'+(i*32)+'" y="0" width="2" height="'+(i%4===0?18:9)+'"/>';
+      body+='<g transform="translate(0 66)" fill="#16130e" opacity=".38">'+ticks+'</g>';
+    }
+    return {bg:"url(#"+sky+")",defs:defs,body:body};
+  },
+  /* Analogous fields blurred past recognition, banded light, a long vertical
+     gradient. The quietest thing the label presses. */
+  ambient:function(spec,thumb){
+    const H=harmony(spec.seed,"analog"), hues=H.hues, r=H.r;
+    const g="ag"+spec.seed, b="ab"+spec.seed;
+    let defs='<linearGradient id="'+g+'" x1="0" y1="0" x2="0.2" y2="1"><stop offset="0" stop-color="'+hsl(hues[0],44,90)+'"/><stop offset=".5" stop-color="'+hsl(hues[1],48,80)+'"/><stop offset="1" stop-color="'+hsl(hues[2],44,70)+'"/></linearGradient>';
+    if(!thumb) defs+='<filter id="'+b+'" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="62"/></filter>';
+    let body="";
+    const n=thumb?3:7;
+    for(let i=0;i<n;i++)
+      body+='<circle cx="'+(r()*1024).toFixed(0)+'" cy="'+(r()*1024).toFixed(0)+'" r="'+(170+r()*270).toFixed(0)+'" fill="'+hsl(hues[i%3],64,54+r()*26)+'" opacity="'+(thumb?".45":".4")+'" '+(thumb?"":'filter="url(#'+b+')"')+' class="ink-el"/>';
+    if(!thumb)
+      for(let i=0;i<5;i++)
+        body+='<rect x="0" y="'+(r()*1024).toFixed(0)+'" width="1024" height="'+(10+r()*46).toFixed(0)+'" fill="#fff" opacity="'+(.05+r()*.1).toFixed(2)+'"/>';
+    return {bg:"url(#"+g+")",defs:defs,body:body};
+  },
+  /* One-point perspective, honestly constructed: a seeded vanishing point,
+     converging floor and ceiling lines spaced on a 1/(1+ck) series, receding
+     lamps, pools of light, and a doorway that glows. */
+  liminal:function(spec,thumb){
+    const r=mulberry32(spec.seed^0x77777);
+    const h1=250+r()*60, h2=(h1+42)%360;
+    const g="lg"+spec.seed, gl="lgl"+spec.seed;
+    const hy=520+r()*90, vx=360+r()*300;
+    let defs='<linearGradient id="'+g+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="'+hsl(h1,46,12)+'"/><stop offset="'+(hy/1024).toFixed(2)+'" stop-color="'+hsl(h2,38,32)+'"/><stop offset="1" stop-color="'+hsl(h1,34,9)+'"/></linearGradient>';
+    if(!thumb) defs+='<filter id="'+gl+'" x="-90%" y="-90%" width="280%" height="280%"><feGaussianBlur stdDeviation="30"/></filter>';
+    let body='<rect x="0" y="'+hy.toFixed(0)+'" width="1024" height="'+(1024-hy).toFixed(0)+'" fill="'+hsl(h1,26,18)+'"/>';
+    let lines="";
+    const nv=thumb?7:13;
+    for(let i=0;i<=nv;i++){
+      const bx=i*(1024/nv);
+      lines+='<line x1="'+bx.toFixed(0)+'" y1="1024" x2="'+vx.toFixed(0)+'" y2="'+hy.toFixed(0)+'" stroke="'+hsl(h2,34,66)+'" stroke-width="2" opacity=".28"/>';
+      lines+='<line x1="'+bx.toFixed(0)+'" y1="0" x2="'+vx.toFixed(0)+'" y2="'+hy.toFixed(0)+'" stroke="'+hsl(h2,34,66)+'" stroke-width="1.5" opacity=".14"/>';
+    }
+    for(let k=1;k<=(thumb?4:8);k++){
+      const y=hy+(1024-hy)*(1-1/(1+k*.55));
+      lines+='<line x1="0" y1="'+y.toFixed(0)+'" x2="1024" y2="'+y.toFixed(0)+'" stroke="'+hsl(h2,30,68)+'" stroke-width="1.5" opacity=".22"/>';
+    }
+    body+='<g class="ink-el">'+lines+'</g>';
+    if(!thumb){
+      for(let k=1;k<=5;k++){
+        const t=1-1/(1+k*.6), y=hy-140*(1-t)-30, w=190*(1-t)+30;
+        body+='<rect x="'+(vx-w/2).toFixed(0)+'" y="'+y.toFixed(0)+'" width="'+w.toFixed(0)+'" height="'+(9*(1-t)+3).toFixed(0)+'" fill="'+hsl(48,90,84)+'" opacity=".8"/>';
+        body+='<ellipse cx="'+vx.toFixed(0)+'" cy="'+(hy+(1024-hy)*t*.9+40).toFixed(0)+'" rx="'+(w*1.5).toFixed(0)+'" ry="'+(24*(1-t)+8).toFixed(0)+'" fill="'+hsl(48,80,74)+'" opacity=".16" filter="url(#'+gl+')"/>';
+      }
+    }
+    const pw=140+r()*70, ph=210+r()*80, px=vx-pw/2, py=hy-ph;
+    if(!thumb) body+='<rect x="'+(px-34).toFixed(0)+'" y="'+(py-34).toFixed(0)+'" width="'+(pw+68).toFixed(0)+'" height="'+(ph+68).toFixed(0)+'" fill="'+hsl(45,92,64)+'" opacity=".5" filter="url(#'+gl+')" class="ink-el"/>';
+    body+='<rect x="'+px.toFixed(0)+'" y="'+py.toFixed(0)+'" width="'+pw.toFixed(0)+'" height="'+ph.toFixed(0)+'" fill="'+hsl(46,94,80)+'" class="ink-el"/>';
+    return {bg:"url(#"+g+")",defs:defs,body:body};
+  },
+  /* Particles walking a noise field: each step reads the fBm value at the
+     particle's position as an angle. A dense thin pass sits beneath a sparse
+     heavy one, so the field reads as depth. */
+  flow:function(spec,thumb){
+    const H=harmony(spec.seed,"triad"), hues=H.hues, r=H.r, fbm=makeFbm(spec.seed^0x5f5f);
+    const trace=function(x,y,steps,step){
+      let d="M"+x.toFixed(1)+" "+y.toFixed(1);
+      for(let s=0;s<steps;s++){
+        const a=fbm(x*.0021,y*.0021,3)*Math.PI*4;
+        x+=Math.cos(a)*step; y+=Math.sin(a)*step;
+        d+="L"+x.toFixed(1)+" "+y.toFixed(1);
+        if(x<-60||x>1084||y<-60||y>1084) break;
+      }
+      return d;
+    };
+    let body="";
+    if(!thumb){
+      let bg="";
+      for(let i=0;i<80;i++) bg+='<path d="'+trace(r()*1024,r()*1024,44,15)+'"/>';
+      body+='<g fill="none" stroke="'+hsl(hues[1],42,42)+'" stroke-width="1.6" opacity=".3">'+bg+'</g>';
+    }
+    const n=thumb?10:30;
+    for(let i=0;i<n;i++)
+      body+='<path d="'+trace(r()*1024,r()*1024,thumb?26:60,14)+'" fill="none" stroke="'+hsl(hues[i%3],66,30+((i*13)%44))+'" stroke-width="'+(3+r()*8).toFixed(1)+'" stroke-linecap="round" opacity=".85" class="ink-el"/>';
+    return {bg:PAPER,defs:"",body:body};
+  }
+};
+
+/* ---------- render + bounded cache ----------
+   Sleeves are pure functions of (style, seed), so caching means the shelf
+   re-renders for free and thumbnails never touch the full geometry. */
+const svgCache=new Map(), CACHE_MAX=80;
+function artworkSVG(spec,opts){
+  if(!spec||typeof spec!=="object") spec=localSpec("untitled","");
+  opts=opts||{};
+  const thumb=!!opts.thumb;
+  const key=spec.style+":"+spec.seed+":"+spec.paletteIdx+":"+spec.motif+":"+(thumb?"t":"f");
+  let svg=svgCache.get(key);
+  if(svg===undefined){
+    const fn=RENDER[spec.style]||RENDER.riso;
+    const out=fn(spec,thumb), fin=finish(spec.seed,thumb);
+    svg='<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">'+
+      '<defs>'+(out.defs||"")+fin.defs+'</defs>'+
+      '<rect width="1024" height="1024" fill="'+out.bg+'"/>'+out.body+fin.over+'</svg>';
+    svgCache.set(key,svg);
+    if(svgCache.size>CACHE_MAX) svgCache.delete(svgCache.keys().next().value);
+  }
+  return svg;
+}
+
+/* ---------- typography layer ---------- */
+function escXML(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+function threeUp(w){
+  const per=Math.ceil(w.length/3), out=[];
+  for(let i=0;i<w.length;i+=per) out.push(w.slice(i,i+per).join(" "));
+  return out.slice(0,3);
+}
+function splitTitle(t){
+  t=String(t).trim();
+  if(t.length<=15) return [t];
+  const w=t.split(/\s+/);
+  if(w.length<2) return [t];
+  let best=1,bd=Infinity;
+  for(let i=1;i<w.length;i++){
+    const d=Math.abs(w.slice(0,i).join(" ").length-w.slice(i).join(" ").length);
+    if(d<bd){bd=d;best=i;}
+  }
+  const two=[w.slice(0,best).join(" "),w.slice(best).join(" ")];
+  return (two.some(l=>l.length>22)&&w.length>2)?threeUp(w):two;
+}
+const DARK_SLEEVE={liminal:true};
+/* Styles whose composition puts something dark or busy in the title band get a
+   paper plate behind the type. Measured: brutalist stacks its monoliths exactly
+   there and fell to 3:1 without one. */
+const PLATE_SLEEVE={pixel:true,cubist:true,flow:true,ambient:true,brutalist:true};
+function typeLayerSVG(spec,title,catalog,opts){
+  opts=opts||{};
+  const typed=(opts.typed===undefined)?null:opts.typed;
+  const f=STYLE_FONT[spec.style]||STYLE_FONT.riso;
+  const dark=!!DARK_SLEEVE[spec.style];
+  const ink=dark?"#f4efe2":"#16130e";
+  const lines=splitTitle(String(title).toUpperCase());
+  let longest=1;
+  lines.forEach(l=>{if(l.length>longest)longest=l.length;});
+  const fs=clamp(920/(longest*f.w),34,lines.length>2?74:96);
+  const lh=fs*1.05;
+  let shown=lines;
+  if(typed!==null){
+    let n=typed;
+    shown=lines.map(l=>{const s=l.slice(0,Math.max(0,n));n-=l.length;return s;});
+  }
+  const y0=1024-64-(lines.length-1)*lh;
+  const plate=PLATE_SLEEVE[spec.style]
+    ? '<rect x="40" y="'+(y0-fs-14).toFixed(0)+'" width="'+clamp(longest*fs*f.w+52,240,944).toFixed(0)+'" height="'+(lines.length*lh+34).toFixed(0)+'" rx="7" fill="'+(dark?"#14121a":"#f4edda")+'" opacity=".84"/>'
+    : "";
+  const body=shown.map(function(l,i){
+    return '<text x="60" y="'+(y0+i*lh).toFixed(0)+'" font-family="'+escXML(f.stack)+'" font-weight="'+f.wt+'" font-size="'+fs.toFixed(0)+'" fill="'+ink+'">'+escXML(l)+'</text>';
+  }).join("");
+  return '<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">'+
+    plate+
+    '<text x="60" y="86" font-family="\'Space Mono\',monospace" font-size="23" letter-spacing="7" fill="'+ink+'" opacity=".85">DEEP CUTS</text>'+
+    '<text x="964" y="86" text-anchor="end" font-family="\'Space Mono\',monospace" font-weight="700" font-size="31" fill="'+ink+'" opacity="'+(typed===null?".85":"0")+'">'+escXML(catalog)+'</text>'+
+    body+'</svg>';
+}
+
+/* ---------- theme adoption: the record colours the room ---------- */
+function withAlpha(c,a){
+  const n=parseInt(String(c).replace("#",""),16);
+  return "rgba("+((n>>16)&255)+","+((n>>8)&255)+","+(n&255)+","+a+")";
+}
+function adoptTheme(spec){
+  const p=paletteOf(spec), f=STYLE_FONT[spec.style]||STYLE_FONT.riso;
+  const s=document.documentElement.style;
+  s.setProperty("--ink-a",p.a);
+  s.setProperty("--ink-b",p.b);
+  s.setProperty("--paper",p.paper);
+  s.setProperty("--glow",withAlpha(p.a,.3));
+  s.setProperty("--display",f.stack);
+}
+function neutralTheme(){
+  const s=document.documentElement.style;
+  ["--ink-a","--ink-b","--paper","--glow","--display"].forEach(v=>s.removeProperty(v));
+}
+
+/* ---------- local art director (works with no writer key) ---------- */
+const DIRECTOR=[
+  {kw:["cell","biolog","chem","physic","atom","molec","energy","photo","gene","neuro","brain","climate","ecolog"],
+   style:["flow","ambient"],motif:["orbits","loops"],meta:["a system caught mid-motion","small parts agreeing to be a whole"]},
+  {kw:["math","algebra","calc","geometry","proof","equation","statis","probab","theorem","number","bayes"],
+   style:["cubist","pixel"],motif:["lattice","arcs"],meta:["order that was already there","a pattern holding its shape"]},
+  {kw:["histor","war","empire","revolut","century","ancient","medieval","colon","dynasty","civil"],
+   style:["liminal","riso"],motif:["strata","shards"],meta:["layers pressed into record","time stacked like sediment"]},
+  {kw:["code","program","javascript","python","software","algorithm","data","api","function","compil","system"],
+   style:["brutalist","pixel"],motif:["lattice","strata"],meta:["logic you can walk through","a machine made of decisions"]},
+  {kw:["music","rhythm","chord","harmon","song","melody","tempo","scale","composer"],
+   style:["flow","riso"],motif:["arcs","loops"],meta:["sound holding its shape","a pulse you can lean on"]},
+  {kw:["language","spanish","french","grammar","vocab","writing","rhetoric","poetry","essay","literat"],
+   style:["cubist","ambient"],motif:["arcs","strata"],meta:["meaning finding its container","a voice mid-sentence"]},
+  {kw:["psych","habit","memory","learn","cognit","behavio","motivat","emotion","attention","philosoph","mind"],
+   style:["liminal","ambient"],motif:["loops","orbits"],meta:["a thought circling home","practice wearing a groove"]}
+];
+const FALLBACK_META=["an idea refusing to wash out","curiosity, pressed and printed","a small engine, mid-turn"];
+const MOODS=["patient","electric","stubborn","spacious","wry","undaunted","steady","bright"];
+function localSpec(title,topic){
+  const text=(title+" "+topic).toLowerCase(), seed=hashStr(title+"::"+topic), rnd=mulberry32(seed);
+  let cat=null;
+  for(let i=0;i<DIRECTOR.length;i++){
+    const c=DIRECTOR[i];
+    if(c.kw.some(k=>text.indexOf(k)>=0)){cat=c;break;}
+  }
+  const pick=a=>a[Math.floor(rnd()*a.length)];
+  return {
+    seed:seed,
+    style:cat?pick(cat.style):pick(STYLE_IDS),
+    motif:cat?pick(cat.motif):pick(MOTIFS),
+    paletteIdx:Math.floor(rnd()*PALETTES.length),
+    mood:pick(MOODS),
+    metaphor:cat?pick(cat.meta):pick(FALLBACK_META),
+    imageSubject:title||"an abstract idea taking shape"
+  };
+}
+
+/* ---------- demo lesson (the zero-key stand-in) ---------- */
+const DEMO={
+  musicPrompt:"warm mellow lo-fi hip hop instrumental, dusty vinyl texture, relaxed head-nod beat",
+  chapters:[
+    {title:"Cramming is a rental",
+     text:"Here is the uncomfortable truth about the all-nighter: it works, briefly. [pause] Massed practice loads ideas into memory just long enough to spend them on tomorrow's exam. Then they leave. In eighteen eighty-five, Hermann Ebbinghaus mapped how fast: his forgetting curve showed that most new material fades within days unless something interrupts the fade. Cramming rents knowledge. Spacing is how you buy it.",
+     recall:{question:"What does cramming do, according to this chapter?",
+       options:["Stores knowledge permanently","Rents knowledge briefly","Deepens understanding","Nothing at all"],
+       answerIdx:1,riff:"Rents it. Cramming loads memory just long enough to spend on the exam, then most of it slides down Ebbinghaus's curve. That gap is exactly what spacing is for."}},
+    {title:"The gap does the work",
+     text:"The spacing effect says the same total study time works dramatically better when it is spread out. [slowly] Review something as you are starting to forget it, and the act of retrieving it re-strengthens the memory more than any reread could. The difficulty is the point. Each spaced retrieval tells your brain: this keeps mattering, keep it. The gap is not dead time between sessions. The gap is the instrument.",
+     recall:{question:"Why does spaced retrieval strengthen memory?",
+       options:["It shortens total study time","The effortful reach does the strengthening","It prevents forgetting entirely","Rereading works better after breaks"],
+       answerIdx:1,riff:"It is the reach. Retrieving something just as it starts to slip is effortful, and that effort is what re-strengthens the trace. Desirable difficulty, working exactly as designed."}},
+    {title:"Make forgetting your metronome",
+     text:"So the practice is simple, and stubborn: revisit ideas on a rhythm that just outruns your forgetting. Tomorrow, then three days, then a week, then a month. [pause] Miss a beat? Nothing is lost. Pick the rhythm back up, and the retrieval will be a little harder, which means it will work a little better. Every track on your shelf is built on this. Forgetting is not the enemy of learning. It is the tempo.",
+     recall:null}
+  ]
+};
+function demoLesson(topic){
+  if(topic.trim().length>300){
+    const sents=topic.replace(/\s+/g," ").match(/[^.!?]+[.!?]+/g)||[topic];
+    const per=Math.ceil(sents.length/3), chapters=[];
+    for(let i=0;i<sents.length&&chapters.length<4;i+=per)
+      chapters.push({title:"Part "+(chapters.length+1),text:sents.slice(i,i+per).join(" ").trim(),recall:null});
+    return {chapters:chapters,musicPrompt:DEMO.musicPrompt,artDirection:null};
+  }
+  return {chapters:DEMO.chapters,musicPrompt:DEMO.musicPrompt,artDirection:null};
+}
+
+/* ---------- writers ---------- */
+const WRITERS={
+  ollama:{keyLS:"dc_ollama_key",model:"gemma4:12b",local:true,
+    hint:"Talks straight to Ollama on this machine. Nothing leaves the laptop, there is no key, and no relay is involved. Anyone opening the shared link without Ollama running gets the built-in demo lesson."},
+  nvidia:{keyLS:"dc_nvidia_key",model:"nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
+    hint:"Key from build.nvidia.com. The endpoint refuses browser calls, so it runs through the relay below."},
+  anthropic:{keyLS:"hc_claude_key",model:"claude-sonnet-4-6",
+    hint:"Key from console.anthropic.com. A claude.ai login will not work, and the account needs API credits."},
+  gemini:{keyLS:"dc_gemini_key",model:"gemini-2.5-flash",
+    hint:"Free key from aistudio.google.com. The quickest way to get a real writer running."},
+  openai:{keyLS:"dc_openai_key",model:"gpt-5-mini",
+    hint:"Key from platform.openai.com. Needs API credits."}
+};
+const DEFAULT_RELAY="https://red-wind-cec4.jmcswain.workers.dev/write";
+const OLLAMA_DEFAULT="http://localhost:11434";
+function writerConf(){
+  const provider=$("wProvider").value, w=WRITERS[provider];
+  const relay=(provider==="nvidia")?$("wRelay").value.trim():"";
+  const base=(provider==="ollama")?($("wBase").value.trim()||OLLAMA_DEFAULT):"";
+  return {provider:provider,relay:relay,base:base,
+    /* a local model needs no credential, so "local" stands in to satisfy the
+       checks that gate on a writer being configured at all */
+    key:w.local?"local":($("wKey").value.trim()||(relay?"relay":"")),
+    model:$("wModel").value.trim()||w.model};
+}
+async function writerCall(system,user,maxTokens,json){
+  const c=writerConf();
+  if(c.provider==="nvidia"&&c.relay){
+    const res=await fetch(c.relay,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model:c.model,system:system,user:user,
+        max_tokens:Math.min(maxTokens*2,4000),thinking:false})});
+    /* Read the body even when the status is bad. The relay explains the failure
+       in there, and throwing on the status alone threw that explanation away. */
+    const raw=await res.text();
+    let d=null;
+    try{ d=JSON.parse(raw); }catch(e){}
+    const why=function(){
+      if(d&&d.error) return typeof d.error==="string"?d.error:JSON.stringify(d.error);
+      return String(raw||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
+    };
+    if(!res.ok){
+      const w=why();
+      throw new Error("relay "+res.status+(w?": "+w.slice(0,140):""));
+    }
+    if(!d) throw new Error("relay sent a body that was not JSON");
+    if(d.error) throw new Error("relay: "+why().slice(0,140));
+    return d.text||"";
+  }
+  if(c.provider==="ollama"){
+    /* Ollama's own chat endpoint rather than its OpenAI-compatible one, because
+       format:"json" is the more dependable way to hold a mid-size local model
+       to a schema. */
+    const body={model:c.model,stream:false,
+      messages:[{role:"system",content:system},{role:"user",content:user}],
+      options:{temperature:0.9,num_predict:Math.min(maxTokens*2,4000)}};
+    if(json) body.format="json";
+    let res;
+    try{
+      res=await fetch(c.base.replace(/\/+$/,"")+"/api/chat",
+        {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    }catch(e){
+      /* A blocked or refused request looks identical from here, so name both. */
+      throw new Error("cannot reach Ollama at "+c.base+
+        ". Check it is running, then allow this page by setting OLLAMA_ORIGINS to * and restarting it");
+    }
+    const raw=await res.text();
+    let d=null;
+    try{ d=JSON.parse(raw); }catch(e){}
+    if(!res.ok){
+      const why=(d&&(d.error||d.message))||raw.replace(/\s+/g," ").trim();
+      throw new Error("ollama "+res.status+(why?": "+String(why).slice(0,140):""));
+    }
+    if(!d) throw new Error("ollama sent a body that was not JSON");
+    const out=(d.message&&d.message.content)||d.response||"";
+    if(!out.trim()) throw new Error("ollama returned an empty completion. Is "+c.model+" pulled?");
+    return out;
+  }
+  if(c.provider==="anthropic"){
+    const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+      headers:{"Content-Type":"application/json","x-api-key":c.key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:c.model,max_tokens:maxTokens,system:system,messages:[{role:"user",content:user}]})});
+    if(!res.ok) throw new Error("claude "+res.status);
+    const d=await res.json();
+    return (d.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+  }
+  if(c.provider==="gemini"){
+    const gen={maxOutputTokens:maxTokens};
+    if(json) gen.responseMimeType="application/json";
+    const res=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+c.model+":generateContent",{
+      method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":c.key},
+      body:JSON.stringify({system_instruction:{parts:[{text:system}]},contents:[{role:"user",parts:[{text:user}]}],generationConfig:gen})});
+    if(!res.ok) throw new Error("gemini "+res.status);
+    const d=await res.json();
+    const parts=(d.candidates&&d.candidates[0]&&d.candidates[0].content&&d.candidates[0].content.parts)||[];
+    return parts.map(p=>p.text||"").join("");
+  }
+  const nim=(c.provider==="nvidia");
+  const url=nim?"https://integrate.api.nvidia.com/v1/chat/completions":"https://api.openai.com/v1/chat/completions";
+  /* A lesson script tops out around 1,500 tokens. The old 16k request with an
+     8k thinking budget is what made this endpoint time out. */
+  const extra=nim
+    ?{temperature:1,top_p:.95,max_tokens:Math.min(maxTokens*2,4000)}
+    :{max_completion_tokens:maxTokens};
+  if(!nim&&json) extra.response_format={type:"json_object"};
+  const body={model:c.model,messages:[{role:"system",content:system},{role:"user",content:user}]};
+  for(const k in extra) body[k]=extra[k];
+  const res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+c.key},body:JSON.stringify(body)});
+  if(!res.ok) throw new Error((nim?"nvidia ":"openai ")+res.status);
+  const d=await res.json();
+  const txt=(d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||"";
+  return txt.replace(/<think>[\s\S]*?<\/think>/g,"").trim();
+}
+
+const WRITER_SYS='You are the writer-producer for Deep Cuts, a record label for micro-lessons. Write spoken-word lesson scripts: warm, wry, concrete, generous, the kind of lecture someone would replay. The script is performed by ElevenLabs v3, which reads inline audio tags: use at most 3 per chapter, only from [pause] [slowly] [chuckles] [whispers] [sighs] [excited], placed where a live instructor would naturally do that thing. Respond ONLY with JSON, no markdown fences: {"chapters":[{"title":"short chapter title","text":"90-150 spoken words with sparing audio tags","recall":{"question":"...","options":["a","b","c","d"],"answerIdx":0,"riff":"1-2 sentences folding the answer back into the lesson, warm, never scolding"} or null}],"musicPrompt":"instrumental bed description, no vocals","artDirection":{"style":"riso|pixel|cubist|brutalist|ambient|liminal|flow","motif":"orbits|strata|lattice|arcs|shards|loops","paletteIdx":0-7,"mood":"one word","metaphor":"max 8 words","imageSubject":"max 12 words"}}. Write 3-4 chapters, at most one without recall. Never shame a wrong answer. Cast artDirection.style to the temperament of the material: pixel for playful or technical, cubist for multi-perspective debates, brutalist for systems and structures, ambient for calm reflective material, liminal for memory and philosophy, flow for processes and change, riso as the classic default.';
+
+/* Small models frequently answer with the JSON wrapped in prose or fences.
+   Rather than fail the whole press for that, take the first balanced object in
+   the reply. Quotes and escapes are tracked so a brace inside a string does not
+   end the scan early. */
+function extractJSON(txt){
+  const clean=String(txt||"").replace(/```json/gi,"").replace(/```/g,"").trim();
+  try{ return JSON.parse(clean); }catch(e){}
+  const start=clean.indexOf("{");
+  if(start<0) throw new Error("no JSON object in the reply");
+  let depth=0,inStr=false,esc=false;
+  for(let i=start;i<clean.length;i++){
+    const ch=clean[i];
+    if(esc){ esc=false; continue; }
+    if(ch==="\\"){ esc=true; continue; }
+    if(ch==='"'){ inStr=!inStr; continue; }
+    if(inStr) continue;
+    if(ch==="{") depth++;
+    else if(ch==="}"){
+      depth--;
+      if(depth===0) return JSON.parse(clean.slice(start,i+1));
+    }
+  }
+  throw new Error("JSON object in the reply was never closed");
+}
+
+async function writeLesson(title,topic,persona,genre){
+  const user="Instructor: "+persona.name+" ("+persona.desc+"). Write every chapter in that register.\n"+
+    "Music bed: "+genre.name+". musicPrompt must describe an instrumental "+genre.name+" bed.\n"+
+    "Track title: "+title+"\nMaterial to teach:\n"+topic.slice(0,6000);
+  const txt=await writerCall(WRITER_SYS,user,3000,true);
+  const parsed=extractJSON(txt);
+  if(!parsed.chapters||!parsed.chapters.length) throw new Error("empty script");
+  return parsed;
+}
+
+/* ---------- casting ---------- */
+const PERSONAS=[
+  {id:"wry",name:"Wry Professor",desc:"dry, warm, precise"},
+  {id:"hype",name:"Hype Captain",desc:"big energy, in your corner"},
+  {id:"calm",name:"Calm Narrator",desc:"unhurried, spacious"}
+];
+const ROSTER=[
+  {n:"George, warm British storyteller",id:"JBFqnCBsd6RMkjVDRZzb"},
+  {n:"Brian, deep American narrator",id:"nPczCjzI2devNBz1zQrb"},
+  {n:"Charlie, energetic Australian",id:"IKne3meq5aSn9XLyUdCD"},
+  {n:"Daniel, measured British",id:"onwK4e9ZLuTAKqWW03F9"},
+  {n:"Rachel, calm classic narrator",id:"21m00Tcm4TlvDq8ikWAM"},
+  {n:"Jessica, expressive and playful",id:"cgSgspJ2msm6clMCkdW9"},
+  {n:"Matilda, friendly teacher energy",id:"XrExE9yKIg1WjnnlVkGX"},
+  {n:"Lily, warm velvety British",id:"pFZP5JQG7iQjIQuC4Bku"}
+];
+const VOICE_DEFAULT={wry:"JBFqnCBsd6RMkjVDRZzb",hype:"IKne3meq5aSn9XLyUdCD",calm:"21m00Tcm4TlvDq8ikWAM"};
+const GENRES=[
+  {id:"lofi",name:"Lo-fi hip hop",prompt:"warm mellow lo-fi hip hop instrumental, dusty vinyl texture, relaxed head-nod beat, soft keys"},
+  {id:"boombap",name:"Boom bap",prompt:"classic boom bap instrumental, punchy drums, chopped soul sample feel, vinyl crackle"},
+  {id:"jazz",name:"Jazz quartet",prompt:"intimate jazz quartet instrumental, brushed drums, upright bass, warm piano comping"},
+  {id:"ambient",name:"Ambient",prompt:"spacious ambient instrumental, slow evolving pads, gentle drones, weightless and calm"},
+  {id:"synthwave",name:"Synthwave",prompt:"retro synthwave instrumental, analog arpeggios, steady drive, neon nostalgia, mid tempo"},
+  {id:"house",name:"Deep house",prompt:"deep house instrumental, warm rolling bassline, soft chords, steady four on the floor"},
+  {id:"orchestral",name:"Orchestral",prompt:"cinematic orchestral instrumental, strings and light woodwinds, gentle build, focused"},
+  {id:"funk",name:"Funk",prompt:"laid back funk instrumental, tight rhythm guitar, round bassline, crisp drums, playful groove"}
+];
+
+/* ---------- ElevenLabs ---------- */
+async function ttsSegment(text,voiceId,key){
+  const res=await fetch("https://api.elevenlabs.io/v1/text-to-speech/"+voiceId,{
+    method:"POST",headers:{"Content-Type":"application/json","xi-api-key":key},
+    body:JSON.stringify({text:text,model_id:"eleven_v3"})});
+  if(!res.ok) throw new Error("tts "+res.status);
+  return res.blob();
+}
+async function musicBed(prompt,key){
+  const id="music:"+hashStr(prompt);
+  const hit=await idbGet(id);
+  if(hit) return hit;
+  const res=await fetch("https://api.elevenlabs.io/v1/music",{
+    method:"POST",headers:{"Content-Type":"application/json","xi-api-key":key},
+    body:JSON.stringify({prompt:prompt,music_length_ms:60000,force_instrumental:true})});
+  if(!res.ok) throw new Error("music "+res.status);
+  const b=await res.blob();
+  await idbPut(id,b);
+  return b;
+}
+
+/* ---------- IndexedDB ---------- */
+let _db=null;
+function idb(){
+  if(_db) return Promise.resolve(_db);
+  return new Promise((res,rej)=>{
+    const r=indexedDB.open("deepcuts",1);
+    r.onupgradeneeded=()=>r.result.createObjectStore("audio");
+    r.onsuccess=()=>{_db=r.result;res(_db);};
+    r.onerror=()=>rej(r.error);
+  });
+}
+async function idbPut(k,v){
+  const db=await idb();
+  return new Promise((res,rej)=>{const tx=db.transaction("audio","readwrite");
+    tx.objectStore("audio").put(v,k);tx.oncomplete=res;tx.onerror=()=>rej(tx.error);});
+}
+async function idbGet(k){
+  const db=await idb();
+  return new Promise((res,rej)=>{const q=db.transaction("audio").objectStore("audio").get(k);
+    q.onsuccess=()=>res(q.result||null);q.onerror=()=>rej(q.error);});
+}
+
+/* ---------- voicing pool ----------
+   Two chapters in flight at a time (ElevenLabs enforces per-plan concurrency).
+   Jobs resolve true/false and never reject, so one failed chapter degrades to
+   the browser voice and the rest of the track survives. */
+const voiceJobs=new Map();
+function stripTags(t,keep){
+  return keep?String(t):String(t).replace(/\[[^\]\n]{1,24}\]/g," ").replace(/\s{2,}/g," ").trim();
+}
+function voiceTrack(track,vid,key,pool){
+  pool=pool||2;
+  const n=track.chapters.length,res=[],jobs=[];
+  for(let i=0;i<n;i++){let r;jobs.push(new Promise(a=>{r=a;}));res.push(r);}
+  let next=0,active=0;
+  (function pump(){
+    while(active<pool&&next<n){
+      const i=next++;active++;
+      ttsSegment(track.chapters[i].text,vid,key)
+        .then(b=>idbPut("t:"+track.id+":c:"+i,b))
+        .then(()=>res[i](true))
+        .catch(()=>res[i](false))
+        .then(()=>{active--;pump();});
+    }
+  })();
+  return jobs;
+}
+
+/* ---------- state ---------- */
+/* Anything read back from storage is treated as hostile: parsed defensively,
+   shape-checked, then repaired or dropped. Tracks written by earlier builds
+   have a different shape, and one of them used to be enough to kill boot. */
+function readJSON(key,fallback){
+  try{
+    const raw=localStorage.getItem(key);
+    if(raw===null||raw==="") return fallback;
+    const v=JSON.parse(raw);
+    return (v===null||v===undefined)?fallback:v;
+  }catch(e){ return fallback; }
+}
+function normalizeTrack(t){
+  if(!t||typeof t!=="object") return null;
+  const chapters=Array.isArray(t.chapters)
+    ? t.chapters.filter(c=>c&&typeof c==="object"&&typeof c.text==="string")
+    : [];
+  if(!chapters.length) return null;                       // nothing playable
+  const title=String(t.title||"Untitled");
+  const raw=(t.spec&&typeof t.spec==="object")?t.spec:{};
+  const fallbackSpec=localSpec(title,"");
+  const spec={
+    seed: Number.isFinite(raw.seed)?raw.seed:fallbackSpec.seed,
+    style: STYLE_IDS.indexOf(raw.style)>=0?raw.style:fallbackSpec.style,
+    motif: MOTIFS.indexOf(raw.motif)>=0?raw.motif:fallbackSpec.motif,
+    paletteIdx: Number.isInteger(raw.paletteIdx)
+      ? ((raw.paletteIdx%PALETTES.length)+PALETTES.length)%PALETTES.length
+      : fallbackSpec.paletteIdx,
+    mood: raw.mood||fallbackSpec.mood,
+    metaphor: raw.metaphor||"",
+    imageSubject: raw.imageSubject||title
+  };
+  return {
+    id:String(t.id||Date.now().toString(36)),
+    title:title, catalog:String(t.catalog||"DC-000"), spec:spec, chapters:chapters,
+    musicPrompt:String(t.musicPrompt||""), genre:t.genre?String(t.genre):"",
+    persona:t.persona?String(t.persona):"wry",
+    voiced:!!t.voiced, hasBed:!!t.hasBed,
+    voicedIdx:Array.isArray(t.voicedIdx)?t.voicedIdx.filter(Number.isInteger):undefined,
+    createdAt:Number(t.createdAt)||Date.now()
+  };
+}
+let tracks=[];
+{
+  const stored=readJSON("dc_tracks",[]);
+  const list=Array.isArray(stored)?stored:[];
+  tracks=list.map(normalizeTrack).filter(Boolean);
+}
+let saveTimer=null;
+function saveTracks(){
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{try{localStorage.setItem("dc_tracks",JSON.stringify(tracks));}catch(e){}},250);
+}
+const storedVoices=readJSON("dc_voice_ids",{});
+const voiceIds={};
+PERSONAS.forEach(p=>{
+  const v=(storedVoices&&typeof storedVoices==="object")?storedVoices[p.id]:null;
+  voiceIds[p.id]=(typeof v==="string"&&v.trim())?v.trim():VOICE_DEFAULT[p.id];
+});
+let personaSel=localStorage.getItem("dc_persona")||"wry";
+let producing=false, token=0;
+let playerTrack=null, chapterIdx=0, playing=false, waitBusy=false;
+const voiceEl=new Audio(), bedEl=new Audio();
+bedEl.loop=true;
+let voiceUrl=null, bedUrl=null, speakPump=null, speechHold=false;
+
+/* ---------- shell ---------- */
+function face(which){
+  ["Cut","Press","Play"].forEach(f=>$("face"+f).classList.toggle("on",f===which));
+  $("navCut").classList.toggle("on",which!=="Shelf");
+  $("navShelf").classList.remove("on");
+}
+function setStage(s){
+  $("plateIdle").hidden=(s!=="idle");
+  $("plateWork").hidden=(s!=="work");
+  $("studio").classList.toggle("stage-playing",s==="playing");
+  if(s==="idle"){$("plateArt").innerHTML="";$("plateType").innerHTML="";}
+}
+function setCaption(spec,extra){
+  if(!spec){$("caption").innerHTML="";return;}
+  const p=paletteOf(spec);
+  const chips=[STYLE_LABEL[spec.style],p.name].concat(extra||[]);
+  $("caption").innerHTML=chips.map((c,i)=>'<span class="tag'+(i===0?" lit":"")+'">'+escXML(c)+"</span>").join("");
+}
+function railCount(){
+  const n=tracks.length;
+  $("railCat").textContent=(n===0)?"no sides pressed":(n+" side"+(n>1?"s":"")+" pressed");
+}
+
+/* ---------- form wiring ---------- */
+$("cast").innerHTML=PERSONAS.map(p=>
+  '<button type="button" data-id="'+p.id+'" class="'+(p.id===personaSel?"on":"")+'"><b>'+p.name+'</b><span>'+p.desc+'</span></button>').join("");
+$("cast").addEventListener("click",function(e){
+  const b=e.target.closest("button[data-id]");
+  if(!b) return;
+  personaSel=b.dataset.id;
+  localStorage.setItem("dc_persona",personaSel);
+  Array.prototype.forEach.call($("cast").children,x=>x.classList.toggle("on",x.dataset.id===personaSel));
+});
+$("genre").innerHTML=GENRES.map(g=>'<option value="'+g.id+'">'+g.name+"</option>").join("");
+$("genre").value=localStorage.getItem("dc_genre")||"lofi";
+if(!GENRES.some(g=>g.id===$("genre").value)) $("genre").value="lofi";
+$("genre").addEventListener("change",()=>localStorage.setItem("dc_genre",$("genre").value));
+
+$("elKey").value=localStorage.getItem("hc_eleven_key")||"";
+$("elKey").addEventListener("change",e=>localStorage.setItem("hc_eleven_key",e.target.value.trim()));
+$("wRelay").addEventListener("change",e=>localStorage.setItem("dc_relay",e.target.value.trim()));
+$("wBase").addEventListener("change",e=>localStorage.setItem("dc_ollama_base",e.target.value.trim()));
+/* Models that proved too slow to answer inside a browser deadline. A value
+   saved in a browser outranks the code default, so these are cleared on load. */
+const RETIRED_MODELS=["nvidia/nemotron-3-ultra-550b-a55b","nvidia/nemotron-3-super-120b-a12b"];
+function loadWriter(){
+  const p=$("wProvider").value,w=WRITERS[p];
+  $("ollamaField").style.display=w.local?"block":"none";
+  $("keyField").style.display=w.local?"none":"block";
+  try{ $("wBase").value=localStorage.getItem("dc_ollama_base")||OLLAMA_DEFAULT; }catch(e){ $("wBase").value=OLLAMA_DEFAULT; }
+  $("wKey").value=localStorage.getItem(w.keyLS)||"";
+  /* A model saved in this browser outranks the code default, so a retired one
+     would quietly keep being used after an update. Drop those on sight. */
+  let saved=null;
+  try{ saved=localStorage.getItem(w.keyLS+"_model"); }catch(e){}
+  if(saved&&RETIRED_MODELS.indexOf(saved)>=0){
+    try{ localStorage.removeItem(w.keyLS+"_model"); }catch(e){}
+    saved=null;
+  }
+  $("wModel").value=saved||w.model;
+  $("wHint").textContent=w.hint;
+  $("relayField").style.display=(p==="nvidia")?"block":"none";
+  $("wRelay").value=localStorage.getItem("dc_relay")||DEFAULT_RELAY;
+}
+$("wProvider").value=localStorage.getItem("dc_writer")||"ollama";
+if(!WRITERS[$("wProvider").value]) $("wProvider").value="nvidia";
+loadWriter();
+$("wProvider").addEventListener("change",function(){localStorage.setItem("dc_writer",$("wProvider").value);loadWriter();});
+$("wKey").addEventListener("change",()=>localStorage.setItem(WRITERS[$("wProvider").value].keyLS,$("wKey").value.trim()));
+$("wModel").addEventListener("change",()=>localStorage.setItem(WRITERS[$("wProvider").value].keyLS+"_model",$("wModel").value.trim()));
+
+$("voiceCast").innerHTML=PERSONAS.map(function(p){
+  const cur=voiceIds[p.id], known=ROSTER.some(v=>v.id===cur);
+  return '<div class="field"><label for="vs_'+p.id+'">'+p.name+' voice</label>'+
+    '<select id="vs_'+p.id+'">'+ROSTER.map(v=>'<option value="'+v.id+'"'+(v.id===cur?" selected":"")+">"+v.n+"</option>").join("")+
+    '<option value="__c"'+(known?"":" selected")+'>Custom voice ID…</option></select>'+
+    '<input type="text" id="vc_'+p.id+'" aria-label="voice ID for '+p.name+'" value="'+(known?"":escXML(cur||""))+'" placeholder="paste a voice ID" style="margin-top:7px;display:'+(known?"none":"block")+'"></div>';
+}).join("")+'<p class="hint">Cast from the ElevenLabs default roster. That set retires 31 Dec 2026, so recast or design owned voices before then.</p>';
+PERSONAS.forEach(function(p){
+  const sel=$("vs_"+p.id), cus=$("vc_"+p.id);
+  const save=function(){
+    voiceIds[p.id]=(sel.value==="__c")?cus.value.trim():sel.value;
+    localStorage.setItem("dc_voice_ids",JSON.stringify(voiceIds));
+  };
+  sel.addEventListener("change",function(){cus.style.display=(sel.value==="__c")?"block":"none";save();});
+  cus.addEventListener("change",save);
+});
+
+/* ---------- press: stage log ---------- */
+const STEPS=[{id:"script",l:"writing the liner notes"},{id:"cover",l:"pressing the sleeve"},
+             {id:"voice",l:"casting the voice"},{id:"bed",l:"laying the bed"}];
+function drawLog(st){
+  $("log").innerHTML=STEPS.map(function(s){
+    const k=st[s.id]||"";
+    const aux=(k==="skip")?(st[s.id+"_why"]||"skipped"):(st[s.id+"_note"]||"");
+    return '<div class="step '+k+'"><span class="pip"></span><span class="txt">'+s.l+'</span><span class="aux">'+escXML(aux)+"</span></div>";
+  }).join("");
+}
+const WORK_WORDS=["warming the lathe","reading your notes","writing the liner notes",
+  "mixing the inks","cutting grooves","checking levels","dusting the sleeve"];
+let workTimer=null;
+function workOn(){
+  let i=0;
+  $("workWord").textContent=WORK_WORDS[0];
+  clearInterval(workTimer);
+  workTimer=setInterval(function(){i=(i+1)%WORK_WORDS.length;$("workWord").textContent=WORK_WORDS[i];},1600);
+}
+function workOff(){clearInterval(workTimer);workTimer=null;}
+
+/* ---------- typewriter (rAF-batched, one DOM write per frame) ---------- */
+let typeRAF=null;
+function typewrite(el,spec,title,catalog){
+  cancelAnimationFrame(typeRAF);
+  const total=splitTitle(String(title).toUpperCase()).join("").length;
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches){
+    el.innerHTML=typeLayerSVG(spec,title,catalog);
+    return;
+  }
+  const t0=performance.now(), delay=620, per=46;
+  let last=-1;
+  (function step(now){
+    const n=Math.floor(Math.max(0,now-t0-delay)/per);
+    if(n!==last){
+      last=n;
+      el.innerHTML=(n>=total)?typeLayerSVG(spec,title,catalog):typeLayerSVG(spec,title,catalog,{typed:n});
+    }
+    if(n<total) typeRAF=requestAnimationFrame(step);
+  })(performance.now());
+}
+
+/* ---------- dry run ----------
+   Calls the writer and stops. No TTS, no music bed, no track saved to the
+   shelf, so a prompt can be tuned or a local model compared without spending
+   ElevenLabs credit or filling the discography with tests. */
+let dryBusy=false;
+function wordCount(t){ const w=stripTags(String(t||"")).trim(); return w?w.split(/\s+/).length:0; }
+function tagCount(t){ return (String(t||"").match(/\[[^\]\n]{1,24}\]/g)||[]).length; }
+
+function dryReport(rows,raw){
+  const body=rows.map(function(r){
+    const cls=r.state==="good"?"good":(r.state==="warn"?"warn":"");
+    const tick=r.state==="good"?"OK":(r.state==="warn"?"CHECK":"");
+    return '<div class="line"><b>'+escXML(r.k)+'</b><span>'+escXML(r.v)+
+           '</span><span class="tick '+cls+'">'+tick+'</span></div>';
+  }).join("");
+  const dump=raw?('<details><summary>&#9656; raw reply</summary><pre>'+escXML(raw)+'</pre></details>'):"";
+  $("dryOut").innerHTML='<h4>Writer dry run</h4>'+body+dump;
+  $("dryOut").hidden=false;
+}
+
+async function dryRun(){
+  if(producing||dryBusy) return;
+  const title=$("title").value.trim()||"The Spacing Effect";
+  const topic=$("topic").value.trim();
+  const persona=PERSONAS.filter(p=>p.id===personaSel)[0];
+  const genre=GENRES.filter(g=>g.id===$("genre").value)[0]||GENRES[0];
+  const c=writerConf();
+  const where=c.provider==="ollama"?c.base:(c.relay||c.provider);
+
+  dryBusy=true; $("dryBtn").disabled=true;
+  dryReport([{k:"status",v:"contacting "+c.model+" at "+where,state:""}],"");
+
+  const t0=performance.now();
+  let lesson=null,err=null,raw="";
+  try{ lesson=await writeLesson(title,topic,persona,genre); }
+  catch(e){ err=e; }
+  const ms=Math.round(performance.now()-t0);
+
+  const rows=[
+    {k:"provider",v:c.provider+"  ("+where+")",state:""},
+    {k:"model",v:c.model,state:""},
+    {k:"elapsed",v:ms+" ms",state:ms<25000?"good":"warn"},
+  ];
+
+  if(err){
+    rows.push({k:"result",v:err.message,state:"warn"});
+    rows.push({k:"audio",v:"not touched, no ElevenLabs credit spent",state:"good"});
+    dryReport(rows,"");
+    dryBusy=false; $("dryBtn").disabled=false;
+    return;
+  }
+
+  try{ raw=JSON.stringify(lesson,null,2); }catch(e){ raw=""; }
+
+  const chapters=Array.isArray(lesson.chapters)?lesson.chapters:[];
+  rows.push({k:"valid JSON",v:"parsed and matched the schema",state:"good"});
+  rows.push({k:"chapters",v:chapters.length+" returned",
+    state:(chapters.length>=3&&chapters.length<=4)?"good":"warn"});
+
+  chapters.forEach(function(ch,i){
+    const wc=wordCount(ch.text), tags=tagCount(ch.text);
+    const r=ch.recall;
+    const recallOK=!r||(r&&typeof r.question==="string"&&Array.isArray(r.options)&&
+      r.options.length===4&&Number.isInteger(r.answerIdx)&&r.answerIdx>=0&&r.answerIdx<4&&
+      typeof r.riff==="string"&&r.riff.trim());
+    const plural=(n,w)=>n+" "+w+(n===1?"":"s");
+    const notes=[String(ch.title||"untitled"),plural(wc,"word"),plural(tags,"tag"),
+      r?(recallOK?"recall ok":"recall malformed"):"no recall"];
+    const bad=(wc<60||wc>200||tags>3||!recallOK);
+    rows.push({k:"chapter "+(i+1),v:notes.join("  \u00B7  "),state:bad?"warn":"good"});
+  });
+
+  const withRecall=chapters.filter(ch=>ch.recall).length;
+  rows.push({k:"recall coverage",v:withRecall+" of "+chapters.length+" chapters",
+    state:(chapters.length-withRecall)<=1?"good":"warn"});
+
+  rows.push({k:"music prompt",v:lesson.musicPrompt?String(lesson.musicPrompt).slice(0,70):"missing, the genre preset would stand in",
+    state:lesson.musicPrompt?"good":"warn"});
+
+  const ad=lesson.artDirection||{};
+  const styleOK=STYLE_IDS.indexOf(ad.style)>=0, motifOK=MOTIFS.indexOf(ad.motif)>=0;
+  const palOK=Number.isInteger(ad.paletteIdx);
+  rows.push({k:"art direction",
+    v:lesson.artDirection?("style "+(styleOK?ad.style:"invalid")+", motif "+(motifOK?ad.motif:"invalid")+
+      ", palette "+(palOK?ad.paletteIdx:"invalid")):"missing, the local director would cast it",
+    state:(styleOK&&motifOK&&palOK)?"good":"warn"});
+
+  rows.push({k:"audio",v:"not touched, no ElevenLabs credit spent",state:"good"});
+  dryReport(rows,raw);
+  dryBusy=false; $("dryBtn").disabled=false;
+}
+$("dryBtn").addEventListener("click",dryRun);
+
+/* ---------- produce ---------- */
+$("cutBtn").addEventListener("click",produce);
+$("title").addEventListener("keydown",function(e){if(e.key==="Enter")produce();});
+
+async function produce(){
+  if(producing) return;
+  const title=$("title").value.trim(), topic=$("topic").value.trim();
+  if(!title){$("cutNote").textContent="give the track a title first";$("title").focus();return;}
+  producing=true; token++;
+  const me=token, live=()=>me===token;
+  $("cutBtn").disabled=true; $("cutNote").textContent="";
+  const st={};
+  drawLog(st);
+  $("pressTitle").textContent=title;
+  face("Press"); setStage("work"); workOn();
+
+  const writer=writerConf(), elKey=$("elKey").value.trim();
+  const persona=PERSONAS.filter(p=>p.id===personaSel)[0];
+  const genre=GENRES.filter(g=>g.id===$("genre").value)[0]||GENRES[0];
+
+  /* 1. script */
+  st.script="doing"; drawLog(st);
+  let lesson=null, note="";
+  if(writer.key){
+    try{ lesson=await writeLesson(title,topic,persona,genre); }
+    catch(e){
+      lesson=demoLesson(topic);
+      note="writer failed ("+e.message+"). "+(topic.length>300?"chapters chunked from your notes":"the built-in demo lesson stood in");
+    }
+  }else{
+    lesson=demoLesson(topic);
+    note="no writer key. "+(topic.length>300?"chapters chunked from your notes":"Your topic was not written. The built-in demo lesson is playing. Add a writer key in studio settings");
+  }
+  if(!live()) return;
+  st.script="done"; st.script_note=note?"stood in":"";
+
+  /* 2. sleeve: the art director's cast, validated against the engine */
+  st.cover="doing"; drawLog(st);
+  const base=localSpec(title,topic), ad=lesson.artDirection||{};
+  const spec={
+    seed:base.seed,
+    style:(STYLE_IDS.indexOf(ad.style)>=0)?ad.style:base.style,
+    motif:(MOTIFS.indexOf(ad.motif)>=0)?ad.motif:base.motif,
+    paletteIdx:Number.isInteger(ad.paletteIdx)?(((ad.paletteIdx%8)+8)%8):base.paletteIdx,
+    mood:ad.mood||base.mood,
+    metaphor:ad.metaphor||base.metaphor,
+    imageSubject:ad.imageSubject||base.imageSubject
+  };
+  const catalog="DC-"+String(tracks.length+1).padStart(3,"0");
+  await loadFont(spec.style);
+  if(!live()) return;
+  workOff(); setStage("drop");
+  adoptTheme(spec);
+  $("plateArt").innerHTML=artworkSVG(spec);
+  typewrite($("plateType"),spec,title,catalog);
+  setCaption(spec,[genre.name]);
+  st.cover="done"; st.cover_note=STYLE_LABEL[spec.style]; drawLog(st);
+
+  const track={id:Date.now().toString(36),title:title,catalog:catalog,spec:spec,
+    chapters:lesson.chapters,
+    musicPrompt:(writer.key&&lesson.musicPrompt)?lesson.musicPrompt:genre.prompt,
+    genre:genre.name,persona:personaSel,voiced:false,hasBed:false,createdAt:Date.now()};
+
+  /* 3 + 4. the bed and the voice are independent, so they run together */
+  if(elKey){
+    st.bed="doing";
+    musicBed(track.musicPrompt,elKey)
+      .then(b=>idbPut("t:"+track.id+":bed",b))
+      .then(function(){
+        track.hasBed=true; st.bed="done"; saveTracks();
+        if(playerTrack===track&&playing&&!bedEl.src) startBed();
+      })
+      .catch(function(e){ st.bed="skip"; st.bed_why=e.message; })
+      .then(function(){ if(live()) drawLog(st); });
+  }else{ st.bed="skip"; st.bed_why="no ElevenLabs key"; }
+
+  const vid=voiceIds[personaSel];
+  if(elKey&&vid){
+    st.voice="doing"; st.voice_note="chapter 1 first"; drawLog(st);
+    const jobs=voiceTrack(track,vid,elKey);
+    voiceJobs.set(track.id,jobs);
+    const first=await jobs[0];
+    if(first){ track.voiced=true; st.voice_note="rest cuts while you listen"; }
+    else{ st.voice="skip"; st.voice_why="TTS failed, browser voice reads"; }
+    Promise.all(jobs).then(function(r){
+      track.voicedIdx=r.map((ok,i)=>ok?i:-1).filter(i=>i>=0);
+      track.voiced=track.voicedIdx.length>0;
+      saveTracks();
+      if(!live()) return;
+      if(!track.voicedIdx.length){ st.voice="skip"; st.voice_why="TTS failed, browser voice reads"; }
+      else{
+        st.voice="done";
+        st.voice_note=(track.voicedIdx.length===jobs.length)?"":(track.voicedIdx.length+" of "+jobs.length+" voiced");
+      }
+      drawLog(st);
+    });
+  }else{
+    st.voice="skip";
+    st.voice_why=elKey?"no voice ID cast":"no ElevenLabs key, browser voice reads";
+  }
+  if(!live()) return;
+  drawLog(st);
+
+  tracks.push(track); saveTracks(); railCount(); drawShelf();
+  producing=false; $("cutBtn").disabled=false;
+  $("cutNote").textContent=note?(catalog+" pressed · "+note):"";
+  setTimeout(function(){ if(live()) openTrack(track,note); },1000);
+}
+
+/* ---------- player ---------- */
+async function openTrack(track,note){
+  playerTrack=track; chapterIdx=0; playing=false;
+  stopAudio();
+  await loadFont(track.spec.style);
+  adoptTheme(track.spec);
+  $("plateArt").innerHTML=artworkSVG(track.spec);
+  $("plateType").innerHTML=typeLayerSVG(track.spec,track.title,track.catalog);
+  setCaption(track.spec,[track.genre].filter(Boolean));
+  setStage("ready");
+  $("playTitle").textContent=track.title;
+  $("playMeta").textContent=[track.catalog,STYLE_LABEL[track.spec.style],track.genre,
+    track.chapters.length+" chapters"].filter(Boolean).join("  ·  ")+
+    (track.spec.metaphor?("  ·  \u201c"+track.spec.metaphor+"\u201d"):"");
+  $("readCue").textContent="press play";
+  $("readText").textContent=track.voiced
+    ? "Instructor cast and cut. Put the screen away if you like. This one is built for walking."
+    : "Your browser will read this one. Add an ElevenLabs key in studio settings to hear the instructor.";
+  $("playBtn").textContent="Play";
+  $("playNote").textContent=note||"";
+  setRing(0); drawChapters();
+  face("Play");
+}
+function drawChapters(){
+  $("chapters").innerHTML=playerTrack.chapters.map(function(c,i){
+    return '<div class="chap'+((i===chapterIdx&&playing)?" now":"")+'"><span class="n">'+
+      String(i+1).padStart(2,"0")+'</span><span>'+escXML(c.title)+"</span>"+
+      (c.recall?'<span class="rc">recall</span>':"")+"</div>";
+  }).join("");
+}
+function setRing(p){$("ringArc").setAttribute("stroke-dasharray",(clamp(p,0,1)*1000).toFixed(1)+" 1000");}
+function stopAudio(){
+  voiceEl.pause(); voiceEl.removeAttribute("src");
+  bedEl.pause();
+  if("speechSynthesis" in window) speechSynthesis.cancel();
+  clearInterval(speakPump); speakPump=null;
+  $("studio").classList.remove("stage-playing");
+}
+$("playBtn").addEventListener("click",()=>playing?pausePlay():startPlay());
+$("newBtn").addEventListener("click",function(){
+  stopAudio(); playing=false; playerTrack=null;
+  face("Cut"); setStage("idle"); setCaption(null); neutralTheme();
+  $("title").value=""; $("topic").value=""; $("cutNote").textContent="";
+  $("title").focus();
+});
+$("markHome").addEventListener("click",()=>face(playerTrack?"Play":"Cut"));
+$("navCut").addEventListener("click",function(){
+  face(playerTrack?"Play":"Cut");
+  if(!playerTrack) setStage("idle");
+  window.scrollTo({top:0,behavior:"smooth"});
+});
+$("navShelf").addEventListener("click",function(){
+  $("navShelf").classList.add("on"); $("navCut").classList.remove("on");
+  document.querySelector(".shelf").scrollIntoView({behavior:"smooth",block:"start"});
+});
+
+async function startBed(){
+  if(!playerTrack||!playerTrack.hasBed) return;
+  if(!bedEl.src){
+    let b=null;
+    try{ b=await idbGet("t:"+playerTrack.id+":bed"); }catch(e){ b=null; }
+    if(!b||!playing) return;
+    if(bedUrl) URL.revokeObjectURL(bedUrl);
+    bedUrl=URL.createObjectURL(b); bedEl.src=bedUrl; bedEl.volume=.3;
+  }
+  if(playing) bedEl.play().catch(()=>{});
+}
+function startPlay(){
+  playing=true; speechHold=false;
+  $("playBtn").textContent="Pause";
+  $("studio").classList.add("stage-playing");
+  startBed();
+  playChapter(chapterIdx);
+}
+function pausePlay(){
+  playing=false; $("playBtn").textContent="Play";
+  voiceEl.pause(); bedEl.pause(); speechHold=true;
+  if("speechSynthesis" in window) speechSynthesis.pause();
+  $("studio").classList.remove("stage-playing");
+  drawChapters();
+}
+voiceEl.addEventListener("timeupdate",function(){
+  if(!playerTrack||!voiceEl.duration) return;
+  setRing((chapterIdx+voiceEl.currentTime/voiceEl.duration)/playerTrack.chapters.length);
+},{passive:true});
+
+async function playChapter(i){
+  if(!playing) return;
+  if(i>=playerTrack.chapters.length){ endTrack(); return; }
+  chapterIdx=i; drawChapters();
+  const ch=playerTrack.chapters[i];
+  const stale=()=>(!playing||chapterIdx!==i);
+  $("readCue").textContent="ch "+String(i+1).padStart(2,"0")+" · "+ch.title;
+  $("readText").textContent=stripTags(ch.text);
+  setRing(i/playerTrack.chapters.length);
+  const done=function(){
+    if(!playing) return;
+    if(ch.recall) barLine(ch,()=>playChapter(i+1));
+    else playChapter(i+1);
+  };
+  if(playerTrack.voiced){
+    const jobs=voiceJobs.get(playerTrack.id);
+    if(jobs&&jobs[i]){
+      const ready=playerTrack.voicedIdx&&playerTrack.voicedIdx.indexOf(i)>=0;
+      if(!ready) $("playNote").textContent="cutting chapter "+(i+1)+"…";
+      await jobs[i];
+      if(stale()) return;
+      $("playNote").textContent="";
+    }
+    if(!playerTrack.voicedIdx||playerTrack.voicedIdx.indexOf(i)>=0||!jobs){
+      let b=null;
+      try{ b=await idbGet("t:"+playerTrack.id+":c:"+i); }catch(e){ b=null; }
+      if(stale()) return;
+      if(b){
+        if(voiceUrl) URL.revokeObjectURL(voiceUrl);
+        voiceUrl=URL.createObjectURL(b);
+        voiceEl.src=voiceUrl; voiceEl.onended=done;
+        voiceEl.play().catch(()=>{});
+        return;
+      }
+    }
+  }
+  speak(ch.text,done,i);
+}
+function speak(text,onend,chIdx){
+  const clean=stripTags(text);
+  const readMs=clamp(clean.length*58,1800,90000);
+  if(!("speechSynthesis" in window)){ setTimeout(onend,readMs); return; }
+  speechSynthesis.cancel();
+  clearInterval(speakPump);
+  speechHold=false;
+  const u=new SpeechSynthesisUtterance(clean);
+  u.rate=1;
+  let fired=false;
+  const t0=performance.now();
+  const fire=function(){
+    if(fired) return;
+    fired=true; clearInterval(speakPump); speakPump=null; onend();
+  };
+  u.onend=fire; u.onerror=fire;
+  speechSynthesis.speak(u);
+  /* Chrome stalls utterances past ~15s; the nudge keeps them alive and the
+     same tick doubles as a watchdog for browsers that never fire onend. It
+     stands down whenever the pause was intentional. */
+  speakPump=setInterval(function(){
+    if(speechHold) return;
+    if(typeof chIdx==="number"&&playerTrack&&playing)
+      setRing((chIdx+clamp((performance.now()-t0)/readMs,0,1))/playerTrack.chapters.length);
+    if(!speechSynthesis.speaking&&!speechSynthesis.pending&&!speechSynthesis.paused){ fire(); return; }
+    if(!speechSynthesis.paused){ speechSynthesis.pause(); speechSynthesis.resume(); }
+  },1000);
+}
+function endTrack(){
+  playing=false; chapterIdx=0;
+  $("playBtn").textContent="Play again";
+  $("readCue").textContent="end of side a";
+  $("readText").textContent="That's the track. It's on the shelf for whenever the idea starts to slip, which is exactly when playing it again does the most good.";
+  bedEl.pause(); setRing(1);
+  $("studio").classList.remove("stage-playing");
+  drawChapters();
+}
+
+/* ---------- recall on the bar line ---------- */
+function barLine(ch,next){
+  const r=ch.recall;
+  $("recallQ").textContent=r.question;
+  $("riff").textContent="";
+  $("opts").innerHTML=r.options.map((o,i)=>'<button type="button" data-i="'+i+'">'+escXML(o)+"</button>").join("");
+  $("recall").classList.add("on");
+  const swell=function(){
+    if(!bedEl.src) return;
+    const v=bedEl.volume;
+    bedEl.volume=Math.min(.66,v+.3);
+    setTimeout(function(){bedEl.volume=v;},2600);
+  };
+  $("opts").onclick=function(e){
+    const b=e.target.closest("button[data-i]");
+    if(!b) return;
+    const i=+b.dataset.i;
+    if(i===r.answerIdx){
+      b.classList.add("right"); swell();
+      $("riff").textContent="The beat agrees.";
+      setTimeout(function(){ $("recall").classList.remove("on"); next(); },1400);
+    }else{
+      /* shame-free: no red, no buzzer. The instructor folds the answer back
+         in, and the track waits for that to actually finish. */
+      const riff=stripTags(r.riff);
+      $("riff").textContent=riff;
+      let gone=false, guard=null;
+      const go=function(){
+        if(gone) return;
+        gone=true; clearTimeout(guard);
+        $("recall").classList.remove("on"); next();
+      };
+      guard=setTimeout(go,Math.max(9000,riff.length*95));
+      speak(r.riff,go);
+    }
+  };
+}
+
+/* ---------- wait, what? ---------- */
+$("whatBtn").addEventListener("click",async function(){
+  if(!playerTrack||waitBusy) return;
+  waitBusy=true;
+  const was=playing;
+  if(was) pausePlay();
+  const ch=playerTrack.chapters[chapterIdx];
+  $("playNote").textContent="finding another way in…";
+  let re=null;
+  if(writerConf().key){
+    try{
+      re=await writerCall("You are a generous instructor. The listener tapped 'wait, what?'. Take the idea again from a different angle with a different example. Max 80 spoken words, warm and unhurried. Reply with the rephrase only.",
+        stripTags(ch.text),400,false);
+    }catch(e){
+      $("playNote").textContent="rephrase unavailable ("+e.message+"). Here is the short version";
+    }
+  }
+  if(!re) re="Let me take that again, slower. "+stripTags(ch.text).split(/[.!?]/)[0]+
+    ". That's the heart of it. Hold that one sentence and the rest of the chapter hangs off it.";
+  $("readCue").textContent="wait, what? · another way in";
+  $("readText").textContent=stripTags(re);
+  if($("playNote").textContent.indexOf("rephrase")!==0) $("playNote").textContent="";
+  speak(re,function(){ waitBusy=false; if(was) startPlay(); });
+});
+
+/* ---------- share ---------- */
+$("shareBtn").addEventListener("click",function(){
+  const t=playerTrack;
+  if(!t) return;
+  const payload={title:t.title,catalog:t.catalog,spec:t.spec,chapters:t.chapters,genre:t.genre};
+  const url=location.origin+location.pathname+"#t="+btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+  navigator.clipboard.writeText(url).then(
+    function(){$("playNote").textContent="link copied. Anyone who opens it can press play";},
+    function(){$("playNote").textContent="clipboard blocked; copy the address bar after opening the link";}
+  );
+});
+function importHash(){
+  if(location.hash.indexOf("#t=")!==0) return null;
+  try{
+    const p=JSON.parse(decodeURIComponent(escape(atob(location.hash.slice(3)))));
+    if(!p.chapters||!p.spec) return null;
+    return {id:"shared",title:p.title,catalog:p.catalog||"DC-000",spec:p.spec,
+      chapters:p.chapters,genre:p.genre,voiced:false,hasBed:false};
+  }catch(e){ return null; }
+}
+
+/* ---------- shelf (lazy, thumbnail renderers) ---------- */
+let shelfObserver=null;
+const SHELF_PHOTO="img/eran-menashri-Ae7pSsfzEHs-unsplash.jpg";
+/* The backdrop is added and removed as a node. Toggling a class is not enough,
+   because whether the photograph stays inside the shelf depends on the parent
+   staying positioned. */
+function shelfBackdrop(show){
+  const bed=$("shelfBed");
+  if(!bed) return;
+  bed.classList.toggle("shelf-bed",show);
+  let ph=bed.querySelector(".photo-bed");
+  if(show){
+    if(!ph){
+      ph=document.createElement("div");
+      ph.className="photo-bed";
+      ph.style.backgroundImage="url('"+SHELF_PHOTO+"')";
+      bed.insertBefore(ph,bed.firstChild);
+    }
+  }else if(ph){ ph.remove(); }
+}
+function drawShelf(){
+  $("emptyShelf").style.display=tracks.length?"none":"block";
+  shelfBackdrop(!tracks.length);
+  if(shelfObserver) shelfObserver.disconnect();
+  const frag=document.createDocumentFragment();
+  tracks.slice().reverse().forEach(function(t){
+    const b=document.createElement("button");
+    b.className="sleeve"; b.type="button"; b.dataset.id=t.id;
+    b.innerHTML='<div class="art"></div><div class="t">'+escXML(t.title)+'</div><div class="c">'+escXML(t.catalog)+"</div>";
+    frag.appendChild(b);
+  });
+  $("racks").replaceChildren(frag);
+  /* sleeves only build their geometry once they are near the viewport */
+  if(!("IntersectionObserver" in window)){
+    Array.prototype.forEach.call($("racks").children,function(el){
+      const t=tracks.filter(x=>x.id===el.dataset.id)[0];
+      if(t) el.querySelector(".art").innerHTML=artworkSVG(t.spec,{thumb:true});
+    });
+    return;
+  }
+  shelfObserver=new IntersectionObserver(function(entries,obs){
+    entries.forEach(function(en){
+      if(!en.isIntersecting) return;
+      const el=en.target, t=tracks.filter(x=>x.id===el.dataset.id)[0];
+      if(t) el.querySelector(".art").innerHTML=artworkSVG(t.spec,{thumb:true});
+      obs.unobserve(el);
+    });
+  },{rootMargin:"220px"});
+  Array.prototype.forEach.call($("racks").children,el=>shelfObserver.observe(el));
+}
+$("racks").addEventListener("click",function(e){
+  const b=e.target.closest(".sleeve");
+  if(!b) return;
+  const t=tracks.filter(x=>x.id===b.dataset.id)[0];
+  if(t){
+    stopAudio(); playing=false;
+    openTrack(t);
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
+});
+
+/* ---------- splash ----------
+   Runs once per session so reloading during a feedback session is not a tax.
+   Any input skips it. If the photographs fail to load the scrim and wordmark
+   still read correctly, so the intro degrades to a plain title card. */
+(function(){
+  const sp=$("splash");
+  if(!sp) return;
+  let seen=false;
+  try{ seen=sessionStorage.getItem("dc_splash")==="1"; }catch(e){}
+  const reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(seen){ sp.remove(); return; }
+  try{ sessionStorage.setItem("dc_splash","1"); }catch(e){}
+  let done=false;
+  const dismiss=function(){
+    if(done) return;
+    done=true;
+    sp.classList.add("gone");
+    setTimeout(()=>sp.remove(),800);
+  };
+  /* Motion is opt-out: with reduced-motion set we never fetch the clip at all,
+     and the still frames carry the intro instead. */
+  const vid=$("splashVid");
+  if(vid){
+    if(reduced){ vid.remove(); }
+    else{
+      vid.addEventListener("playing",()=>sp.classList.add("video-on"),{once:true});
+      vid.addEventListener("error",()=>vid.remove(),{once:true});
+      const go=vid.play();
+      if(go&&go.catch) go.catch(()=>{ /* autoplay refused; stills already running */ });
+    }
+  }
+
+  const hold=reduced?900:5200;
+  const t=setTimeout(dismiss,hold);
+  ["click","keydown","wheel","touchstart"].forEach(ev=>
+    sp.addEventListener(ev,()=>{clearTimeout(t);dismiss();},{passive:true}));
+  document.addEventListener("keydown",()=>{clearTimeout(t);dismiss();},{once:true,passive:true});
+})();
+
+/* ---------- boot ---------- */
+try{ railCount(); }catch(e){ console.warn("rail",e); }
+try{ drawShelf(); }catch(e){ console.warn("shelf",e); $("racks").innerHTML=""; }
+let shared=null;
+try{ shared=importHash(); }catch(e){ shared=null; }
+try{
+  if(shared) openTrack(shared,"shared track, voiced by your browser");
+  else { face("Cut"); setStage("idle"); }
+}catch(e){
+  face("Cut"); setStage("idle");
+  console.warn("boot",e);
+}
+</script>
+</body>
+</html>
