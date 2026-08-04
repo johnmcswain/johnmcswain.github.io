@@ -290,7 +290,17 @@ details .field{margin-top:15px}
 
 /* ---------- shelf ---------- */
 .shelf{border-top:1px solid var(--edge);padding:20px clamp(16px,4vw,34px) 46px;max-width:1240px;margin:0 auto}
-.shelf h2{font:400 10px/1 'Space Mono',monospace;letter-spacing:.2em;text-transform:uppercase;color:var(--dust);margin-bottom:15px}
+.shelf h2{font:400 10px/1 'Space Mono',monospace;letter-spacing:.2em;text-transform:uppercase;color:var(--dust);margin:0}
+.shelf-head{display:flex;align-items:baseline;gap:14px;margin-bottom:15px;flex-wrap:wrap}
+.shelf-head .count{font:400 10px/1 'Space Mono',monospace;letter-spacing:.1em;color:var(--dust);opacity:.7}
+.clear-btn{
+  margin-left:auto;font:400 10px/1 'Space Mono',monospace;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--dust);border:1px solid var(--edge);
+  padding:7px 12px;border-radius:99px;transition:color .2s,border-color .2s;
+}
+.clear-btn:hover{color:var(--label);border-color:var(--ink-a)}
+.clear-btn.arm{color:var(--void);background:var(--ink-a);border-color:var(--ink-a)}
+.clear-btn[hidden]{display:none}
 .racks{display:grid;grid-template-columns:repeat(auto-fill,minmax(122px,1fr));gap:15px}
 .sleeve{text-align:left;content-visibility:auto;contain-intrinsic-size:122px 158px}
 .sleeve .art{aspect-ratio:1;border-radius:5px;overflow:hidden;background:var(--deck);border:1px solid var(--edge);transition:transform .28s cubic-bezier(.2,.8,.3,1),box-shadow .28s}
@@ -545,7 +555,11 @@ details .field{margin-top:15px}
 </main>
 
 <section class="shelf">
-  <h2>Discography</h2>
+  <div class="shelf-head">
+    <h2>Discography</h2>
+    <span class="count" id="shelfCount"></span>
+    <button class="clear-btn" id="clearBtn" type="button" hidden>Clear shelf</button>
+  </div>
   <div class="racks" id="racks"></div>
   <div class="shelf-bed" id="shelfBed">
   <p class="empty-shelf" id="emptyShelf">Nothing pressed yet. Every track you finish lands here with its own sleeve. A shelf of everything you were stubborn enough to learn.</p>
@@ -2054,6 +2068,10 @@ function shelfBackdrop(show){
 function drawShelf(){
   $("emptyShelf").style.display=tracks.length?"none":"block";
   shelfBackdrop(!tracks.length);
+  const n=tracks.length;
+  $("shelfCount").textContent=n?(n+" side"+(n===1?"":"s")):"";
+  $("clearBtn").hidden=!n;
+  if(!n) disarmClear();
   if(shelfObserver) shelfObserver.disconnect();
   const frag=document.createDocumentFragment();
   tracks.slice().reverse().forEach(function(t){
@@ -2081,6 +2099,63 @@ function drawShelf(){
   },{rootMargin:"220px"});
   Array.prototype.forEach.call($("racks").children,el=>shelfObserver.observe(el));
 }
+/* ---------- clear the shelf ----------
+   Deleting work needs a deliberate second press, so the button arms itself and
+   disarms after a few seconds or if focus moves elsewhere. It clears the saved
+   track list and the audio blobs together: leaving the blobs behind would keep
+   the IndexedDB store growing with segments nothing references any more. */
+let clearArmed=false, clearTimer=null;
+function disarmClear(){
+  clearArmed=false;
+  clearTimeout(clearTimer);
+  const b=$("clearBtn");
+  if(b){ b.classList.remove("arm"); b.textContent="Clear shelf"; }
+}
+async function wipeAudio(ids){
+  try{
+    const db=await idb();
+    await new Promise(function(res){
+      const tx=db.transaction("audio","readwrite");
+      const store=tx.objectStore("audio");
+      /* music beds are cached by prompt hash and shared between tracks, so only
+         the per-track voice and bed entries are removed here */
+      ids.forEach(function(id){
+        store.delete("t:"+id+":bed");
+        for(let i=0;i<24;i++) store.delete("t:"+id+":c:"+i);
+      });
+      tx.oncomplete=res; tx.onerror=res; tx.onabort=res;
+    });
+  }catch(e){ /* the shelf still clears even if the blob store is unavailable */ }
+}
+async function clearShelf(){
+  const ids=tracks.map(t=>t.id);
+  const n=ids.length;
+  stopAudio();
+  playing=false; playerTrack=null;
+  voiceJobs.clear();
+  tracks=[];
+  clearTimeout(saveTimer);
+  try{ localStorage.removeItem("dc_tracks"); }catch(e){}
+  wipeAudio(ids);
+  railCount(); drawShelf();
+  face("Cut"); setStage("idle"); setCaption(null); neutralTheme();
+  $("cutNote").textContent=n?("shelf cleared, "+n+" track"+(n===1?"":"s")+" removed"):"";
+  disarmClear();
+}
+$("clearBtn").addEventListener("click",function(){
+  if(!tracks.length) return;
+  if(!clearArmed){
+    clearArmed=true;
+    this.classList.add("arm");
+    this.textContent="Press again to delete "+tracks.length;
+    clearTimeout(clearTimer);
+    clearTimer=setTimeout(disarmClear,4000);
+    return;
+  }
+  clearShelf();
+});
+$("clearBtn").addEventListener("blur",disarmClear);
+
 $("racks").addEventListener("click",function(e){
   const b=e.target.closest(".sleeve");
   if(!b) return;
