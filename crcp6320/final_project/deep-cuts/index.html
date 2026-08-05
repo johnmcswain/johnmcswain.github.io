@@ -1143,15 +1143,18 @@ const DEMO={
      recall:null}
   ]
 };
-function demoLesson(topic){
+/* The stand-in lesson still takes the genre you picked. Returning the hardcoded
+   lo-fi prompt here is why every fallback track sounded identical. */
+function demoLesson(topic,genre){
+  const bed=(genre&&genre.prompt)?genre.prompt:DEMO.musicPrompt;
   if(topic.trim().length>300){
     const sents=topic.replace(/\s+/g," ").match(/[^.!?]+[.!?]+/g)||[topic];
     const per=Math.ceil(sents.length/3), chapters=[];
     for(let i=0;i<sents.length&&chapters.length<4;i+=per)
       chapters.push({title:"Part "+(chapters.length+1),text:sents.slice(i,i+per).join(" ").trim(),recall:null});
-    return {chapters:chapters,musicPrompt:DEMO.musicPrompt,artDirection:null};
+    return {chapters:chapters,musicPrompt:bed,artDirection:null};
   }
-  return {chapters:DEMO.chapters,musicPrompt:DEMO.musicPrompt,artDirection:null};
+  return {chapters:DEMO.chapters,musicPrompt:bed,artDirection:null};
 }
 
 /* ---------- writers ---------- */
@@ -1340,17 +1343,81 @@ async function ttsSegment(text,voiceId,key){
   if(!res.ok) throw new Error("tts "+res.status);
   return res.blob();
 }
-async function musicBed(prompt,key){
-  const id="music:"+hashStr(prompt);
+/* Words that mean the genre actually made it into the prompt. */
+const GENRE_WORDS={
+  lofi:["lo-fi","lofi","low fi"], boombap:["boom bap","boombap"],
+  jazz:["jazz","quartet","upright bass"], ambient:["ambient","drone","pad"],
+  synthwave:["synthwave","synth wave","arpegg","analog synth"],
+  house:["house","four on the floor"], orchestral:["orchestral","strings","cinematic"],
+  funk:["funk","funky"]
+};
+function musicPromptFor(genre,written){
+  const w=String(written||"").trim();
+  const words=GENRE_WORDS[genre.id]||[genre.name.toLowerCase()];
+  const onGenre=w&&words.some(k=>w.toLowerCase().indexOf(k)>=0);
+  /* lead with the genre either way, so two genres can never produce one prompt */
+  return onGenre ? (genre.name+": "+w) : genre.prompt;
+}
+
+const MUSIC_MODEL="music_v2";
+const MUSIC_LEN_MS=60000;      // the endpoint accepts 3000 to 600000
+const MUSIC_PROMPT_MAX=4100;   // documented hard limit on the prompt field
+/* 128kbps rather than the v2 default of 192: this is a bed sitting under a
+   voice, so the smaller file downloads faster and takes less IndexedDB. */
+const MUSIC_FORMAT="mp3_44100_128";
+
+/* One attempt at the music endpoint. Kept separate so a rejected prompt can be
+   retried with the replacement the API hands back. */
+async function musicCall(prompt,key){
+  /* A local writer can return something long. Over the limit the request is
+     rejected outright, so trim on a word boundary before sending. */
+  let p=String(prompt||"").trim();
+  if(p.length>MUSIC_PROMPT_MAX){
+    p=p.slice(0,MUSIC_PROMPT_MAX);
+    const cut=p.lastIndexOf(" ");
+    if(cut>MUSIC_PROMPT_MAX-200) p=p.slice(0,cut);
+  }
+  const res=await fetch("https://api.elevenlabs.io/v1/music?output_format="+MUSIC_FORMAT,{
+    method:"POST",headers:{"Content-Type":"application/json","xi-api-key":key},
+    body:JSON.stringify({
+      prompt:p,
+      music_length_ms:MUSIC_LEN_MS,
+      model_id:MUSIC_MODEL,
+      force_instrumental:true,   // valid only alongside prompt, which is the path here
+    })});
+  if(res.ok){
+    /* the API returns an id for the generation, handy when comparing beds */
+    let songId=null;
+    try{ songId=res.headers.get("song-id"); }catch(e){}
+    return {ok:true,blob:await res.blob(),songId:songId};
+  }
+  /* Read the body before giving up. A prompt naming a band or a musician is
+     refused as bad_prompt, and the response carries a rewritten prompt that is
+     safe to use. A local writer can easily name an artist, so this is worth
+     catching rather than failing the bed. */
+  let detail=null;
+  try{ detail=JSON.parse(await res.text()); }catch(e){}
+  const d=(detail&&detail.detail)||{};
+  const suggestion=(d.data&&d.data.prompt_suggestion)||null;
+  let reason=d.message||d.status||("music "+res.status);
+  if(res.status===422&&!d.message) reason="the request was rejected as malformed";
+  if(res.status===401) reason="key refused. The Music API needs a paid ElevenLabs plan";
+  return {ok:false,status:res.status,reason:reason,suggestion:suggestion};
+}
+async function musicBed(prompt,key,genreId){
+  /* The cache is keyed by genre as well as by prompt text, so a model that
+     returns the same wording for two genres cannot serve one bed for both. */
+  const id="music:"+(genreId||"x")+":"+hashStr(prompt);
   const hit=await idbGet(id);
   if(hit) return hit;
-  const res=await fetch("https://api.elevenlabs.io/v1/music",{
-    method:"POST",headers:{"Content-Type":"application/json","xi-api-key":key},
-    body:JSON.stringify({prompt:prompt,music_length_ms:60000,force_instrumental:true})});
-  if(!res.ok) throw new Error("music "+res.status);
-  const b=await res.blob();
-  await idbPut(id,b);
-  return b;
+  let out=await musicCall(prompt,key);
+  if(!out.ok&&out.suggestion){
+    /* second and final attempt, using the API's own rewording */
+    out=await musicCall(out.suggestion,key);
+  }
+  if(!out.ok) throw new Error("music "+out.status+": "+String(out.reason).slice(0,120));
+  await idbPut(id,out.blob);
+  return out.blob;
 }
 
 /* ---------- IndexedDB ---------- */
@@ -1437,6 +1504,7 @@ function normalizeTrack(t){
     id:String(t.id||Date.now().toString(36)),
     title:title, catalog:String(t.catalog||"DC-000"), spec:spec, chapters:chapters,
     musicPrompt:String(t.musicPrompt||""), genre:t.genre?String(t.genre):"",
+    genreId:t.genreId?String(t.genreId):"",
     persona:t.persona?String(t.persona):"wry",
     voiced:!!t.voiced, hasBed:!!t.hasBed,
     voicedIdx:Array.isArray(t.voicedIdx)?t.voicedIdx.filter(Number.isInteger):undefined,
@@ -1466,6 +1534,9 @@ let playerTrack=null, chapterIdx=0, playing=false, waitBusy=false;
 const voiceEl=new Audio(), bedEl=new Audio();
 bedEl.loop=true;
 let voiceUrl=null, bedUrl=null, speakPump=null, speechHold=false;
+/* Which track the audio element is currently holding. Testing bedEl.src alone
+   was the bug: once any bed loaded, every later track reused it. */
+let bedForTrack=null;
 
 /* ---------- shell ---------- */
 function face(which){
@@ -1673,8 +1744,12 @@ async function dryRun(){
   rows.push({k:"recall coverage",v:withRecall+" of "+chapters.length+" chapters",
     state:(chapters.length-withRecall)<=1?"good":"warn"});
 
-  rows.push({k:"music prompt",v:lesson.musicPrompt?String(lesson.musicPrompt).slice(0,70):"missing, the genre preset would stand in",
-    state:lesson.musicPrompt?"good":"warn"});
+  const bedUsed=musicPromptFor(genre,lesson.musicPrompt);
+  const onGenre=lesson.musicPrompt&&bedUsed!==genre.prompt;
+  rows.push({k:"music bed",v:bedUsed.slice(0,68),state:"good"});
+  rows.push({k:"bed matches genre",
+    v:onGenre?("the writer described a "+genre.name+" bed"):("the writer ignored the genre, so the "+genre.name+" preset is used"),
+    state:onGenre?"good":"warn"});
 
   const ad=lesson.artDirection||{};
   const styleOK=STYLE_IDS.indexOf(ad.style)>=0, motifOK=MOTIFS.indexOf(ad.motif)>=0;
@@ -1716,11 +1791,11 @@ async function produce(){
   if(writer.key){
     try{ lesson=await writeLesson(title,topic,persona,genre); }
     catch(e){
-      lesson=demoLesson(topic);
+      lesson=demoLesson(topic,genre);
       note="writer failed ("+e.message+"). "+(topic.length>300?"chapters chunked from your notes":"the built-in demo lesson stood in");
     }
   }else{
-    lesson=demoLesson(topic);
+    lesson=demoLesson(topic,genre);
     note="no writer key. "+(topic.length>300?"chapters chunked from your notes":"Your topic was not written. The built-in demo lesson is playing. Add a writer key in studio settings");
   }
   if(!live()) return;
@@ -1748,19 +1823,24 @@ async function produce(){
   setCaption(spec,[genre.name]);
   st.cover="done"; st.cover_note=STYLE_LABEL[spec.style]; drawLog(st);
 
+  /* A small model will happily return a bed description that ignores the genre
+     you chose. Keep the writer's wording only when it actually names the genre,
+     otherwise fall back to the preset. Either way the genre name leads, so the
+     selection is always audible. */
+  const bedPrompt=musicPromptFor(genre,lesson.musicPrompt);
   const track={id:Date.now().toString(36),title:title,catalog:catalog,spec:spec,
     chapters:lesson.chapters,
-    musicPrompt:(writer.key&&lesson.musicPrompt)?lesson.musicPrompt:genre.prompt,
+    musicPrompt:bedPrompt, genreId:genre.id,
     genre:genre.name,persona:personaSel,voiced:false,hasBed:false,createdAt:Date.now()};
 
   /* 3 + 4. the bed and the voice are independent, so they run together */
   if(elKey){
     st.bed="doing";
-    musicBed(track.musicPrompt,elKey)
+    musicBed(track.musicPrompt,elKey,track.genreId)
       .then(b=>idbPut("t:"+track.id+":bed",b))
       .then(function(){
         track.hasBed=true; st.bed="done"; saveTracks();
-        if(playerTrack===track&&playing&&!bedEl.src) startBed();
+        if(playerTrack===track&&playing&&bedForTrack!==track.id) startBed();
       })
       .catch(function(e){ st.bed="skip"; st.bed_why=e.message; })
       .then(function(){ if(live()) drawLog(st); });
@@ -1832,7 +1912,9 @@ function drawChapters(){
 function setRing(p){$("ringArc").setAttribute("stroke-dasharray",(clamp(p,0,1)*1000).toFixed(1)+" 1000");}
 function stopAudio(){
   voiceEl.pause(); voiceEl.removeAttribute("src");
-  bedEl.pause();
+  bedEl.pause(); bedEl.removeAttribute("src");
+  if(bedUrl){ URL.revokeObjectURL(bedUrl); bedUrl=null; }
+  bedForTrack=null;
   if("speechSynthesis" in window) speechSynthesis.cancel();
   clearInterval(speakPump); speakPump=null;
   $("studio").classList.remove("stage-playing");
@@ -1857,12 +1939,15 @@ $("navShelf").addEventListener("click",function(){
 
 async function startBed(){
   if(!playerTrack||!playerTrack.hasBed) return;
-  if(!bedEl.src){
+  const want=playerTrack.id;
+  if(bedForTrack!==want||!bedEl.src){
     let b=null;
-    try{ b=await idbGet("t:"+playerTrack.id+":bed"); }catch(e){ b=null; }
-    if(!b||!playing) return;
+    try{ b=await idbGet("t:"+want+":bed"); }catch(e){ b=null; }
+    /* the listener may have moved on while this was loading */
+    if(!b||!playing||!playerTrack||playerTrack.id!==want) return;
     if(bedUrl) URL.revokeObjectURL(bedUrl);
-    bedUrl=URL.createObjectURL(b); bedEl.src=bedUrl; bedEl.volume=.3;
+    bedUrl=URL.createObjectURL(b);
+    bedEl.src=bedUrl; bedEl.volume=.3; bedForTrack=want;
   }
   if(playing) bedEl.play().catch(()=>{});
 }
