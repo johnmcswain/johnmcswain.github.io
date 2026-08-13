@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Residual — observed against predicted</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --abyss:#061620;
+  --deep:#0C2A38;
+  --shelf:#123B4C;
+  --verdigris:#3FA6A0;
+  --bone:#EDE6D6;
+  --brass:#D9A441;
+  --surge:#E2604A;
+  --mute:rgba(237,230,214,.42);
+  --hair:rgba(237,230,214,.14);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--abyss);color:var(--bone);
+  font-family:"IBM Plex Sans",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{padding:clamp(18px,3.5vw,46px) clamp(16px,4vw,56px) 64px}
+
+.wrap{max-width:1180px;margin:0 auto}
+
+header{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-end;
+  justify-content:space-between;border-bottom:1px solid var(--hair);padding-bottom:20px}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--verdigris);margin:0 0 10px}
+h1{font-family:"Fraunces",serif;font-optical-sizing:auto;font-weight:300;
+  font-size:clamp(38px,7vw,76px);line-height:.92;margin:0;letter-spacing:-.02em}
+h1 em{font-style:italic;font-weight:500;color:var(--brass)}
+.deck{font-size:14.5px;line-height:1.55;color:var(--mute);max-width:34ch;margin:0}
+
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 14px}
+button.st{font-family:"IBM Plex Mono",monospace;font-size:11.5px;letter-spacing:.08em;
+  background:transparent;color:var(--mute);border:1px solid var(--hair);
+  padding:7px 13px;cursor:pointer;transition:.18s}
+button.st:hover{color:var(--bone);border-color:var(--verdigris)}
+button.st[aria-pressed="true"]{color:var(--abyss);background:var(--verdigris);
+  border-color:var(--verdigris)}
+button.st:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+
+.stage{position:relative;width:100%;aspect-ratio:1200/520;min-height:300px;
+  background:linear-gradient(180deg,#06161F 0%,#081E29 100%);
+  border:1px solid var(--hair);overflow:hidden}
+.stage canvas,.stage svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.stage canvas{image-rendering:pixelated;image-rendering:crisp-edges}
+
+.status{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.1em;
+  color:var(--mute);margin:10px 0 0;display:flex;gap:18px;flex-wrap:wrap}
+.status b{color:var(--brass);font-weight:500}
+.dot{width:7px;height:7px;display:inline-block;margin-right:6px;vertical-align:1px}
+
+.resid{margin-top:26px}
+.resid h2{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--verdigris);font-weight:400;margin:0 0 8px}
+#strip{width:100%;height:76px;display:block;image-rendering:pixelated;
+  border:1px solid var(--hair);background:#06161F}
+
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+  gap:26px;margin-top:34px;padding-top:24px;border-top:1px solid var(--hair)}
+.legend div{font-size:13px;line-height:1.6;color:var(--mute)}
+.legend strong{display:block;font-family:"IBM Plex Mono",monospace;font-size:10.5px;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--bone);
+  font-weight:500;margin-bottom:6px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div>
+    <p class="eyebrow">NOAA CO-OPS · six-minute water level</p>
+    <h1>What the moon said.<br>What the <em>sea did.</em></h1>
+  </div>
+  <p class="deck">The smooth line is arithmetic, computed years in advance from orbital
+  mechanics. The pixels are a float in the water, sampled every six minutes. Where they
+  separate, weather happened.</p>
+</header>
+
+<div class="controls" id="stations" role="group" aria-label="Tide station"></div>
+
+<div class="stage">
+  <canvas id="water"></canvas>
+  <svg id="vec" viewBox="0 0 1200 520" preserveAspectRatio="none" aria-hidden="true"></svg>
+</div>
+
+<p class="status" id="status">
+  <span><span class="dot" style="background:var(--bone)"></span>Predicted (vector)</span>
+  <span><span class="dot" style="background:var(--verdigris)"></span>Observed (pixel)</span>
+  <span><span class="dot" style="background:var(--surge)"></span>Surge</span>
+  <span id="src">Loading station…</span>
+</p>
+
+<section class="resid">
+  <h2>Residual — observed minus predicted, in feet</h2>
+  <canvas id="strip"></canvas>
+</section>
+
+<div class="legend">
+  <div><strong>Why two renderers</strong>Prediction is continuous math, so it draws as
+  SVG. Measurement is quantized and physical, so it draws as a dithered pixel buffer at
+  quarter resolution.</div>
+  <div><strong>The particles</strong>Spawn rate follows the residual. Flat water throws
+  almost nothing. A surge tears spray off the surface.</div>
+  <div><strong>The data</strong>Three days of observations and predictions for one gauge,
+  fetched live from NOAA. Falls back to a generated tide if the network refuses.</div>
+</div>
+
+</div>
+
+<script>
+const STATIONS = [
+  {id:'8443970', name:'Boston, MA'},
+  {id:'9447130', name:'Seattle, WA'},
+  {id:'8518750', name:'The Battery, NY'},
+  {id:'8658120', name:'Wilmington, NC'},
+  {id:'9414290', name:'San Francisco, CA'}
+];
+
+const W=1200, H=520, S=4, PW=W/S, PH=H/S;      // pixel buffer is quarter res
+const cv=document.getElementById('water'), ctx=cv.getContext('2d');
+cv.width=PW; cv.height=PH; ctx.imageSmoothingEnabled=false;
+const sv=document.getElementById('vec');
+const strip=document.getElementById('strip'), sctx=strip.getContext('2d');
+strip.width=300; strip.height=19; sctx.imageSmoothingEnabled=false;
+const NS='http://www.w3.org/2000/svg';
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const BAYER=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+let series=null, parts=[], sweep=0, raf=null, active=STATIONS[0];
+
+function ymd(d){return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');}
+
+async function load(st){
+  const end=new Date(), beg=new Date(Date.now()-3*864e5);
+  const base='https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?'+
+    'application=residual_viz&begin_date='+ymd(beg)+'&end_date='+ymd(end)+
+    '&datum=MLLW&station='+st.id+'&time_zone=lst_ldt&units=english&format=json';
+  try{
+    const [o,p]=await Promise.all([
+      fetch(base+'&product=water_level').then(r=>r.json()),
+      fetch(base+'&product=predictions&interval=6').then(r=>r.json())
+    ]);
+    if(!o.data||!p.predictions) throw new Error('no rows');
+    const pm=new Map(p.predictions.map(d=>[d.t,parseFloat(d.v)]));
+    const rows=o.data.filter(d=>d.v!=='' && pm.has(d.t))
+      .map(d=>({t:d.t, obs:parseFloat(d.v), pred:pm.get(d.t)}))
+      .filter(d=>isFinite(d.obs)&&isFinite(d.pred));
+    if(rows.length<50) throw new Error('sparse');
+    return {rows, live:true};
+  }catch(e){ return {rows:synth(), live:false}; }
+}
+
+function synth(){                                   // semidiurnal + a storm bump
+  const out=[], n=720;
+  for(let i=0;i<n;i++){
+    const h=i*0.1;
+    const pred=4.6*Math.sin(2*Math.PI*h/12.42)+1.1*Math.sin(2*Math.PI*h/24.84)+5.2;
+    const bump=1.9*Math.exp(-Math.pow((i-470)/58,2));
+    out.push({t:'', pred, obs:pred+bump+(Math.random()-.5)*0.16});
+  }
+  return out;
+}
+
+function prep(d){
+  const rows=d.rows, vals=rows.flatMap(r=>[r.obs,r.pred]);
+  const lo=Math.min(...vals)-0.6, hi=Math.max(...vals)+0.9;
+  const y=v=>PH-((v-lo)/(hi-lo))*(PH-6)-3;
+  const obs=[],pred=[],res=[];
+  for(let x=0;x<PW;x++){
+    const r=rows[Math.min(rows.length-1,Math.round(x/(PW-1)*(rows.length-1)))];
+    obs.push(y(r.obs)); pred.push(y(r.pred)); res.push(r.obs-r.pred);
+  }
+  return {obs,pred,res,lo,hi,live:d.live,maxRes:Math.max(...res.map(Math.abs),0.35)};
+}
+
+function drawVector(S_){
+  sv.innerHTML='';
+  const g=document.createElementNS(NS,'g');
+  for(let i=1;i<4;i++){                             // drafting grid
+    const l=document.createElementNS(NS,'line');
+    l.setAttribute('x1',0); l.setAttribute('x2',W);
+    l.setAttribute('y1',H*i/4); l.setAttribute('y2',H*i/4);
+    l.setAttribute('stroke','rgba(237,230,214,.07)');
+    l.setAttribute('stroke-dasharray','2 8'); g.appendChild(l);
+  }
+  const d=S_.pred.map((v,i)=>(i?'L':'M')+(i*S).toFixed(1)+' '+(v*S).toFixed(1)).join(' ');
+  const p=document.createElementNS(NS,'path');
+  p.setAttribute('d',d); p.setAttribute('fill','none');
+  p.setAttribute('stroke','var(--bone)'); p.setAttribute('stroke-width','1.25');
+  p.setAttribute('opacity','.9'); g.appendChild(p);
+  sv.appendChild(g);
+}
+
+function step(S_){
+  ctx.clearRect(0,0,PW,PH);
+  const lim = reduce ? PW : Math.floor(sweep);
+
+  for(let x=0;x<lim;x++){
+    const top=Math.round(S_.obs[x]), r=S_.res[x], k=Math.min(1,Math.abs(r)/S_.maxRes);
+    for(let y=top;y<PH;y++){
+      const depth=(y-top)/(PH-top||1);
+      const th=BAYER[y&3][x&3]/16;                  // ordered dither by depth
+      let col = depth>th*0.9+0.12 ? '#0C2A38' : '#123B4C';
+      if(depth<0.09) col = r>0.12 ? '#E2604A' : '#3FA6A0';
+      ctx.fillStyle=col; ctx.fillRect(x,y,1,1);
+    }
+    if(r>0.1 && Math.random()<k*0.09 && parts.length<520)
+      parts.push({x, y:top, vx:(Math.random()-.5)*.25, vy:-Math.random()*.55-.15,
+                  l:1, hot:r>S_.maxRes*0.5});
+  }
+
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i];
+    if(!reduce){ p.x+=p.vx; p.y+=p.vy; p.vy+=0.022; p.l-=0.014; }
+    if(p.l<=0||p.y>PH){ parts.splice(i,1); continue; }
+    ctx.fillStyle = p.hot ? '#E2604A' : (p.l>.55?'#EDE6D6':'#3FA6A0');
+    ctx.globalAlpha=Math.max(0,Math.min(1,p.l));
+    ctx.fillRect(Math.round(p.x),Math.round(p.y),1,1);
+  }
+  ctx.globalAlpha=1;
+
+  // Leading edge with animated pulse
+  if(!reduce && lim<PW){                           
+    const pulse = Math.sin(T*0.15)/2 + 0.5;
+    ctx.fillStyle='rgba(217,164,65,.4*pulse)';
+    ctx.fillRect(lim,0,1,PH);
+  }
+
+  drawStrip(S_,lim);
+  if(!reduce){ sweep+=0.9; if(sweep>PW+70) sweep=0; }
+  raf=requestAnimationFrame(()=>step(S_));
+}
+
+function drawStrip(S_,lim){
+  sctx.clearRect(0,0,300,19);
+  const mid=9;
+  sctx.fillStyle='rgba(237,230,214,.18)'; sctx.fillRect(0,mid,300,1);
+  for(let x=0;x<Math.min(300,lim);x++){
+    const r=S_.res[x], h=Math.round(Math.abs(r)/S_.maxRes*8);
+    sctx.fillStyle = r>0 ? '#E2604A' : '#3FA6A0';
+    if(r>0) sctx.fillRect(x,mid-h,1,h); else sctx.fillRect(x,mid+1,1,h);
+  }
+}
+
+async function go(st){
+  active=st; cancelAnimationFrame(raf); parts=[]; sweep=0;
+  document.getElementById('src').textContent='Reading '+st.name+'…';
+  const S_=prep(await load(st));
+  series=S_; drawVector(S_);
+  const peak=S_.res.reduce((a,b)=>Math.abs(b)>Math.abs(a)?b:a,0);
+  document.getElementById('src').innerHTML = st.name+' · peak residual <b>'+
+    (peak>0?'+':'')+peak.toFixed(2)+' ft</b>'+(S_.live?'':' · generated fallback');
+  step(S_);
+}
+
+const bar=document.getElementById('stations');
+STATIONS.forEach((s,i)=>{
+  const b=document.createElement('button');
+  b.className='st'; b.textContent=s.name; b.setAttribute('aria-pressed', i===0);
+  b.onclick=()=>{ [...bar.children].forEach(c=>c.setAttribute('aria-pressed','false'));
+    b.setAttribute('aria-pressed','true'); go(s); };
+  bar.appendChild(b);
+});
+go(STATIONS[0]);
+</script>
+</body>
+</html>
