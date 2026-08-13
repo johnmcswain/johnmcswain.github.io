@@ -8,8 +8,6 @@ the moon predicted and the tide that actually arrived. That gap is storm surge.
 - **Core** — sediment strata, time running downward
 - **Field** — the same numbers as a GPU particle flow
 
-Open `index.html` directly. No build step.
-
 ---
 
 ## Libraries
@@ -31,7 +29,7 @@ this.p5 = new p5(p => {
 }, this.el);
 ```
 
-That guard matters: p5 keeps calling `draw` on hidden sketches, so the class opts out.
+p5 keeps calling `draw` on hidden sketches, so the class opts out.
 `pixelDensity(1)` keeps the buffer small, since CSS scales it back up and the blockiness
 is the point. p5 earns its place through `noise()`, which drives the caustics in Horizon
 and the grain and layer warp in Core. Pixel writes go to an `ImageData` buffer the class
@@ -106,8 +104,7 @@ their targets and issues the draw call.
 
 ## Data
 
-NOAA CO-OPS, `api.tidesandcurrents.noaa.gov/api/prod/datagetter`. Public, no key,
-permissive CORS, which is what makes a purely static page viable. Two products for the
+NOAA CO-OPS, `api.tidesandcurrents.noaa.gov/api/prod/datagetter`. Public, permissive CORS, which is what makes a purely static page viable. Two products for the
 same three-day window at six-minute intervals: `water_level` for observations and
 `predictions` with `interval=6` for the astronomical forecast. Requesting both and
 subtracting is the whole technique. Rows are inner-joined on timestamp, since predictions
