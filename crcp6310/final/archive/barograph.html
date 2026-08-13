@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Barograph — the sky pressing down</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,200;9..144,300&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<style>
+:root{--abyss:#050D13;--verdigris:#3FA6A0;--bone:#EDE6D6;--brass:#D9A441;
+  --surge:#E2604A;--sky:#8FA6B8;--mute:rgba(237,230,214,.38);--hair:rgba(237,230,214,.11)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--abyss);color:var(--bone);overflow:hidden;
+  font-family:"IBM Plex Mono",monospace;-webkit-font-smoothing:antialiased;cursor:crosshair}
+#stage{position:fixed;inset:0}
+#stage canvas{width:100%!important;height:100%!important;display:block;
+  image-rendering:pixelated;image-rendering:crisp-edges}
+#vig{position:fixed;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 50%,transparent 42%,rgba(5,13,19,.9) 100%)}
+#squeeze{position:fixed;inset:0;pointer-events:none;opacity:0;
+  background:linear-gradient(180deg,rgba(143,166,184,.22),transparent 34%,transparent 66%,rgba(226,96,74,.26))}
+.ui{position:fixed;font-size:11px;letter-spacing:.14em;opacity:0}
+#title{top:clamp(18px,3vw,38px);left:clamp(18px,3vw,42px);max-width:30ch}
+#title h1{font-family:"Fraunces",serif;font-weight:200;font-size:clamp(26px,4vw,48px);
+  line-height:1;letter-spacing:-.02em;margin-bottom:12px}
+#title h1 em{font-style:italic;color:var(--brass)}
+#title p{color:var(--mute);line-height:1.9;font-size:10.5px;letter-spacing:.1em}
+#stations{right:clamp(18px,3vw,42px);top:50%;transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:14px;align-items:flex-end}
+#stations button{background:none;border:0;color:var(--mute);font:inherit;cursor:pointer;
+  letter-spacing:.14em;text-transform:uppercase;transition:color .3s}
+#stations button:hover{color:var(--bone)}
+#stations button[aria-pressed=true]{color:var(--brass)}
+#stations button[aria-pressed=true]::before{content:'';display:inline-block;width:16px;
+  height:1px;background:var(--brass);vertical-align:4px;margin-right:9px}
+#panel{left:clamp(18px,3vw,42px);bottom:clamp(18px,3vw,34px);line-height:2;max-width:52ch}
+#panel .big{font-family:"Fraunces",serif;font-size:30px;color:var(--bone);
+  display:block;font-weight:300;letter-spacing:-.01em}
+#panel b{color:var(--brass);font-weight:500}
+#panel .sky{color:var(--sky)}
+#hint{right:clamp(18px,3vw,42px);bottom:clamp(18px,3vw,34px);color:var(--mute);
+  text-align:right;line-height:2;font-size:10px}
+#hint kbd{color:var(--bone)}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="squeeze"></div>
+<div id="vig"></div>
+
+<div class="ui" id="title">
+  <h1>The sky presses down.<br><em>The sea comes up.</em></h1>
+  <p>Air pressure falls and water rises to fill the space it left. Both readings come from
+  the same NOAA gauge, six minutes apart, for three days.</p>
+</div>
+
+<nav class="ui" id="stations" aria-label="Station"></nav>
+
+<div class="ui" id="panel">
+  <span class="big" id="pBig">—</span>
+  <span id="pSub"></span>
+</div>
+<div class="ui" id="hint">
+  <div><kbd>←</kbd><kbd>→</kbd> travel time · <kbd>↑</kbd><kbd>↓</kbd> station</div>
+  <div><kbd>space</kbd> hold to compare models</div>
+</div>
+
+<script>
+/* Barograph — CO-OPS water_level + predictions + air_pressure, one station.
+   The inverse barometer: roughly 1 cm of water rise per 1 mb of pressure drop. */
+
+const STATIONS=[
+  {id:'8443970',name:'Boston'},
+  {id:'8518750',name:'The Battery'},
+  {id:'8658120',name:'Wilmington'},
+  {id:'9447130',name:'Seattle'},
+  {id:'9414290',name:'San Francisco'}
+];
+const FT_PER_MB=0.0328;                 // 1 mb ≈ 1 cm ≈ 0.0328 ft of static rise
+
+class Coupled {
+  constructor(rows,live,st){
+    this.station=st; this.live=live; this.N=460; this.layers=[];
+    const wl=rows.map(r=>r.obs), pr=rows.map(r=>r.mb).filter(isFinite);
+    this.wLo=Math.min(...wl,...rows.map(r=>r.pred));
+    this.wHi=Math.max(...wl,...rows.map(r=>r.pred));
+    this.pLo=Math.min(...pr); this.pHi=Math.max(...pr);
+    this.pMean=pr.reduce((a,b)=>a+b,0)/(pr.length||1);
+    for(let i=0;i<this.N;i++){
+      const j=Math.min(rows.length-1,Math.round(i/(this.N-1)*(rows.length-1)));
+      const r=rows[j];
+      const res=r.obs-r.pred;
+      const ibe=(this.pMean-r.mb)*FT_PER_MB;      // surge the barometer alone predicts
+      this.layers.push({
+        t:r.t, res, ibe, mb:r.mb,
+        wn:(r.obs-this.wLo)/((this.wHi-this.wLo)||1),
+        pn:(r.mb-this.pLo)/((this.pHi-this.pLo)||1),
+        unexplained:res-ibe                        // what wind and waves did
+      });
+    }
+    this.maxRes=Math.max(...this.layers.map(l=>Math.abs(l.res)),0.35);
+    // correlation between pressure and residual across the window
+    this.r=Coupled.corr(this.layers.map(l=>l.mb),this.layers.map(l=>l.res));
+  }
+  at(u){ return this.layers[Math.max(0,Math.min(this.N-1,Math.floor(u*(this.N-1))))]; }
+  static corr(a,b){
+    const n=a.length, ma=a.reduce((x,y)=>x+y,0)/n, mb=b.reduce((x,y)=>x+y,0)/n;
+    let sn=0,da=0,db=0;
+    for(let i=0;i<n;i++){ const x=a[i]-ma,y=b[i]-mb; sn+=x*y; da+=x*x; db+=y*y; }
+    return sn/Math.sqrt((da*db)||1);
+  }
+  static ymd(d){return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');}
+  static async fetchFor(st){
+    const b='https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?application=barograph'+
+      '&begin_date='+Coupled.ymd(new Date(Date.now()-3*864e5))+
+      '&end_date='+Coupled.ymd(new Date())+
+      '&datum=MLLW&station='+st.id+'&time_zone=lst_ldt&units=english&format=json';
+    try{
+      const [o,p,a]=await Promise.all([
+        fetch(b+'&product=water_level').then(r=>r.json()),
+        fetch(b+'&product=predictions&interval=6').then(r=>r.json()),
+        fetch(b+'&product=air_pressure').then(r=>r.json())
+      ]);
+      if(!o.data||!p.predictions||!a.data) throw 0;
+      const pm=new Map(p.predictions.map(d=>[d.t,parseFloat(d.v)]));
+      const am=new Map(a.data.map(d=>[d.t,parseFloat(d.v)]));
+      const rows=o.data.filter(d=>d.v!==''&&pm.has(d.t)&&am.has(d.t))
+        .map(d=>({t:d.t,obs:parseFloat(d.v),pred:pm.get(d.t),mb:am.get(d.t)}))
+        .filter(d=>isFinite(d.obs)&&isFinite(d.pred)&&isFinite(d.mb));
+      if(rows.length<50) throw 0;
+      return new Coupled(rows,true,st);
+    }catch(e){ return new Coupled(Coupled.synth(),false,st); }
+  }
+  static synth(){
+    const out=[];
+    for(let i=0;i<720;i++){
+      const h=i*.1;
+      const pred=4.6*Math.sin(2*Math.PI*h/12.42)+1.1*Math.sin(2*Math.PI*h/24.84)+5.2;
+      const drop=26*Math.exp(-(((i-470)/64)**2));           // a low passing through
+      const mb=1018-drop+(Math.random()-.5)*.7;
+      out.push({t:'',pred,mb,obs:pred+drop*FT_PER_MB*1.35+(Math.random()-.5)*.14});
+    }
+    return out;
+  }
+}
+
+class Barograph {
+  constructor(){
+    this.W=420; this.H=260; this.u=1; this.manual=false;
+    this.held={}; this.data=null; this.idx=0; this.compare=false;
+    this.buildChrome(); this.bindInput();
+    this.p5=new p5(p=>{
+      p.setup=()=>{ p.createCanvas(this.W,this.H); p.pixelDensity(1); p.noSmooth();
+        p.noiseDetail(3,.5); };
+      p.draw=()=>this.draw(p);
+    },document.getElementById('stage'));
+    gsap.to('.ui',{opacity:1,duration:1.6,stagger:.14,ease:'power2.out',delay:.4});
+    this.load(0);
+  }
+  buildChrome(){
+    const sb=document.getElementById('stations');
+    STATIONS.forEach((s,i)=>{
+      const b=document.createElement('button');
+      b.textContent=s.name; b.setAttribute('aria-pressed',i===0);
+      b.onclick=()=>this.load(i); sb.appendChild(b);
+    });
+  }
+  bindInput(){
+    addEventListener('keydown',e=>{
+      this.held[e.key]=true;
+      if(e.key==='ArrowUp') this.load((this.idx-1+STATIONS.length)%STATIONS.length);
+      if(e.key==='ArrowDown') this.load((this.idx+1)%STATIONS.length);
+      if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
+    });
+    addEventListener('keyup',e=>this.held[e.key]=false);
+    const tick=()=>{
+      if(this.held.ArrowLeft||this.held.ArrowRight){
+        this.manual=true;
+        this.u=Math.max(0,Math.min(1,this.u+(this.held.ArrowRight?.004:-.004)));
+      }
+      this.compare=!!this.held[' '];
+      requestAnimationFrame(tick);
+    };
+    tick();
+  }
+  async load(i){
+    this.idx=i;
+    [...document.getElementById('stations').children]
+      .forEach((b,k)=>b.setAttribute('aria-pressed',k===i));
+    gsap.to('#stage',{opacity:.2,filter:'blur(10px)',duration:.45,ease:'power2.in'});
+    this.data=await Coupled.fetchFor(STATIONS[i]);
+    this.u=0; this.manual=false;
+    gsap.to('#stage',{opacity:1,filter:'blur(0px)',duration:1.4,ease:'power2.out'});
+    gsap.fromTo('#pBig',{opacity:0,y:12},{opacity:1,y:0,duration:.8});
+  }
+  draw(p){
+    const D=this.data; if(!D) return;
+    if(!this.manual){ this.u+=.0011; if(this.u>1) this.u=0; }
+    const lim=Math.floor(this.u*this.W);
+    p.background(5,13,19);
+    p.loadPixels();
+    const set=(x,y,c)=>{ if(y<0||y>=this.H) return;
+      const i=4*(y*this.W+x);
+      p.pixels[i]=c[0];p.pixels[i+1]=c[1];p.pixels[i+2]=c[2];p.pixels[i+3]=255; };
+    const B=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+    const SKY=[54,70,84],SKY2=[74,92,108],SKYH=[143,166,184];
+    const DEEP=[12,42,56],SHELF=[18,59,76],VERD=[63,166,160],SURG=[226,96,74];
+
+    for(let x=0;x<lim;x++){
+      const l=D.layers[Math.floor(x/this.W*(D.N-1))];
+      // ceiling: high pressure sits high, a falling barometer lowers the sky
+      const ceil=Math.round(6+(1-l.pn)*(this.H*.46));
+      // floor: observed water
+      const floor=Math.round(this.H-6-l.wn*(this.H*.46));
+      const k=Math.min(1,Math.abs(l.res)/D.maxRes);
+
+      for(let y=0;y<ceil;y++){
+        const d=1-y/(ceil||1), th=B[y&3][x&3]/16;
+        let c = d>th*.85+.15 ? SKY : SKY2;
+        const n=p.noise(x*.02,y*.05,p.frameCount*.004);
+        if(n>.66 && th<.5) c=SKYH;
+        if(y>ceil-3) c=SKYH;
+        set(x,y,c);
+      }
+      for(let y=floor;y<this.H;y++){
+        const d=(y-floor)/((this.H-floor)||1), th=B[y&3][x&3]/16;
+        let c = d>th*.9+.12 ? DEEP : SHELF;
+        if(d<.09) c = l.res>.12?SURG:VERD;
+        set(x,y,c);
+      }
+      // the corridor between them narrows as the storm arrives
+      if(k>.45 && (x&1)===0){
+        const mid=Math.round((ceil+floor)/2);
+        if(p.noise(x*.3,p.frameCount*.01)>.55)
+          set(x,mid+Math.round(Math.sin(x*.2+p.frameCount*.03)*3),
+              l.res>0?[226,96,74]:[63,166,160]);
+      }
+    }
+    p.updatePixels();
+
+    // vector: the tide prediction, and the barometer's own surge forecast
+    const l0=D.at(this.u);
+    p.noFill(); p.strokeWeight(1);
+    p.stroke(237,230,214,150);
+    p.beginShape();
+    for(let x=0;x<this.W;x+=2){
+      const l=D.layers[Math.floor(x/this.W*(D.N-1))];
+      p.vertex(x,this.H-6-((l.wn-(l.res)/((D.wHi-D.wLo)||1)))*(this.H*.46));
+    }
+    p.endShape();
+
+    if(this.compare){                       // inverse-barometer model overlaid
+      p.stroke(143,166,184,190);
+      p.beginShape();
+      for(let x=0;x<this.W;x+=2){
+        const l=D.layers[Math.floor(x/this.W*(D.N-1))];
+        const y=this.H-6-((l.wn-(l.res-l.ibe)/((D.wHi-D.wLo)||1)))*(this.H*.46);
+        p.vertex(x,y);
+      }
+      p.endShape();
+    }
+    if(lim<this.W){ p.stroke(217,164,65,150); p.line(lim,0,lim,this.H); }
+
+    // page-level squeeze when pressure is low and water is high
+    const squeeze=Math.min(1,Math.max(0,l0.res)/D.maxRes);
+    gsap.to('#squeeze',{opacity:squeeze*.75,duration:.6,overwrite:true});
+    this.readout(l0,D);
+  }
+  readout(l,D){
+    document.getElementById('pBig').textContent=l.mb.toFixed(1)+' mb';
+    const share=l.res!==0?Math.max(0,Math.min(1,l.ibe/l.res)):0;
+    document.getElementById('pSub').innerHTML=
+      (l.t||'generated')+' · '+STATIONS[this.idx].name+'<br>'+
+      'residual <b>'+(l.res>0?'+':'')+l.res.toFixed(2)+' ft</b> · '+
+      'barometer explains <span class="sky">'+(share*100).toFixed(0)+'%</span> '+
+      '('+(l.ibe>0?'+':'')+l.ibe.toFixed(2)+' ft) · '+
+      'wind and waves <b>'+(l.unexplained>0?'+':'')+l.unexplained.toFixed(2)+' ft</b><br>'+
+      'window correlation r = '+D.r.toFixed(2)+(D.live?'':' · offline model');
+  }
+}
+addEventListener('load',()=>new Barograph());
+</script>
+</body>
+</html>

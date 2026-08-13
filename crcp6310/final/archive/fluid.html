@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fluid — the residual as a field</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,200;9..144,300&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<style>
+:root{--abyss:#040B10;--verdigris:#3FA6A0;--bone:#EDE6D6;--brass:#D9A441;
+  --surge:#E2604A;--mute:rgba(237,230,214,.36);}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--abyss);color:var(--bone);overflow:hidden;
+  font-family:"IBM Plex Mono",monospace;-webkit-font-smoothing:antialiased;cursor:crosshair}
+#stage{position:fixed;inset:0}
+#vig{position:fixed;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 50%,transparent 46%,rgba(4,11,16,.88) 100%)}
+.ui{position:fixed;font-size:11px;letter-spacing:.14em;opacity:0}
+#title{top:clamp(18px,3vw,38px);left:clamp(18px,3vw,42px);max-width:32ch}
+#title h1{font-family:"Fraunces",serif;font-weight:200;font-size:clamp(26px,4.2vw,52px);
+  line-height:1;letter-spacing:-.02em;margin-bottom:12px}
+#title h1 em{font-style:italic;color:var(--brass)}
+#title p{color:var(--mute);line-height:1.9;font-size:10.5px;letter-spacing:.1em}
+#stations{right:clamp(18px,3vw,42px);top:50%;transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:14px;align-items:flex-end}
+#stations button{background:none;border:0;color:var(--mute);font:inherit;cursor:pointer;
+  letter-spacing:.14em;text-transform:uppercase;transition:color .3s}
+#stations button:hover{color:var(--bone)}
+#stations button[aria-pressed=true]{color:var(--brass)}
+#stations button[aria-pressed=true]::before{content:'';display:inline-block;width:16px;
+  height:1px;background:var(--brass);vertical-align:4px;margin-right:9px}
+#panel{left:clamp(18px,3vw,42px);bottom:clamp(18px,3vw,34px);line-height:2}
+#panel .big{font-family:"Fraunces",serif;font-size:30px;color:var(--bone);
+  display:block;font-weight:300;letter-spacing:-.01em}
+#panel b{color:var(--brass);font-weight:500}
+#hint{right:clamp(18px,3vw,42px);bottom:clamp(18px,3vw,34px);color:var(--mute);
+  text-align:right;line-height:2;font-size:10px}
+#hint kbd{color:var(--bone)}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="vig"></div>
+
+<div class="ui" id="title">
+  <h1>Divergence free.<br><em>Like actual water.</em></h1>
+  <p>Curl noise gives the field zero divergence, so particles swirl instead of bunching.
+  Tidal phase steers it, residual sets the turbulence, and every frame leaves a trace of
+  the last one behind.</p>
+</div>
+
+<nav class="ui" id="stations" aria-label="Station"></nav>
+
+<div class="ui" id="panel">
+  <span class="big" id="fBig">—</span>
+  <span id="fSub"></span>
+</div>
+<div class="ui" id="hint">
+  <div><kbd>←</kbd><kbd>→</kbd> travel time · <kbd>↑</kbd><kbd>↓</kbd> station</div>
+  <div><kbd>space</kbd> agitate · <kbd>T</kbd> trail length · drag to stir</div>
+</div>
+
+<script>
+/* Fluid — CO-OPS residual driving a curl-noise field with feedback trails.
+   Two render targets ping-pong: decay the previous frame, draw points on top. */
+
+const STATIONS=[
+  {id:'8443970',name:'Boston'},
+  {id:'9447130',name:'Seattle'},
+  {id:'8518750',name:'The Battery'},
+  {id:'8658120',name:'Wilmington'},
+  {id:'9414290',name:'San Francisco'}
+];
+
+class Series {
+  constructor(rows,live){
+    this.live=live; this.N=440; this.layers=[];
+    const v=rows.flatMap(r=>[r.obs,r.pred]);
+    const lo=Math.min(...v), hi=Math.max(...v);
+    for(let i=0;i<this.N;i++){
+      const j=Math.min(rows.length-1,Math.round(i/(this.N-1)*(rows.length-1)));
+      const r=rows[j], p=rows[Math.max(0,j-3)];
+      this.layers.push({t:r.t,res:r.obs-r.pred,
+        norm:(r.pred-lo)/((hi-lo)||1), rate:(r.obs-p.obs)/3});
+    }
+    this.maxRes=Math.max(...this.layers.map(l=>Math.abs(l.res)),.35);
+    this.maxRate=Math.max(...this.layers.map(l=>Math.abs(l.rate)),.05);
+  }
+  at(u){ return this.layers[Math.max(0,Math.min(this.N-1,Math.floor(u*(this.N-1))))]; }
+  static ymd(d){return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');}
+  static async fetchFor(st){
+    const b='https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?application=fluid'+
+      '&begin_date='+Series.ymd(new Date(Date.now()-3*864e5))+
+      '&end_date='+Series.ymd(new Date())+
+      '&datum=MLLW&station='+st.id+'&time_zone=lst_ldt&units=english&format=json';
+    try{
+      const [o,p]=await Promise.all([
+        fetch(b+'&product=water_level').then(r=>r.json()),
+        fetch(b+'&product=predictions&interval=6').then(r=>r.json())
+      ]);
+      if(!o.data||!p.predictions) throw 0;
+      const pm=new Map(p.predictions.map(d=>[d.t,parseFloat(d.v)]));
+      const rows=o.data.filter(d=>d.v!==''&&pm.has(d.t))
+        .map(d=>({t:d.t,obs:parseFloat(d.v),pred:pm.get(d.t)}))
+        .filter(d=>isFinite(d.obs)&&isFinite(d.pred));
+      if(rows.length<50) throw 0;
+      return new Series(rows,true);
+    }catch(e){ return new Series(Series.synth(),false); }
+  }
+  static synth(){
+    const out=[];
+    for(let i=0;i<720;i++){
+      const h=i*.1;
+      const pred=4.6*Math.sin(2*Math.PI*h/12.42)+1.1*Math.sin(2*Math.PI*h/24.84)+5.2;
+      out.push({t:'',pred,obs:pred+1.9*Math.exp(-(((i-470)/58)**2))+(Math.random()-.5)*.16});
+    }
+    return out;
+  }
+}
+
+/* shared GLSL: simplex noise and a curl derived from it */
+const NOISE_GLSL=`
+vec2 hash2(vec2 p){
+  p=vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3)));
+  return -1.+2.*fract(sin(p)*43758.5453);
+}
+float snoise(vec2 p){
+  const float K1=.366025404,K2=.211324865;
+  vec2 i=floor(p+(p.x+p.y)*K1);
+  vec2 a=p-i+(i.x+i.y)*K2;
+  vec2 o=(a.x>a.y)?vec2(1.,0.):vec2(0.,1.);
+  vec2 b=a-o+K2, c=a-1.+2.*K2;
+  vec3 h=max(.5-vec3(dot(a,a),dot(b,b),dot(c,c)),0.);
+  vec3 n=h*h*h*h*vec3(dot(a,hash2(i)),dot(b,hash2(i+o)),dot(c,hash2(i+1.)));
+  return dot(n,vec3(70.));
+}
+float potential(vec2 p,float t,float turb){
+  float v=snoise(p*1.15+vec2(0.,t*.08));
+  v+=snoise(p*(2.4+turb*2.2)+vec2(t*.05,0.))*.5;
+  v+=snoise(p*(5.1+turb*4.))*.25*turb;
+  return v;
+}
+/* curl of a scalar potential is divergence free in 2D */
+vec2 curl(vec2 p,float t,float turb){
+  float e=.018;
+  float dx=potential(p+vec2(e,0.),t,turb)-potential(p-vec2(e,0.),t,turb);
+  float dy=potential(p+vec2(0.,e),t,turb)-potential(p-vec2(0.,e),t,turb);
+  return vec2(dy,-dx)/(2.*e);
+}`;
+
+class Fluid {
+  constructor(){
+    this.N=30000; this.u=1; this.manual=false; this.held={};
+    this.idx=0; this.series=null; this.trail=0.962; this.stir=0;
+    this.ptr=new THREE.Vector2(.5,.5);
+    this.initGL(); this.buildChrome(); this.bindInput();
+    gsap.to('.ui',{opacity:1,duration:1.6,stagger:.14,ease:'power2.out',delay:.4});
+    this.load(0);
+    this.loop();
+  }
+
+  initGL(){
+    const r=this.renderer=new THREE.WebGLRenderer({antialias:false,alpha:false});
+    r.setPixelRatio(Math.min(devicePixelRatio,1.5));
+    r.setSize(innerWidth,innerHeight);
+    r.autoClear=false;
+    r.setClearColor(0x04080D,1);
+    document.getElementById('stage').appendChild(r.domElement);
+
+    this.cam=new THREE.OrthographicCamera(-1,1,1,-1,0,10); this.cam.position.z=1;
+
+    const opts={minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,
+      format:THREE.RGBAFormat,type:THREE.UnsignedByteType,depthBuffer:false};
+    const w=Math.floor(innerWidth*.7), h=Math.floor(innerHeight*.7);
+    this.rtA=new THREE.WebGLRenderTarget(w,h,opts);
+    this.rtB=new THREE.WebGLRenderTarget(w,h,opts);
+
+    /* --- pass 1: decay and drift the previous frame --- */
+    this.fadeUni={uPrev:{value:null},uDecay:{value:this.trail},
+      uTime:{value:0},uTurb:{value:0}};
+    this.fadeScene=new THREE.Scene();
+    this.fadeScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),
+      new THREE.ShaderMaterial({
+        uniforms:this.fadeUni,depthTest:false,
+        vertexShader:`varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,
+        fragmentShader:NOISE_GLSL+`
+          varying vec2 vUv;
+          uniform sampler2D uPrev; uniform float uDecay,uTime,uTurb;
+          void main(){
+            // the trail itself drifts along the same field, so smoke follows the flow
+            vec2 p=vUv*2.-1.;
+            vec2 v=curl(p*1.6,uTime,uTurb)*.0016;
+            vec4 c=texture2D(uPrev,vUv-v);
+            gl_FragColor=vec4(c.rgb*uDecay,1.);
+          }`
+      })));
+
+    /* --- pass 2: the particles --- */
+    const pos=new Float32Array(this.N*3), seed=new Float32Array(this.N);
+    for(let i=0;i<this.N;i++){
+      pos[i*3]=Math.random()*2-1; pos[i*3+1]=Math.random()*2-1;
+      seed[i]=Math.random();
+    }
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    g.setAttribute('seed',new THREE.BufferAttribute(seed,1));
+
+    this.uni={uTime:{value:0},uTurb:{value:0},uRate:{value:0},uPhase:{value:0},
+      uSurge:{value:0},uPtr:{value:this.ptr},uStir:{value:0}};
+    this.ptScene=new THREE.Scene();
+    this.points=new THREE.Points(g,new THREE.ShaderMaterial({
+      uniforms:this.uni,transparent:true,depthTest:false,
+      blending:THREE.AdditiveBlending,
+      vertexShader:NOISE_GLSL+`
+        attribute float seed;
+        uniform float uTime,uTurb,uRate,uPhase,uSurge,uStir;
+        uniform vec2 uPtr;
+        varying float vT; varying float vSpd;
+        void main(){
+          vec2 p=position.xy;
+          float life=fract(seed+uTime*(.05+uRate*.18));
+          float steps=life*54.;
+          float spd=0.;
+          for(float s=0.;s<54.;s++){
+            if(s>steps) break;
+            vec2 v=curl(p*1.6,uTime,uTurb);
+            // tidal phase adds a slow rotational bias to the whole basin
+            float a=uPhase*6.2831;
+            v+=vec2(cos(a),sin(a))*.32;
+            spd=length(v);
+            p+=normalize(v+1e-6)*(.0038+uRate*.016);
+          }
+          vec2 d=p-(uPtr*2.-1.)*vec2(1.,-1.);
+          float pr=exp(-dot(d,d)*30.)*uStir;
+          p+=vec2(-d.y,d.x)*pr*.55;          // pointer stirs rather than pushes
+          vT=life; vSpd=clamp(spd*.5,0.,1.);
+          gl_Position=vec4(p,0.,1.);
+          gl_PointSize=1.+uSurge*1.6+pr*5.;
+        }`,
+      fragmentShader:`
+        varying float vT; varying float vSpd;
+        uniform float uSurge;
+        void main(){
+          float a=smoothstep(0.,.10,vT)*smoothstep(1.,.68,vT)*.30;
+          vec3 deep=vec3(.05,.20,.28), cool=vec3(.247,.651,.627),
+               warm=vec3(.851,.643,.255), hot=vec3(.886,.376,.290);
+          vec3 c=mix(deep,cool,vSpd);
+          c=mix(c,warm,uSurge*.5);
+          c=mix(c,hot,uSurge*uSurge*.8);
+          gl_FragColor=vec4(c,a);
+        }`
+    }));
+    this.ptScene.add(this.points);
+
+    /* --- pass 3: present --- */
+    this.outUni={uTex:{value:null}};
+    this.outScene=new THREE.Scene();
+    this.outScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),
+      new THREE.ShaderMaterial({
+        uniforms:this.outUni,depthTest:false,
+        vertexShader:`varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`,
+        fragmentShader:`
+          varying vec2 vUv; uniform sampler2D uTex;
+          void main(){
+            vec3 c=texture2D(uTex,vUv).rgb;
+            c=pow(c,vec3(.92));                 // lift the darks slightly
+            gl_FragColor=vec4(c,1.);
+          }`
+      })));
+
+    addEventListener('resize',()=>{
+      this.renderer.setSize(innerWidth,innerHeight);
+      this.rtA.setSize(innerWidth*.7,innerHeight*.7);
+      this.rtB.setSize(innerWidth*.7,innerHeight*.7);
+    });
+  }
+
+  buildChrome(){
+    const sb=document.getElementById('stations');
+    STATIONS.forEach((s,i)=>{
+      const b=document.createElement('button');
+      b.textContent=s.name; b.setAttribute('aria-pressed',i===0);
+      b.onclick=()=>this.load(i); sb.appendChild(b);
+    });
+  }
+  bindInput(){
+    addEventListener('pointermove',e=>{
+      this.ptr.set(e.clientX/innerWidth,e.clientY/innerHeight);
+      this.stir=Math.min(1,this.stir+.06);
+    });
+    addEventListener('pointerdown',()=>gsap.to(this,{stir:1.8,duration:.3,
+      onComplete:()=>gsap.to(this,{stir:.4,duration:2.2})}));
+    addEventListener('keydown',e=>{
+      this.held[e.key]=true;
+      if(e.key==='ArrowUp') this.load((this.idx-1+STATIONS.length)%STATIONS.length);
+      if(e.key==='ArrowDown') this.load((this.idx+1)%STATIONS.length);
+      if(e.key==='t'||e.key==='T'){
+        this.trail = this.trail>.98 ? .90 : this.trail>.955 ? .988 : .968;
+        gsap.to(this.fadeUni.uDecay,{value:this.trail,duration:.6});
+      }
+      if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
+    });
+    addEventListener('keyup',e=>this.held[e.key]=false);
+  }
+  async load(i){
+    this.idx=i;
+    [...document.getElementById('stations').children]
+      .forEach((b,k)=>b.setAttribute('aria-pressed',k===i));
+    this.series=await Series.fetchFor(STATIONS[i]);
+    this.u=0; this.manual=false;
+    gsap.fromTo('#fBig',{opacity:0,y:12},{opacity:1,y:0,duration:.8});
+  }
+
+  loop(){
+    requestAnimationFrame(()=>this.loop());
+    const S=this.series; if(!S) return;
+    if(this.held.ArrowLeft||this.held.ArrowRight){
+      this.manual=true;
+      this.u=Math.max(0,Math.min(1,this.u+(this.held.ArrowRight?.004:-.004)));
+    }
+    const agit=this.held[' ']?5:1;
+    if(!this.manual){ this.u+=.0007*agit; if(this.u>1) this.u=0; }
+    this.stir*=.965;
+
+    const l=S.at(this.u), U=this.uni;
+    U.uTime.value+=.016*agit;
+    U.uTurb.value +=(Math.min(1,Math.abs(l.res)/S.maxRes)-U.uTurb.value)*.05;
+    U.uRate.value +=(Math.min(1,Math.abs(l.rate)/S.maxRate)*agit-U.uRate.value)*.05;
+    U.uPhase.value=l.norm;
+    U.uSurge.value+=((l.res>0?Math.min(1,l.res/S.maxRes):0)-U.uSurge.value)*.04;
+    U.uStir.value=this.stir;
+    this.fadeUni.uTime.value=U.uTime.value;
+    this.fadeUni.uTurb.value=U.uTurb.value;
+
+    const r=this.renderer;
+    // 1. decay previous into rtB
+    this.fadeUni.uPrev.value=this.rtA.texture;
+    r.setRenderTarget(this.rtB); r.clear();
+    r.render(this.fadeScene,this.cam);
+    // 2. draw points on top, no clear
+    r.render(this.ptScene,this.cam);
+    // 3. present rtB, then swap
+    r.setRenderTarget(null); r.clear();
+    this.outUni.uTex.value=this.rtB.texture;
+    r.render(this.outScene,this.cam);
+    const t=this.rtA; this.rtA=this.rtB; this.rtB=t;
+
+    this.readout(l,S);
+  }
+  readout(l,S){
+    document.getElementById('fBig').textContent=(l.res>0?'+':'')+l.res.toFixed(2)+' ft';
+    document.getElementById('fSub').innerHTML=
+      (l.t||'generated')+' · '+STATIONS[this.idx].name+
+      ' · rise <b>'+(l.rate>0?'+':'')+l.rate.toFixed(3)+'</b> ft/6min'+
+      ' · trail '+this.trail.toFixed(3)+(S.live?'':' · offline model');
+  }
+}
+addEventListener('load',()=>new Fluid());
+</script>
+</body>
+</html>

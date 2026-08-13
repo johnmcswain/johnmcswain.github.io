@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Residual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,200;9..144,300;9..144,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<style>
+:root{
+  --abyss:#050D13; --silt:#123B4C; --verdigris:#3FA6A0;
+  --bone:#EDE6D6; --brass:#D9A441; --surge:#E2604A;
+  --mute:rgba(237,230,214,.38); --hair:rgba(237,230,214,.11);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--abyss);color:var(--bone);overflow:hidden;
+  font-family:"IBM Plex Mono",monospace;-webkit-font-smoothing:antialiased;
+  cursor:crosshair}
+#stage{position:fixed;inset:0}
+#stage>div{position:absolute;inset:0;opacity:0}
+#stage canvas{width:100%!important;height:100%!important;display:block}
+#stage .px canvas{image-rendering:pixelated;image-rendering:crisp-edges}
+
+#vig{position:fixed;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 45%,transparent 38%,rgba(5,13,19,.92) 100%)}
+#flash{position:fixed;inset:0;pointer-events:none;opacity:0;
+  background:radial-gradient(ellipse at 50% 50%,rgba(226,96,74,.30),transparent 62%)}
+
+/* ---- title ---- */
+#intro{position:fixed;inset:0;display:grid;place-content:center;text-align:center;
+  pointer-events:none;padding:6vw}
+#intro h1{font-family:"Fraunces",serif;font-weight:200;letter-spacing:-.03em;
+  font-size:clamp(52px,12vw,168px);line-height:.86}
+#intro h1 span{display:inline-block;opacity:0}
+#intro h1 em{font-style:italic;font-weight:300;color:var(--brass)}
+#intro p{margin-top:26px;font-size:11px;letter-spacing:.34em;color:var(--mute);
+  text-transform:uppercase;opacity:0}
+
+/* ---- chrome ---- */
+.ui{position:fixed;opacity:0;font-size:11px;letter-spacing:.14em}
+#stations{right:clamp(18px,3vw,42px);top:50%;transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:14px;align-items:flex-end}
+#stations button{background:none;border:0;color:var(--mute);font:inherit;
+  letter-spacing:.14em;cursor:pointer;padding:2px 0;transition:color .3s;
+  text-transform:uppercase}
+#stations button:hover{color:var(--bone)}
+#stations button[aria-pressed=true]{color:var(--brass)}
+#stations button[aria-pressed=true]::before{content:'';display:inline-block;
+  width:16px;height:1px;background:var(--brass);vertical-align:4px;margin-right:9px}
+
+#modes{left:clamp(18px,3vw,42px);top:50%;transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:20px}
+#modes button{width:11px;height:11px;border-radius:50%;background:none;padding:0;
+  border:1px solid rgba(237,230,214,.3);cursor:pointer;transition:.4s}
+#modes button[aria-pressed=true]{background:var(--brass);border-color:var(--brass);
+  transform:scale(1.35)}
+
+#readout{left:clamp(18px,3vw,42px);bottom:clamp(18px,3vw,34px);color:var(--mute);
+  line-height:2;max-width:46ch}
+#readout b{color:var(--brass);font-weight:500}
+#readout .big{font-family:"Fraunces",serif;font-size:34px;letter-spacing:-.01em;
+  color:var(--bone);display:block;font-weight:300}
+#hint{right:clamp(18px,3vw,42px);bottom:clamp(18px,3vw,34px);color:var(--mute);
+  text-align:right;line-height:2.1;font-size:10px}
+#hint kbd{color:var(--bone)}
+#moon{position:fixed;top:clamp(18px,3vw,38px);right:clamp(18px,3vw,42px);
+  width:54px;height:54px;opacity:0}
+</style>
+</head>
+<body>
+
+<div id="stage"></div>
+<div id="vig"></div>
+<div id="flash"></div>
+<svg id="moon" viewBox="0 0 40 40"><circle id="mLit" cx="20" cy="20" r="13" fill="#EDE6D6"/><circle id="mDark" cx="20" cy="20" r="13" fill="#050D13"/></svg>
+
+<div id="intro">
+  <h1 id="t1"></h1>
+  <p id="t2">Move to disturb the water · any key to begin</p>
+</div>
+
+<nav class="ui" id="stations" aria-label="Station"></nav>
+<nav class="ui" id="modes" aria-label="View"></nav>
+
+<div class="ui" id="readout">
+  <span class="big" id="rBig">—</span>
+  <span id="rSub"></span>
+</div>
+<div class="ui" id="hint">
+  <div><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> view · <kbd>↑</kbd><kbd>↓</kbd> station</div>
+  <div><kbd>←</kbd><kbd>→</kbd> travel time · <kbd>space</kbd> agitate</div>
+  <div id="padLine">controller: press any button</div>
+</div>
+
+<script>
+/* ============================================================
+   RESIDUAL — NOAA CO-OPS tide data as three living renderings
+   p5.js (noise + pixel buffers) · three.js (GPU field) · GSAP
+   ============================================================ */
+
+const STATIONS=[
+  {id:'8443970',name:'Boston'},
+  {id:'9447130',name:'Seattle'},
+  {id:'8518750',name:'The Battery'},
+  {id:'8658120',name:'Wilmington'},
+  {id:'9414290',name:'San Francisco'}
+];
+
+/* ---------- 1. DATA ---------- */
+class TideSeries {
+  constructor(rows,live,station){
+    this.station=station; this.live=live; this.rows=rows;
+    const v=rows.flatMap(r=>[r.obs,r.pred]);
+    this.lo=Math.min(...v); this.hi=Math.max(...v);
+    this.N=420;
+    this.layers=[];
+    for(let i=0;i<this.N;i++){
+      const j=Math.min(rows.length-1,Math.round(i/(this.N-1)*(rows.length-1)));
+      const r=rows[j], p=rows[Math.max(0,j-3)];
+      this.layers.push({
+        t:r.t, obs:r.obs, pred:r.pred,
+        res:r.obs-r.pred,
+        norm:(r.pred-this.lo)/((this.hi-this.lo)||1),
+        onorm:(r.obs-this.lo)/((this.hi-this.lo)||1),
+        rate:(r.obs-p.obs)/3
+      });
+    }
+    this.maxRes=Math.max(...this.layers.map(l=>Math.abs(l.res)),0.35);
+    this.maxRate=Math.max(...this.layers.map(l=>Math.abs(l.rate)),0.05);
+  }
+  at(u){ return this.layers[Math.max(0,Math.min(this.N-1,Math.floor(u*(this.N-1))))]; }
+  static ymd(d){return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');}
+  static async fetchFor(st){
+    const end=new Date(), beg=new Date(Date.now()-3*864e5);
+    const b='https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?application=residual_spa'+
+      '&begin_date='+TideSeries.ymd(beg)+'&end_date='+TideSeries.ymd(end)+
+      '&datum=MLLW&station='+st.id+'&time_zone=lst_ldt&units=english&format=json';
+    try{
+      const [o,p]=await Promise.all([
+        fetch(b+'&product=water_level').then(r=>r.json()),
+        fetch(b+'&product=predictions&interval=6').then(r=>r.json())
+      ]);
+      if(!o.data||!p.predictions) throw 0;
+      const pm=new Map(p.predictions.map(d=>[d.t,parseFloat(d.v)]));
+      const rows=o.data.filter(d=>d.v!==''&&pm.has(d.t))
+        .map(d=>({t:d.t,obs:parseFloat(d.v),pred:pm.get(d.t)}))
+        .filter(d=>isFinite(d.obs)&&isFinite(d.pred));
+      if(rows.length<50) throw 0;
+      return new TideSeries(rows,true,st);
+    }catch(e){ return new TideSeries(TideSeries.synth(),false,st); }
+  }
+  static synth(){
+    const out=[];
+    for(let i=0;i<720;i++){
+      const h=i*0.1;
+      const pred=4.6*Math.sin(2*Math.PI*h/12.42)+1.1*Math.sin(2*Math.PI*h/24.84)+5.2;
+      out.push({t:'',pred,obs:pred+1.9*Math.exp(-(((i-470)/58)**2))+(Math.random()-.5)*.16});
+    }
+    return out;
+  }
+}
+
+/* ---------- 2. INPUT ---------- */
+class InputBus {
+  constructor(){
+    this.u=1; this.agitate=1; this.gain=1; this.manual=false;
+    this.pointer={x:.5,y:.5,active:false};
+    this.ripples=[]; this.held={}; this.pad=null; this.prevB=[];
+    this.onStation=null; this.onMode=null; this.lastRumble=0;
+    addEventListener('keydown',e=>{
+      this.held[e.key]=true;
+      if(['1','2','3'].includes(e.key)) this.onMode?.(+e.key-1);
+      if(e.key==='ArrowUp') this.onStation?.(-1);
+      if(e.key==='ArrowDown') this.onStation?.(1);
+      if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
+    });
+    addEventListener('keyup',e=>this.held[e.key]=false);
+    addEventListener('pointermove',e=>{
+      this.pointer.x=e.clientX/innerWidth; this.pointer.y=e.clientY/innerHeight;
+      this.pointer.active=true;
+      if(Math.random()<.22) this.ripples.push({x:this.pointer.x,y:this.pointer.y,r:0,l:1});
+    });
+    addEventListener('pointerdown',()=>{
+      for(let i=0;i<8;i++) this.ripples.push({x:this.pointer.x,y:this.pointer.y,r:i*3,l:1});
+    });
+    addEventListener('gamepadconnected',e=>{
+      this.pad=e.gamepad.index;
+      document.getElementById('padLine').textContent='◉ '+e.gamepad.id.slice(0,26);
+      gsap.fromTo('#padLine',{color:'#D9A441'},{color:'rgba(237,230,214,.38)',duration:2.4});
+    });
+    addEventListener('gamepaddisconnected',()=>this.pad=null);
+    const dz=v=>Math.abs(v)<.12?0:(v-Math.sign(v)*.12)/.88;
+    const tick=()=>{
+      if(this.held.ArrowLeft||this.held.ArrowRight){
+        this.manual=true;
+        this.u=Math.max(0,Math.min(1,this.u+(this.held.ArrowRight?.004:-.004)));
+      }
+      this.agitate=this.held[' ']?6:1;
+      const gp=this.pad!==null?navigator.getGamepads()[this.pad]:null;
+      if(gp){
+        const lx=dz(gp.axes[0]||0), ly=dz(gp.axes[1]||0), b=gp.buttons;
+        if(lx||ly){ this.manual=true; this.u=Math.max(0,Math.min(1,this.u+(lx+ly)*.008)); }
+        this.gain=1+(-dz(gp.axes[3]||0))*1.4;
+        this.agitate=Math.max(this.agitate,1+(b[7]?.value||0)*6);
+        if(b[5]?.pressed&&!this.prevB[5]) this.onStation?.(1);
+        if(b[4]?.pressed&&!this.prevB[4]) this.onStation?.(-1);
+        if(b[0]?.pressed&&!this.prevB[0]) this.manual=false;
+        if(b[3]?.pressed&&!this.prevB[3]) this.onMode?.(-1);
+        this.prevB=b.map(x=>x.pressed);
+      }
+      for(let i=this.ripples.length-1;i>=0;i--){
+        const r=this.ripples[i]; r.r+=1.6; r.l-=.016;
+        if(r.l<=0) this.ripples.splice(i,1);
+      }
+      requestAnimationFrame(tick);
+    };
+    tick();
+  }
+  rumble(layer,series){
+    const gp=this.pad!==null?navigator.getGamepads()[this.pad]:null;
+    if(!gp||performance.now()-this.lastRumble<90) return;
+    this.lastRumble=performance.now();
+    const m=Math.min(1,Math.abs(layer.res)/series.maxRes);
+    const v=Math.min(1,Math.abs(layer.rate)/series.maxRate);
+    gp.vibrationActuator?.playEffect('dual-rumble',{duration:120,startDelay:0,
+      strongMagnitude:layer.res>0?m*.85:0, weakMagnitude:v*.45}).catch(()=>{});
+  }
+}
+
+/* ---------- 3. RENDERER BASE ---------- */
+class Renderer {
+  constructor(app){ this.app=app; this.el=document.createElement('div'); this.ready=false; }
+  static get label(){ return 'view'; }
+  mount(host){ host.appendChild(this.el); this.build(); this.ready=true; return this; }
+  build(){ throw new Error(this.constructor.name+' must implement build()'); }
+  update(){}                       // called once per frame by the app
+  seek(){ return this.app.input.u; }
+  dispose(){ this.el.remove(); }
+}
+
+/* ---------- 3a. p5 BASE ---------- */
+class P5Renderer extends Renderer {
+  constructor(app,w,h){ super(app); this.W=w; this.H=h; this.el.className='px'; }
+  build(){
+    this.p5=new p5(p=>{
+      p.setup=()=>{ p.createCanvas(this.W,this.H); p.pixelDensity(1);
+        p.noSmooth(); p.noiseDetail(3,.5);
+        // We only ever write pixels, never read them back, so we own an ImageData
+        // buffer instead of calling loadPixels(). This avoids the per-frame
+        // getImageData readback that triggers the willReadFrequently warning.
+        this.img=new ImageData(this.W,this.H);
+        this.buf=this.img.data;
+        this.buf.fill(255);                       // opaque alpha, set once
+        this.setup(p); };
+      p.draw=()=>{ if(this.app.active===this) this.draw(p); };
+    },this.el);
+  }
+  /* fill the whole buffer with one colour */
+  clearBuf(c){
+    const b=this.buf;
+    for(let i=0;i<b.length;i+=4){ b[i]=c[0]; b[i+1]=c[1]; b[i+2]=c[2]; }
+  }
+  /* pull every pixel a fraction of the way toward a colour, for ghost trails */
+  fadeBuf(c,k){
+    const b=this.buf;
+    for(let i=0;i<b.length;i+=4){
+      b[i]  +=(c[0]-b[i])  *k;
+      b[i+1]+=(c[1]-b[i+1])*k;
+      b[i+2]+=(c[2]-b[i+2])*k;
+    }
+  }
+  setPx(x,y,c){
+    if(x<0||y<0||x>=this.W||y>=this.H) return;
+    const i=4*(y*this.W+x);
+    this.buf[i]=c[0]; this.buf[i+1]=c[1]; this.buf[i+2]=c[2];
+  }
+  /* push the buffer to the canvas; strokes drawn after this land on top */
+  blit(p){ p.drawingContext.putImageData(this.img,0,0); }
+  setup(){}
+  draw(){}
+  dispose(){ this.p5?.remove(); super.dispose(); }
+}
+
+/* ---------- 3b. HORIZON ---------- */
+class HorizonRenderer extends P5Renderer {
+  static get label(){ return 'horizon'; }
+  constructor(app){ super(app,300,170); this.spray=[]; }
+  setup(p){ this.B=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]]; }
+  draw(p){
+    const S=this.app.series; if(!S) return;
+    const I=this.app.input, u=this.seek(), lit=this.app.moonLight;
+    this.fadeBuf([5,13,19],.34);              // ghost trail, was background(...,88)
+    const set=(x,y,c)=>this.setPx(x,y,c);
+    const DEEP=[12,42,56],SHELF=[18,59,76],CAUS=[27,84,104],
+          VERD=[63,166,160],SURG=[226,96,74],BONE=[237,230,214];
+    const lim=Math.floor(u*this.W);
+    for(let x=0;x<lim;x++){
+      const l=S.layers[Math.floor(x/this.W*(S.N-1))];
+      let top=this.H-6-l.onorm*(this.H-26);
+      top=this.H*.55+(top-this.H*.55)*I.gain;
+      // pointer ripples lift the surface locally
+      for(const r of I.ripples){
+        const d=Math.abs(x-r.x*this.W);
+        if(d<r.r+8) top-=Math.cos(Math.min(1,d/(r.r+8))*Math.PI/2)*7*r.l;
+      }
+      top=Math.round(top);
+      const k=Math.min(1,Math.abs(l.res)/S.maxRes);
+      for(let y=Math.max(0,top);y<this.H;y++){
+        const dep=(y-top)/((this.H-top)||1), th=this.B[y&3][x&3]/16;
+        let c = dep>th*.9+.12 ? DEEP : SHELF;
+        if(dep<.34){
+          const n=p.noise(x*.05,y*.09,p.frameCount*.006);
+          if(n>.62-lit*.12 && th<.55) c=CAUS;
+        }
+        if(dep<.09) c = l.res>.12?SURG:VERD;
+        set(x,y,c);
+      }
+      if(l.res>.1 && Math.random()<k*.09*I.agitate && this.spray.length<700)
+        this.spray.push({x,y:top,vx:(Math.random()-.5)*.3,
+          vy:-Math.random()*.55*Math.min(3,I.agitate)-.15,l:1,hot:l.res>S.maxRes*.5});
+    }
+    for(let i=this.spray.length-1;i>=0;i--){
+      const s=this.spray[i]; s.x+=s.vx; s.y+=s.vy; s.vy+=.022; s.l-=.014;
+      if(s.l<=0||s.y>this.H){ this.spray.splice(i,1); continue; }
+      set(Math.round(s.x),Math.round(s.y), s.hot?SURG:(s.l>.55?BONE:VERD));
+    }
+    this.blit(p);
+    // vector prediction, drawn as true vector on top
+    p.noFill(); p.stroke(237,230,214,90+lit*110); p.strokeWeight(1);
+    p.beginShape();
+    for(let x=0;x<this.W;x+=2){
+      const l=S.layers[Math.floor(x/this.W*(S.N-1))];
+      p.vertex(x,this.H-6-l.norm*(this.H-26));
+    }
+    p.endShape();
+    if(lim<this.W){ p.stroke(217,164,65,140); p.line(lim,0,lim,this.H); }
+  }
+}
+
+/* ---------- 3c. CORE ---------- */
+class CoreRenderer extends P5Renderer {
+  static get label(){ return 'core'; }
+  constructor(app){
+    super(app,320,420); this.M=52;
+    this.motes=[];          // grains still settling out of suspension
+    this.smears=[];         // silt disturbed by a click, decaying back to rest
+  }
+  draw(p){
+    const S=this.app.series; if(!S) return;
+    const I=this.app.input, u=this.seek();
+    this.clearBuf([5,13,19]);
+    const BW=this.W-this.M;
+    const set=(x,y,c)=>this.setPx(x,y,c);
+    const lim=Math.floor(u*this.H);
+    const F=p.frameCount;
+
+    // pointer in buffer space; the loupe reveals grain too fine to see otherwise
+    const px=I.pointer.x*this.W, py=I.pointer.y*this.H;
+    const near=I.pointer.active && px>this.M-14;
+    const LR=46;                                   // loupe radius
+
+    // clicks disturb the silt, and the disturbance relaxes back over a few seconds
+    for(const r of I.ripples){
+      if(r.l>.985) this.smears.push({y:r.y*this.H,a:7.5,w:16+r.r});
+    }
+    for(let i=this.smears.length-1;i>=0;i--){
+      const s=this.smears[i]; s.a*=.982; s.w+=.35;
+      if(s.a<.08) this.smears.splice(i,1);
+    }
+
+    for(let y=0;y<Math.min(this.H,lim);y++){
+      const l=S.layers[Math.floor(y/this.H*(S.N-1))];
+      const s=Math.min(1,Math.abs(l.res)/S.maxRes)*I.gain;
+
+      // base warp, plus slow compaction so the column breathes rather than sits still
+      let warp=p.noise(y*.05,3.1)*3.4
+             + Math.sin(y*.045+F*.006)*.9*p.noise(y*.02,F*.002);
+      // and plus any silt still recovering from a click
+      for(const sm of this.smears){
+        const d=Math.abs(y-sm.y);
+        if(d<sm.w) warp+=Math.cos(d/sm.w*Math.PI/2)*sm.a*Math.sin(y*.6+F*.05);
+      }
+
+      for(let x=0;x<BW;x++){
+        const gx=x+warp;
+        let g=p.noise(gx*.03,y*.14)*.7+p.noise(gx*.14,y*.5)*.3;
+
+        // loupe: a third octave appears only under the pointer
+        let lift=0;
+        if(near){
+          const dx=(this.M+x)-px, dy=y-py, d2=dx*dx+dy*dy;
+          if(d2<LR*LR){
+            const k=1-Math.sqrt(d2)/LR;
+            g=g*(1-k*.45)+p.noise(gx*.62,y*1.5)*k*.45;
+            lift=k*26;
+          }
+        }
+        let c;
+        if(l.res>0) c = g<.14*s+.02?[226,96,74]
+                      : g<.42*s+.06?[217,164,65]
+                      : g<.72*s+.22?[107,74,52]:[26,46,56];
+        else        c = g<.10*s?[63,166,160]
+                      : g<.36*s+.05?[31,107,114]
+                      : g<.66*s+.20?[18,59,76]:[11,31,42];
+        if(lift) c=[c[0]+lift,c[1]+lift,c[2]+lift];
+        set(this.M+x,y,c);
+      }
+
+      if(Math.abs(l.res)>S.maxRes*.55){
+        for(let n=0;n<3;n++){
+          if(p.noise(y*.7,n*4.4)<.5) continue;
+          set(this.M+Math.floor(p.noise(y*.9,n)*BW),y, l.res>0?[240,217,168]:[127,212,206]);
+        }
+      }
+    }
+
+    // grains fall out of suspension at the depositing edge, and off the pointer
+    if(lim<this.H && lim>0){
+      const l=S.layers[Math.floor(lim/this.H*(S.N-1))];
+      const rate=1+Math.min(1,Math.abs(l.res)/S.maxRes)*4*I.agitate;
+      for(let n=0;n<rate;n++) if(Math.random()<.5)
+        this.motes.push({x:this.M+Math.random()*BW,y:Math.max(0,lim-Math.random()*40),
+          vy:.25+Math.random()*.5, hot:l.res>0, l:1});
+    }
+    if(near && Math.random()<.5*I.agitate)
+      this.motes.push({x:px+(Math.random()-.5)*30,y:py+(Math.random()-.5)*20,
+        vy:.15+Math.random()*.35, hot:Math.random()<.4, l:1});
+
+    for(let i=this.motes.length-1;i>=0;i--){
+      const m=this.motes[i];
+      m.y+=m.vy; m.x+=Math.sin(m.y*.09+F*.02)*.22; m.l-=.006;
+      if(m.l<=0||m.y>=Math.min(this.H,lim)||m.y>this.H){ this.motes.splice(i,1); continue; }
+      const a=m.l;
+      set(Math.round(m.x),Math.round(m.y),
+        m.hot?[240*a+20,200*a+20,150*a+20]:[150*a+18,220*a+20,215*a+20]);
+    }
+    if(this.motes.length>900) this.motes.splice(0,this.motes.length-900);
+
+    this.blit(p);
+
+    // vector margin: the prediction, untouched by sediment
+    p.noFill(); p.stroke(237,230,214,190); p.strokeWeight(1);
+    p.beginShape();
+    for(let y=0;y<this.H;y+=2){
+      const l=S.layers[Math.floor(y/this.H*(S.N-1))];
+      p.vertex(6+l.norm*(this.M-22),y);
+    }
+    p.endShape();
+    p.stroke(237,230,214,40);
+    for(let i=0;i<=3;i++){ const y=i*(this.H-1)/3; p.line(0,y,this.M-8,y); }
+    if(lim<this.H){ p.stroke(217,164,65,150); p.line(this.M,lim,this.W,lim); }
+
+    // the loupe reads out the layer it is over, as a ring
+    if(near){
+      p.noFill(); p.stroke(217,164,65,110); p.strokeWeight(1);
+      p.circle(px,py,LR*2);
+      p.stroke(217,164,65,45); p.circle(px,py,LR*2-9);
+    }
+  }
+}
+
+/* ---------- 3d. FLOW (three.js) ---------- */
+class FlowRenderer extends Renderer {
+  static get label(){ return 'field'; }
+  constructor(app){ super(app); this.N=22000; }
+  build(){
+    const r=this.renderer=new THREE.WebGLRenderer({antialias:false,alpha:true});
+    r.setPixelRatio(Math.min(devicePixelRatio,1.6));
+    r.setSize(innerWidth,innerHeight);
+    this.el.appendChild(r.domElement);
+    this.scene=new THREE.Scene();
+    this.cam=new THREE.OrthographicCamera(-1,1,1,-1,0,10); this.cam.position.z=1;
+
+    const pos=new Float32Array(this.N*3), seed=new Float32Array(this.N);
+    for(let i=0;i<this.N;i++){
+      pos[i*3]=Math.random()*2-1; pos[i*3+1]=Math.random()*2-1; pos[i*3+2]=0;
+      seed[i]=Math.random();
+    }
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    g.setAttribute('seed',new THREE.BufferAttribute(seed,1));
+
+    this.uni={
+      uTime:{value:0}, uTurb:{value:0}, uRate:{value:0}, uPhase:{value:0},
+      uAsp:{value:innerWidth/innerHeight}, uPtr:{value:new THREE.Vector2(.5,.5)},
+      uPtrK:{value:0}, uSurge:{value:0}
+    };
+    const mat=new THREE.ShaderMaterial({
+      uniforms:this.uni, transparent:true, depthTest:false,
+      blending:THREE.AdditiveBlending,
+      vertexShader:`
+        attribute float seed;
+        uniform float uTime,uTurb,uRate,uPhase,uAsp,uPtrK,uSurge;
+        uniform vec2 uPtr;
+        varying float vT;
+        vec2 hash2(vec2 p){
+          p=vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3)));
+          return -1.+2.*fract(sin(p)*43758.5453);
+        }
+        float snoise(vec2 p){
+          const float K1=.366025404,K2=.211324865;
+          vec2 i=floor(p+(p.x+p.y)*K1);
+          vec2 a=p-i+(i.x+i.y)*K2;
+          vec2 o=(a.x>a.y)?vec2(1.,0.):vec2(0.,1.);
+          vec2 b=a-o+K2, c=a-1.+2.*K2;
+          vec3 h=max(.5-vec3(dot(a,a),dot(b,b),dot(c,c)),0.);
+          vec3 n=h*h*h*h*vec3(dot(a,hash2(i)),dot(b,hash2(i+o)),dot(c,hash2(i+1.)));
+          return dot(n,vec3(70.));
+        }
+        void main(){
+          vec2 p=position.xy;
+          // particles are advected along the field by integrating in the shader
+          float life=fract(seed+uTime*(.045+uRate*.16));
+          float steps=life*46.;
+          for(float s=0.;s<46.;s++){
+            if(s>steps) break;
+            float a=snoise(p*(1.1+uTurb*2.4)+uTime*.05)*3.14159*2.
+                   +uPhase*6.2831;
+            p+=vec2(cos(a),sin(a))*(.0055+uRate*.02);
+          }
+          vec2 d=p-(uPtr*2.-1.)*vec2(1.,-1.);
+          float pr=exp(-dot(d,d)*26.)*uPtrK;
+          p+=normalize(d+1e-5)*pr*.16;
+          vT=life;
+          gl_Position=vec4(p.x,p.y,0.,1.);
+          gl_PointSize=1.+uSurge*1.8+pr*4.;
+        }`,
+      fragmentShader:`
+        varying float vT;
+        uniform float uSurge;
+        void main(){
+          float a=smoothstep(0.,.12,vT)*smoothstep(1.,.72,vT)*.42;
+          vec3 cool=vec3(.247,.651,.627), deep=vec3(.07,.23,.30), hot=vec3(.886,.376,.290);
+          vec3 c=mix(deep,cool,vT);
+          c=mix(c,hot,uSurge*.85);
+          gl_FragColor=vec4(c,a);
+        }`
+    });
+    this.points=new THREE.Points(g,mat);
+    this.scene.add(this.points);
+    addEventListener('resize',()=>this.resize());
+  }
+  resize(){
+    this.renderer?.setSize(innerWidth,innerHeight);
+    if(this.uni) this.uni.uAsp.value=innerWidth/innerHeight;
+  }
+  update(){
+    const S=this.app.series; if(!S||!this.uni) return;
+    const l=S.at(this.seek()), I=this.app.input;
+    const U=this.uni;
+    U.uTime.value+=.016*I.agitate;
+    U.uTurb.value +=(Math.min(1,Math.abs(l.res)/S.maxRes)-U.uTurb.value)*.06;
+    U.uRate.value +=(Math.min(1,Math.abs(l.rate)/S.maxRate)*I.agitate-U.uRate.value)*.06;
+    U.uPhase.value=l.norm;
+    U.uSurge.value+=((l.res>0?Math.min(1,l.res/S.maxRes):0)-U.uSurge.value)*.05;
+    U.uPtr.value.set(I.pointer.x,I.pointer.y);
+    U.uPtrK.value+=((I.pointer.active?1:0)-U.uPtrK.value)*.05;
+    this.renderer.render(this.scene,this.cam);
+  }
+  dispose(){
+    this.points?.geometry.dispose(); this.points?.material.dispose();
+    this.renderer?.dispose(); super.dispose();
+  }
+}
+
+/* ---------- 4. APP ---------- */
+class App {
+  constructor(){
+    this.host=document.getElementById('stage');
+    this.input=new InputBus();
+    this.series=null; this.stationIdx=0; this.started=false;
+    this.moonLight=this.computeMoon();
+    this.renderers=[new HorizonRenderer(this),new CoreRenderer(this),new FlowRenderer(this)]
+      .map(r=>r.mount(this.host));
+    this.active=this.renderers[0];
+    this.buildChrome();
+    this.input.onStation=d=>this.setStation((this.stationIdx+d+STATIONS.length)%STATIONS.length);
+    this.input.onMode=i=>this.setMode(i<0?(this.renderers.indexOf(this.active)+1)%3:i);
+    this.intro();
+    this.setStation(0);
+    this.loop();
+  }
+  computeMoon(){
+    const syn=29.530588853, ref=Date.UTC(2000,0,6,18,14);
+    const ph=(((Date.now()-ref)/864e5)%syn+syn)%syn/syn;
+    this.phase=ph;
+    document.getElementById('mDark').setAttribute('cx',20+Math.cos(ph*6.2831)*15);
+    return .35+.65*Math.pow(1-Math.abs(ph-.5)*2,.8);
+  }
+  buildChrome(){
+    const sb=document.getElementById('stations');
+    STATIONS.forEach((s,i)=>{
+      const b=document.createElement('button');
+      b.textContent=s.name; b.setAttribute('aria-pressed',i===0);
+      b.onclick=()=>this.setStation(i); sb.appendChild(b);
+    });
+    const mb=document.getElementById('modes');
+    this.renderers.forEach((r,i)=>{
+      const b=document.createElement('button');
+      b.title=r.constructor.label; b.setAttribute('aria-pressed',i===0);
+      b.onclick=()=>this.setMode(i); mb.appendChild(b);
+    });
+  }
+  intro(){
+    const words=[['What','the','moon','said.'],['What','the','sea','did.']];
+    const h=document.getElementById('t1');
+    h.innerHTML=words.map((line,li)=>line.map(w=>
+      `<span${li?' class="em"':''}>${li?'<em>'+w+'</em>':w}</span>`).join(' ')
+    ).join('<br>');
+    const tl=gsap.timeline();
+    tl.to('#t1 span',{opacity:1,y:0,duration:1.5,stagger:.09,ease:'power3.out',
+        startAt:{y:26}})
+      .to('#t2',{opacity:1,duration:1.2},'-=.8')
+      .to('#stage>div:first-child',{opacity:1,duration:2.4,ease:'power2.inOut'},'-=1.6');
+    const begin=()=>{
+      if(this.started) return; this.started=true;
+      gsap.timeline()
+        .to('#intro h1 span',{opacity:0,y:-20,duration:.9,stagger:.04,ease:'power2.in'})
+        .to('#t2',{opacity:0,duration:.5},0)
+        .to('.ui',{opacity:1,duration:1.4,stagger:.12,ease:'power2.out'},'-=.3')
+        .to('#moon',{opacity:.5+this.moonLight*.5,duration:1.8},'-=1.2');
+    };
+    addEventListener('keydown',begin,{once:true});
+    addEventListener('pointerdown',begin,{once:true});
+    setTimeout(begin,7000);
+  }
+  async setStation(i){
+    this.stationIdx=i;
+    [...document.getElementById('stations').children]
+      .forEach((b,k)=>b.setAttribute('aria-pressed',k===i));
+    // only the visible renderer dips; the others must stay fully hidden
+    gsap.to(this.active.el,{filter:'blur(9px)',opacity:.25,duration:.5,ease:'power2.in'});
+    this.renderers.filter(r=>r!==this.active)
+      .forEach(r=>gsap.set(r.el,{opacity:0}));
+    this.series=await TideSeries.fetchFor(STATIONS[i]);
+    this.input.u=0; this.input.manual=false;
+    gsap.to(this.active.el,{filter:'blur(0px)',opacity:1,duration:1.5,ease:'power2.out'});
+    gsap.fromTo('#rBig',{opacity:0,y:14},{opacity:1,y:0,duration:.8,ease:'power2.out'});
+  }
+  setMode(i){
+    const next=this.renderers[i]; if(next===this.active) return;
+    const prev=this.active; this.active=next;
+    [...document.getElementById('modes').children]
+      .forEach((b,k)=>b.setAttribute('aria-pressed',k===i));
+    gsap.timeline()
+      .to(prev.el,{opacity:0,scale:1.06,filter:'blur(14px)',duration:.75,ease:'power2.in'})
+      .fromTo(next.el,{opacity:0,scale:.965,filter:'blur(14px)'},
+        {opacity:1,scale:1,filter:'blur(0px)',duration:1.15,ease:'power3.out'},'-=.45');
+  }
+  loop(){
+    requestAnimationFrame(()=>this.loop());
+    if(!this.series) return;
+    const I=this.input;
+    if(!I.manual){ I.u+=.0009*I.agitate; if(I.u>1) I.u=0; }
+    const l=this.series.at(I.u);
+    this.active.update();
+    I.rumble(l,this.series);
+    // storm layers bloom the whole page
+    const k=Math.min(1,Math.max(0,l.res)/this.series.maxRes);
+    gsap.to('#flash',{opacity:k*.55,duration:.6,overwrite:true});
+    if(this.started) this.readout(l);
+  }
+  readout(l){
+    const sign=l.res>0?'+':'';
+    document.getElementById('rBig').textContent=sign+l.res.toFixed(2)+' ft';
+    document.getElementById('rSub').innerHTML=
+      (l.t||'generated')+' · '+STATIONS[this.stationIdx].name+
+      ' · rise <b>'+(l.rate>0?'+':'')+l.rate.toFixed(3)+'</b> ft/6min · '+
+      this.active.constructor.label+(this.series.live?'':' · offline model');
+  }
+}
+
+addEventListener('load',()=>new App());
+</script>
+</body>
+</html>
