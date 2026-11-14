@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Orrery Nine</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;700;800&family=Inter:wght@400;600;700&family=Roboto+Mono:wght@400;500;700&display=swap">
+<style>
+/* One idea: a minimal comic. Each section is a full-window panel with one high-resolution illustration, a black gutter between panels, caption boxes with a hard red shadow, and heavy italic lettering. One red, black, and bone. */
+:root{--bone:#f2eee4;--bone2:#b8b2a6;--red:#ff2e1f;--deep:#8e130c;--black:#000;--head:"Be Vietnam Pro","Helvetica Neue",Arial,sans-serif;--sans:"Inter","Helvetica Neue",Arial,sans-serif;--mono:"Roboto Mono",Menlo,monospace;--pad:max(20px,env(safe-area-inset-left,0px));color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--black);color:var(--bone);font-family:var(--sans);font-weight:400;line-height:1.4;overflow-x:hidden}
+nav{position:fixed;z-index:5;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px var(--pad);font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;background:var(--black);border-bottom:3px solid var(--bone)}
+nav a{color:var(--bone);text-decoration:none}
+nav a:hover,nav a:focus-visible{color:var(--red)}
+nav .links{display:flex;gap:22px;flex-wrap:wrap;justify-content:flex-end}
+.mark{font-style:italic;font-weight:900;font-size:17px;letter-spacing:.02em;background:var(--red);color:var(--black);padding:3px 12px;border:2px solid var(--black);box-shadow:4px 4px 0 var(--bone)}
+nav a.mark:hover,nav a.mark:focus-visible{color:var(--black)}
+main{display:flex;flex-direction:column;gap:14px;padding:66px 14px 14px}
+section{position:relative;min-height:calc(100vh - 94px);min-height:calc(100svh - 94px);display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;padding:90px clamp(20px,4vw,64px) clamp(28px,7vh,72px);border:3px solid var(--bone);background:transparent;overflow:hidden;isolation:isolate}
+section::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(to top,rgba(0,0,0,.7) 0%,rgba(0,0,0,.2) 55%,rgba(0,0,0,0) 100%)}
+/* One fixed drawing behind every panel: an orrery of nine orbits, drawn as vectors on a canvas so it stays sharp at any size. Scrolling tilts, turns and zooms it; the pointer shifts it and picks out the nearest orbit. */
+#bg{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block;background:#000}
+main,footer{position:relative;z-index:1}
+footer{background:var(--black)}
+.drift{will-change:transform}
+.no{position:absolute;top:0;left:0;font-family:var(--mono);font-size:13px;font-weight:500;background:var(--bone);color:var(--black);padding:6px 12px;border-right:3px solid var(--black);border-bottom:3px solid var(--black)}
+.eyebrow{font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;background:var(--black);color:var(--bone);border:2px solid var(--bone);padding:4px 10px;margin:0 0 20px}
+h1,h2{font-weight:900;font-style:italic;letter-spacing:-.02em;margin:0;text-wrap:balance;text-shadow:5px 5px 0 var(--black)}
+h1{font-size:clamp(46px,10vw,156px);line-height:.9;max-width:11ch}
+h2{font-size:clamp(34px,6.2vw,96px);line-height:.95;max-width:16ch}
+.cap{background:var(--bone);color:var(--black);border:2px solid var(--black);box-shadow:7px 7px 0 var(--red);padding:14px 18px;font-size:clamp(16px,1.45vw,20px);font-weight:600;max-width:48ch;margin:28px 0 0}
+.cap.dark{background:var(--black);color:var(--bone);border-color:var(--bone);box-shadow:7px 7px 0 var(--deep);font-weight:400}
+.row{display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;margin-top:34px}
+.btn{display:inline-flex;align-items:center;font:inherit;font-weight:900;font-style:italic;font-size:16px;letter-spacing:.04em;text-transform:uppercase;color:var(--black);background:var(--red);border:3px solid var(--black);box-shadow:6px 6px 0 var(--bone);padding:14px 26px;cursor:pointer;text-decoration:none;transition:transform .08s,box-shadow .08s}
+.btn:hover{transform:translate(3px,3px);box-shadow:3px 3px 0 var(--bone)}
+.btn:focus-visible,a:focus-visible{outline:3px solid var(--bone);outline-offset:3px}
+.scrollcue{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--bone)}
+.split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;align-items:stretch;width:100%;max-width:1100px}
+.split .cap{margin:0;max-width:none}
+#studio{justify-content:center;gap:26px}
+.teaser{position:relative;width:100%;aspect-ratio:21/9;min-height:300px;border:3px solid var(--bone);box-shadow:9px 9px 0 var(--red);overflow:hidden;cursor:crosshair;background:var(--black)}
+.teaser canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.teaser .hint{position:absolute;left:14px;bottom:14px;font-size:13px;font-weight:800;font-style:italic;background:var(--bone);color:var(--black);border:2px solid var(--black);padding:5px 10px;pointer-events:none;max-width:calc(100% - 28px)}
+.teaser .launch{position:absolute;right:18px;top:16px}
+.inst{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:36px;width:100%}
+.inst div{background:var(--black);border:3px solid var(--bone);padding:0 16px 18px;min-width:0}
+.inst i{font-style:normal;font-family:var(--mono);font-size:13px;display:inline-block;background:var(--red);color:var(--black);padding:5px 10px;margin:0 0 14px -16px;border-right:3px solid var(--bone);border-bottom:3px solid var(--bone)}
+.inst b{display:block;font-weight:900;font-style:italic;font-size:clamp(22px,2.2vw,32px);margin-bottom:8px}
+.inst span{font-size:15px;color:var(--bone);display:block}
+.five{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+.five span{background:var(--black);border:3px solid var(--bone);padding:8px 16px;font-size:15px;font-weight:800}
+footer{margin:0 14px 14px;padding:18px 20px;font-size:13px;color:var(--bone2);display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-between;border:3px solid var(--bone)}
+@media (max-width:820px){.split{grid-template-columns:minmax(0,1fr)}.inst{grid-template-columns:repeat(2,minmax(0,1fr))}.teaser{aspect-ratio:4/3;box-shadow:6px 6px 0 var(--red)}.teaser .launch{position:static;margin:12px;display:inline-flex}nav .links a:not(.keep){display:none}main{padding-inline:8px}footer{margin-inline:8px}}
+@media (max-width:480px){.inst{grid-template-columns:minmax(0,1fr)}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.btn{transition:none}}
+/* Type: Be Vietnam Pro for headings and calls to action, Inter for body, Roboto Mono for labels. */
+h1,h2,.mark,.btn,.inst b,.teaser .hint{font-family:var(--head);font-style:normal;font-weight:800}
+h1,h2{letter-spacing:-.03em}
+.eyebrow,nav,.five span{font-family:var(--mono);font-weight:500}
+</style>
+</head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+<nav aria-label="Primary">
+  <a class="mark" href="#top">Orrery Nine</a>
+  <div class="links"><a href="#problem">The Problem</a><a href="#studio" class="keep">Decision Studio</a><a href="#instruments">Instruments</a><a href="#index">The Index</a></div>
+</nav>
+
+<main id="top">
+  <section id="hero">
+    <span class="no">01</span>
+    <p class="eyebrow">Instruments for People Who Run AI Systems</p>
+    <h1 class="drift">See the System Before It Fails</h1>
+    <p class="cap">Orrery Nine builds training simulators and operating instruments for the teams who design, run, and answer for AI products.</p>
+    <div class="row"><a class="btn" href="#studio">Enter Decision Studio</a><span class="scrollcue">Scroll</span></div>
+  </section>
+
+  <section id="problem">
+    <span class="no">02</span>
+    <p class="eyebrow">The Problem</p>
+    <h2 class="drift">Most AI Systems Run Unseen by the People Who Operate Them</h2>
+    <div class="split" style="margin-top:32px">
+      <p class="cap">Cost, speed, reliability, and safety pull against each other. The consequences of a design choice arrive late, in another team's queue, tangled with other causes.</p>
+      <p class="cap dark">Teams learn these trade-offs at two in the morning, in production, after the budget is spent. A simulator gives them a place to learn earlier.</p>
+    </div>
+  </section>
+
+  <section id="studio">
+    <span class="no">03</span>
+    <div>
+      <p class="eyebrow" style="display:inline-block">Flagship Simulator</p>
+      <h2 class="drift">Decision Studio</h2>
+    </div>
+    <div class="teaser" id="teaser" role="img" aria-label="An AI workflow hidden in fog. Moving the pointer clears the fog around it.">
+      <canvas id="fog"></canvas>
+      <span class="hint" id="hint">Move across the system. Untraced components stay in fog.</span>
+      <a class="btn launch" id="launch" href="decision-studio-sim.html">Launch Decision Studio</a>
+    </div>
+    <div class="split">
+      <p class="cap">Design an AI workflow under a budget. Then run it for a shift while a model, acting as game master, studies your design and breaks it at its weakest point.</p>
+      <p class="cap dark">Injection, outages, runaway spend, failed hardware, and misplaced data. Trace a component and you see the cause. Leave it dark and you see only the effect on everything downstream.</p>
+    </div>
+  </section>
+
+  <section id="instruments">
+    <span class="no">04</span>
+    <p class="eyebrow">The Instruments</p>
+    <h2 class="drift">The Tools in the Simulator Are the Tools We Build</h2>
+    <div class="inst">
+      <div><i>01</i><b>Fathom</b><span>Tracing that shows what each component is doing, and what it is doing to the others.</span></div>
+      <div><i>02</i><b>Lantern</b><span>Guardrails that contain injected instructions before they travel.</span></div>
+      <div><i>03</i><b>Ballast</b><span>Budget policy that catches runaway spend within minutes.</span></div>
+      <div><i>04</i><b>Tiller</b><span>Fallback routing that steers around a failed model or tool.</span></div>
+    </div>
+  </section>
+
+  <section id="index">
+    <span class="no">05</span>
+    <p class="eyebrow">How a Shift Is Scored</p>
+    <h2 class="drift">The Stewardship Index</h2>
+    <p class="cap">Five scores multiply into one index. A harm event stays fully counted beside a low bill, and a clean safety record still has to fit the budget.</p>
+    <div class="five"><span>Budget</span><span>Time</span><span>Reliability</span><span>Safety</span><span>Awareness</span></div>
+    <div class="row"><a class="btn" href="decision-studio-sim.html" id="launch2">Run a Shift</a></div>
+  </section>
+</main>
+
+<footer>
+  <span>Orrery Nine is a fictional company created for a course project (CRCP 6370). Decision Studio is its only working product, as a prototype.</span>
+  <span>Concept and prototype: John McSwain</span>
+</footer>
+
+<script>
+(function(){
+/* Where the launch buttons go: the Unity web export if it is present, otherwise the browser build. */
+var LAUNCH={unity:"decision-studio-unity/index.html",browser:"decision-studio-sim.html"};
+function setLaunch(url){["launch","launch2"].forEach(function(id){var a=document.getElementById(id);if(a)a.href=url;});}
+setLaunch(LAUNCH.browser);
+if(LAUNCH.unity&&window.fetch&&location.protocol.indexOf("http")===0){fetch(LAUNCH.unity,{method:"HEAD"}).then(function(r){if(r.ok)setLaunch(LAUNCH.unity);}).catch(function(){});}
+var reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- The orrery: a vector drawing that answers to scroll and pointer ---------- */
+var ORB={red:"#ff2e1f",deep:"#8e130c",bone:"#f2eee4",orbits:9,spin:1};
+var bgc=document.getElementById("bg"),bx=bgc.getContext("2d"),drift=[].slice.call(document.querySelectorAll(".drift"));
+var BW=0,BH=0,BD=1,prog=0,progT=0,mx=.5,my=.5,mxT=.5,myT=.5,hasPtr=false,clock=0,last=0,pulse=[];
+var bodies=[];for(var bi=1;bi<=ORB.orbits;bi++)bodies.push({a:bi*2.399,sp:.22/Math.pow(bi,.75),r:3+((bi*7)%5)*1.6,moon:bi%3===0});
+var stars=[];for(var si=0;si<140;si++){var sr=Math.sin(si*12.9898)*43758.5453;sr-=Math.floor(sr);var sq=Math.sin(si*78.233)*12543.21;sq-=Math.floor(sq);stars.push([sr,sq,.6+((si*13)%7)/7]);}
+function bsize(){BD=Math.min(window.devicePixelRatio||1,2.5);BW=innerWidth;BH=innerHeight;bgc.width=Math.round(BW*BD);bgc.height=Math.round(BH*BD);bx.setTransform(BD,0,0,BD,0,0);}
+function ell(cx,cy,rx,ry,rot){bx.beginPath();bx.ellipse(cx,cy,rx,ry,rot,0,6.2832);}
+function drawOrrery(){
+  var p=prog,W=BW,H=BH,base=Math.min(W,H);
+  /* camera: starts tilted and wide on the right, ends close and nearly top-down */
+  var tilt=.3+.62*p,zoom=1+1.5*p,rot=-.35+1.9*p,R0=base*.1*zoom;
+  var cx=W*(.72-.22*p)+(mx-.5)*-60,cy=H*(.56-.06*p)+(my-.5)*-40;
+  bx.clearRect(0,0,W,H);
+  var g=bx.createRadialGradient(cx,cy,0,cx,cy,Math.max(W,H)*.75);g.addColorStop(0,"#5a0b07");g.addColorStop(.45,"#1c0302");g.addColorStop(1,"#000");bx.fillStyle=g;bx.fillRect(0,0,W,H);
+  bx.fillStyle=ORB.bone;stars.forEach(function(st){bx.globalAlpha=.25+.3*st[2]*(.6+.4*Math.sin(clock*.8+st[0]*40));var x=((st[0]*W-(mx-.5)*18*st[2])%W+W)%W,y=((st[1]*H-p*H*.25*st[2]-(my-.5)*12*st[2])%H+H)%H;bx.fillRect(x,y,st[2]*1.3,st[2]*1.3);});bx.globalAlpha=1;
+  /* which orbit is under the pointer */
+  var near=-1,ang=0;if(hasPtr){var dx=mx*W-cx,dy=(my*H-cy)/tilt,c=Math.cos(-rot),s=Math.sin(-rot),ux=dx*c-dy*s,uy=dx*s+dy*c;near=Math.round(Math.hypot(ux,uy)/R0);ang=(Math.atan2(uy,ux)*180/Math.PI+360)%360;if(near<1||near>ORB.orbits)near=-1;}
+  bx.save();bx.translate(cx,cy);bx.scale(1,tilt);bx.rotate(rot);
+  /* spokes and the graduated outer ring */
+  var RO=R0*(ORB.orbits+.9);bx.lineWidth=1/zoom+.4;
+  for(var d=0;d<360;d+=30){var a=d*Math.PI/180;bx.strokeStyle=ORB.red;bx.globalAlpha=.4;bx.setLineDash([6,8]);bx.beginPath();bx.moveTo(Math.cos(a)*R0*.6,Math.sin(a)*R0*.6);bx.lineTo(Math.cos(a)*RO,Math.sin(a)*RO);bx.stroke();}
+  bx.setLineDash([]);bx.globalAlpha=.7;bx.strokeStyle=ORB.red;bx.lineWidth=1.5;bx.beginPath();bx.arc(0,0,RO,0,6.2832);bx.stroke();
+  for(var t=0;t<360;t+=2){var ta=t*Math.PI/180,len=t%30===0?R0*.5:t%10===0?R0*.3:R0*.14;bx.globalAlpha=t%10===0?.8:.45;bx.lineWidth=t%30===0?2:1;bx.beginPath();bx.moveTo(Math.cos(ta)*RO,Math.sin(ta)*RO);bx.lineTo(Math.cos(ta)*(RO+len),Math.sin(ta)*(RO+len));bx.stroke();}
+  /* orbits */
+  for(var i=1;i<=ORB.orbits;i++){var hot=i===near,nine=i===ORB.orbits;bx.globalAlpha=hot?1:nine?.95:.8;bx.strokeStyle=hot||nine?ORB.bone:ORB.red;bx.lineWidth=hot?3.5:nine?2.5:i%3===0?2.25:1.5;if(i%2===0&&!hot&&!nine)bx.setLineDash([2,7]);else bx.setLineDash([]);bx.beginPath();bx.arc(0,0,R0*i,0,6.2832);bx.stroke();}
+  bx.setLineDash([]);
+  /* pulses sent out by a click */
+  pulse=pulse.filter(function(q){return clock-q<2.2;});pulse.forEach(function(q){var k=(clock-q)/2.2;bx.globalAlpha=1-k;bx.strokeStyle=ORB.bone;bx.lineWidth=3;bx.beginPath();bx.arc(0,0,RO*k,0,6.2832);bx.stroke();});
+  bx.globalAlpha=1;bx.restore();
+  /* sun and bodies are drawn upright so they stay round under tilt */
+  function at(r,a){var x=Math.cos(a+rot)*r,y=Math.sin(a+rot)*r;return [cx+x,cy+y*tilt];}
+  bx.fillStyle=ORB.red;bx.strokeStyle="#000";bx.lineWidth=2;bx.beginPath();bx.arc(cx,cy,R0*.42,0,6.2832);bx.fill();
+  bx.strokeStyle=ORB.bone;bx.lineWidth=1.5;bx.beginPath();bx.arc(cx,cy,R0*.56,0,6.2832);bx.stroke();
+  bodies.forEach(function(b,i){var n=i+1,pt=at(R0*n,b.a+clock*b.sp*ORB.spin),hot=n===near,nine=n===ORB.orbits,r=b.r*(.7+.3*zoom)*(hot?1.5:1);
+    bx.fillStyle=nine?ORB.bone:ORB.red;bx.strokeStyle="#000";bx.lineWidth=2.5;bx.beginPath();bx.arc(pt[0],pt[1],r,0,6.2832);bx.fill();bx.stroke();
+    if(nine||hot){bx.strokeStyle=ORB.bone;bx.lineWidth=1.25;bx.beginPath();bx.arc(pt[0],pt[1],r+6,0,6.2832);bx.stroke();}
+    if(b.moon){var ma=clock*1.4+n;bx.fillStyle=ORB.bone;bx.beginPath();bx.arc(pt[0]+Math.cos(ma)*(r+11),pt[1]+Math.sin(ma)*(r+11)*tilt,2,0,6.2832);bx.fill();}
+    if(hot||nine){bx.font="500 11px 'Roboto Mono',Menlo,monospace";bx.fillStyle=ORB.bone;bx.textAlign="left";bx.fillText((n<10?"0":"")+n+(nine?"  ORRERY NINE":""),pt[0]+r+12,pt[1]+4);}});
+  /* degree numbers on the ring */
+  bx.font="500 11px 'Roboto Mono',Menlo,monospace";bx.textAlign="center";bx.fillStyle=ORB.red;bx.globalAlpha=.8;
+  for(var dn=0;dn<360;dn+=30){var q=at(RO+R0*.9,dn*Math.PI/180);bx.fillText(dn+"°",q[0],q[1]+4);}
+  bx.globalAlpha=1;
+  /* readout beside the pointer */
+  if(near>0){var px=mx*W,py=my*H;bx.strokeStyle=ORB.bone;bx.lineWidth=1;bx.beginPath();bx.moveTo(px-9,py);bx.lineTo(px+9,py);bx.moveTo(px,py-9);bx.lineTo(px,py+9);bx.stroke();
+    var txt="ORBIT "+(near<10?"0":"")+near+"  "+Math.round(ang)+"°";bx.font="500 11px 'Roboto Mono',Menlo,monospace";var tw=bx.measureText(txt).width+14;bx.fillStyle=ORB.bone;bx.fillRect(px+14,py+12,tw,20);bx.fillStyle="#000";bx.textAlign="left";bx.fillText(txt,px+21,py+26);}
+}
+function frame(ts){var dt=Math.min(.05,(ts-last)/1000||0);last=ts;if(!reduce)clock+=dt;
+  prog+=(progT-prog)*(reduce?1:.09);mx+=(mxT-mx)*(reduce?1:.08);my+=(myT-my)*(reduce?1:.08);
+  drawOrrery();
+  if(!reduce)drift.forEach(function(el){var r=el.getBoundingClientRect(),d=(r.top+r.height/2-innerHeight/2)/innerHeight;el.style.transform="translate3d(0,"+(d*-34).toFixed(1)+"px,0)";});
+  if(!reduce||Math.abs(progT-prog)>.001)requestAnimationFrame(frame);}
+function setProg(){var max=Math.max(1,document.documentElement.scrollHeight-innerHeight);progT=Math.min(1,Math.max(0,scrollY/max));if(reduce)requestAnimationFrame(frame);}
+addEventListener("scroll",setProg,{passive:true});
+addEventListener("resize",function(){bsize();setProg();});
+addEventListener("pointermove",function(e){hasPtr=e.pointerType!=="touch";mxT=e.clientX/innerWidth;myT=e.clientY/innerHeight;if(reduce)requestAnimationFrame(frame);},{passive:true});
+document.addEventListener("pointerleave",function(){hasPtr=false;});
+addEventListener("pointerdown",function(e){if(!e.target.closest("a,button,.teaser"))pulse.push(clock);},{passive:true});
+bsize();setProg();requestAnimationFrame(frame);
+
+/* ---------- Teaser: a workflow under halftone fog that clears around the pointer ---------- */
+var RED="#ff2e1f",BONE="#f2eee4",AMBER="#ffb000";
+var box=document.getElementById("teaser"),fc=document.getElementById("fog"),ctx=fc.getContext("2d");
+var fogc=document.createElement("canvas"),fx=fogc.getContext("2d");
+var N=[["Requests",.07,.5],["Planner",.24,.5],["Retriever",.41,.5],["Writer",.58,.5],["Checker",.75,.5],["Responses",.93,.5],["Search Tool",.33,.2],["Vector Store",.49,.2],["GPU",.58,.82]];
+var E=[[0,1],[1,2],[2,3],[3,4],[4,5],[6,2],[7,2],[8,3]];
+var ptr=null,W=0,H=0,tt=0,fault=3,D=1;
+function fogFill(a){fx.globalCompositeOperation="source-over";fx.fillStyle="rgba(0,0,0,"+a+")";fx.fillRect(0,0,W,H);}
+function size(){var r=box.getBoundingClientRect();D=Math.min(window.devicePixelRatio||1,2);W=r.width;H=r.height;fc.width=fogc.width=Math.floor(W*D);fc.height=fogc.height=Math.floor(H*D);ctx.setTransform(D,0,0,D,0,0);fx.setTransform(D,0,0,D,0,0);fogFill(1);}
+function tick(){
+  tt+=1;ctx.clearRect(0,0,W,H);
+  ctx.lineWidth=2;ctx.strokeStyle=BONE;
+  E.forEach(function(e){var a=N[e[0]],b=N[e[1]];ctx.beginPath();ctx.moveTo(a[1]*W,a[2]*H);ctx.lineTo(b[1]*W,b[2]*H);ctx.stroke();
+    var k=((tt*.006)+e[0]*.17)%1;ctx.fillStyle=RED;ctx.beginPath();ctx.arc(a[1]*W+(b[1]-a[1])*W*k,a[2]*H+(b[2]-a[2])*H*k,3.5,0,6.3);ctx.fill();});
+  ctx.font="500 12px 'Roboto Mono',Menlo,monospace";ctx.textAlign="center";
+  N.forEach(function(n,i){var x=n[1]*W,y=n[2]*H,s=Math.max(16,Math.min(28,W*.022)),bad=i===fault;
+    ctx.fillStyle=bad?RED:BONE;ctx.fillRect(x-s+5,y-s*.7+5,s*2,s*1.4);
+    ctx.fillStyle=bad?(Math.sin(tt*.1)>0?RED:"#000"):"#000";ctx.strokeStyle=BONE;ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.rect(x-s,y-s*.7,s*2,s*1.4);ctx.fill();ctx.stroke();
+    ctx.fillStyle=BONE;ctx.fillText(n[0],x,y-s*.7-9);});
+  /* fog regrows, pointer clears */
+  fogFill(.035);
+  if(ptr){var g=fx.createRadialGradient(ptr[0],ptr[1],0,ptr[0],ptr[1],Math.max(90,W*.11));g.addColorStop(0,"rgba(0,0,0,1)");g.addColorStop(.7,"rgba(0,0,0,1)");g.addColorStop(1,"rgba(0,0,0,0)");fx.globalCompositeOperation="destination-out";fx.fillStyle=g;fx.fillRect(0,0,W,H);}
+  ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(fogc,0,0);ctx.restore();
+  halftone();
+  /* the output always shows a symptom, even through fog */
+  var o=N[5];ctx.fillStyle=AMBER;ctx.strokeStyle="#000";ctx.lineWidth=2;ctx.beginPath();ctx.arc(o[1]*W,o[2]*H,6+2*Math.sin(tt*.1),0,6.3);ctx.fill();ctx.stroke();
+  if(!reduce||ptr)requestAnimationFrame(tick);
+}
+/* Halftone dots drawn over the fog. The fog alpha is sampled once per frame in a single read. */
+function halftone(){var st=14,img;try{img=fx.getImageData(0,0,fogc.width,fogc.height).data;}catch(e){return;}
+  ctx.fillStyle=RED;for(var y=st/2,j=0;y<H;y+=st*.866,j++){for(var x=(j%2?st/2:0);x<W;x+=st){var px=Math.min(fogc.width-1,Math.floor(x*D)),py=Math.min(fogc.height-1,Math.floor(y*D));var a=img[(py*fogc.width+px)*4+3]/255;if(a>.1){ctx.globalAlpha=.3*a;ctx.beginPath();ctx.arc(x,y,st*.26*a,0,6.3);ctx.fill();}}}ctx.globalAlpha=1;}
+box.addEventListener("pointermove",function(e){var r=box.getBoundingClientRect();var was=ptr;ptr=[e.clientX-r.left,e.clientY-r.top];document.getElementById("hint").textContent="Something downstream is wrong. Find where it starts.";if(reduce&&!was)requestAnimationFrame(tick);});
+box.addEventListener("pointerleave",function(){ptr=null;});
+addEventListener("resize",size);size();requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

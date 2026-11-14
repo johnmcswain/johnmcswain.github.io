@@ -1,0 +1,523 @@
+<title>Decision Studio Simulator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;700;800&family=Inter:wght@400;600;700&family=Roboto+Mono:wght@400;500;700&display=swap">
+<style>
+/* Layout: a 3D stage on the left is the system you operate; a control rail on the right changes with the phase (design, shift, debrief). Look: minimal comic. Black gutters, panels with a bone keyline, caption boxes with a hard red offset shadow, one red. */
+:root{
+  --bg:#000000; --layer:#0a0a0a; --layer2:#2a2a2a; --fg:#f2eee4; --fg2:#b8b2a6; --line:#f2eee4;
+  --primary:#ff2e1f; --on-primary:#000000; --primary-text:#ff5a4d; --tonal:#f2eee4; --on-tonal:#000000;
+  --s1:#f2eee4; --s2:#ffb000; --ok:#f2eee4; --warn:#ffb000; --err:#ff2e1f; --warn-bg:#ffb000; --on-warn:#000000; --err-bg:#ff2e1f; --on-err:#000000;
+  --stage:#000000; --stage-fg:#f2eee4; --stage-fg2:#b8b2a6; --red:#ff2e1f; --deep:#8e130c;
+  --head:"Be Vietnam Pro","Helvetica Neue",Arial,sans-serif; --sans:"Inter","Helvetica Neue",Arial,sans-serif; --mono:"Roboto Mono",Menlo,Consolas,monospace; --r:0px; --r-sm:0px; color-scheme:dark
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:14px;line-height:1.45}
+.wrap{max-width:1280px;margin:0 auto;padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:baseline;margin-bottom:12px}
+h1{font-size:24px;font-weight:400;margin:0}
+h2{font-size:18px;font-weight:400;margin:0;text-wrap:balance}
+h3{font-size:13px;font-weight:600;margin:0}
+p{margin:0}
+.chip{display:inline-flex;align-items:center;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:500;background:var(--layer2);color:var(--fg);white-space:nowrap}
+.chip.tonal{background:var(--tonal);color:var(--on-tonal)} .chip.warn{background:var(--warn-bg);color:var(--on-warn)} .chip.err{background:var(--err-bg);color:var(--on-err)}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start}
+.stagecol{display:flex;flex-direction:column;gap:12px;min-width:0}
+.stage{position:relative;background:var(--stage);border-radius:var(--r);overflow:hidden;aspect-ratio:16/10;max-width:100%;touch-action:none}
+.stage canvas{display:block;width:100%;height:100%}
+.lbl{position:absolute;transform:translate(-50%,-100%);font-size:11px;font-weight:500;color:var(--stage-fg);background:rgba(22,22,22,.72);padding:1px 6px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.lbl.fog{color:var(--stage-fg2);font-style:italic}
+.lbl.sel{background:#0f62fe;color:#fff}
+.legend{position:absolute;left:10px;bottom:10px;display:flex;flex-wrap:wrap;gap:6px;font-size:11px;color:var(--stage-fg2);max-width:calc(100% - 20px)}
+.legend span{display:inline-flex;align-items:center;gap:5px;background:rgba(22,22,22,.72);padding:2px 8px;border-radius:999px}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.hud{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.tile b.bad{color:var(--err)}
+.charts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.chart{background:var(--layer);border-radius:var(--r);padding:10px 10px 6px;min-width:0;position:relative}
+.chart h3{font-size:12px;font-weight:600}
+.chart .lg{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11px;color:var(--fg2);min-height:16px;margin-top:2px}
+.chart .lg i{display:inline-block;width:10px;height:2px;margin-right:4px;vertical-align:middle}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart svg text{font-family:var(--sans);font-size:9px;fill:var(--fg2);font-variant-numeric:tabular-nums}
+.tip{position:absolute;z-index:3;pointer-events:none;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:var(--r-sm);padding:4px 8px;font-size:11px;white-space:nowrap;transform:translate(-50%,-110%)}
+.strip{display:grid;grid-template-columns:150px minmax(0,1fr) 70px;gap:8px;align-items:center;font-size:12px;padding:3px 0}
+.strip .trk{display:flex;gap:2px;height:10px}
+.strip .trk i{display:block;height:100%;border-radius:4px;min-width:3px}
+.strip span:last-child{font-family:var(--mono);text-align:right;color:var(--fg2)}
+.tile{background:var(--layer);border-radius:var(--r);padding:8px 10px;min-width:0}
+.tile span{display:block;font-size:11px;color:var(--fg2)}
+.tile b{font-family:var(--mono);font-weight:500;font-size:16px;font-variant-numeric:tabular-nums}
+.bar{height:6px;background:var(--layer2);border-radius:999px;overflow:hidden;margin-top:4px}
+.bar i{display:block;height:100%;background:var(--primary);width:0}
+.bar i.over{background:var(--err)}
+aside{display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{background:var(--layer);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.note{font-size:12px;color:var(--fg2)}
+label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--fg2);min-width:0}
+input,select{font:inherit;color:var(--fg);background:var(--bg);border:0;border-bottom:1px solid var(--fg2);border-radius:var(--r-sm) var(--r-sm) 0 0;padding:8px 10px;width:100%;min-width:0}
+button{font:inherit;font-weight:500;border:0;border-radius:var(--r-sm);padding:0 14px;min-height:40px;cursor:pointer;background:var(--primary);color:var(--on-primary);text-align:left}
+button.tonal{background:var(--tonal);color:var(--on-tonal)} button.ghost{background:transparent;color:var(--primary-text);border:1px solid var(--line)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--primary-text);outline-offset:1px}
+.opts{display:flex;flex-direction:column;gap:6px}
+.opt{display:flex;gap:10px;align-items:center;justify-content:space-between;background:var(--bg);border-radius:var(--r-sm);padding:8px 10px;min-width:0}
+.opt div{min-width:0}
+.opt small{display:block;color:var(--fg2);font-size:11px}
+.opt button{min-height:32px;flex:none;font-family:var(--mono);font-size:12px}
+.opt.on{outline:1px solid var(--primary-text)}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.incident{background:var(--warn-bg);color:var(--on-warn);border-radius:var(--r-sm);padding:10px}
+.incident.trace{background:var(--err-bg);color:var(--on-err)}
+.incident h3{margin-bottom:4px}
+.log{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto;font-size:12px}
+.log div{background:var(--bg);border-radius:var(--r-sm);padding:6px 8px}
+.five{display:flex;flex-wrap:wrap;gap:6px}
+.big{font-family:var(--mono);font-size:44px;font-weight:500;line-height:1;font-variant-numeric:tabular-nums}
+.subs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.subs .tile{background:var(--bg);padding:6px 8px}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th{text-align:left;color:var(--fg2);font-weight:600;padding:6px;border-bottom:1px solid var(--line)}
+td{padding:6px;border-bottom:1px solid var(--layer2);vertical-align:top}
+.tw{overflow-x:auto}
+.coach{white-space:pre-wrap;background:var(--bg);border-radius:var(--r-sm);padding:10px}
+details summary{cursor:pointer;font-size:12px;color:var(--fg2)}
+@media (max-width:920px){.grid{grid-template-columns:minmax(0,1fr)}.hud{grid-template-columns:repeat(2,minmax(0,1fr))}.charts{grid-template-columns:minmax(0,1fr)}.strip{grid-template-columns:110px minmax(0,1fr) 60px}.subs{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+/* ---- Minimal comic layer ---- */
+body{background:#120000;position:relative}
+/* Backdrop: the blueprint line work is vector (sharp at any screen size) over a blurred photo that only supplies colour and haze. */
+body::before{content:"";position:fixed;inset:0;background:url(art/blueprint.svg) center/cover no-repeat,linear-gradient(rgba(0,0,0,.25),rgba(0,0,0,.25)),url(art/blueprint-haze.jpg) center/cover no-repeat;pointer-events:none;z-index:0}
+body::after{content:"";position:absolute;top:0;left:0;right:0;height:380px;background:url(art/grid.jpg) center 62%/cover no-repeat;-webkit-mask-image:linear-gradient(#000 35%,transparent);mask-image:linear-gradient(#000 35%,transparent);pointer-events:none;z-index:0}
+.wrap{position:relative;z-index:1}
+h1{font-weight:800;font-style:italic;font-size:30px;background:var(--fg);color:#000;padding:4px 14px;border:2px solid #000;box-shadow:6px 6px 0 var(--red)}
+h2{font-weight:800;font-style:italic;font-size:20px}
+h3{font-weight:800;font-size:13px}
+header{align-items:center;gap:10px 18px;margin-bottom:18px}
+.chip{border-radius:0;border:2px solid var(--fg);background:#000;color:var(--fg);font-weight:600}
+.chip.tonal{background:var(--fg);color:#000}.chip.warn{background:var(--warn);color:#000;border-color:#000}.chip.err{background:var(--red);color:#000;border-color:#000}
+.stage{border:2px solid var(--fg)}
+.lbl{border-radius:0;background:#000;border:1px solid var(--fg2);font-weight:600}
+.lbl.sel{background:var(--red);color:#000;border-color:#000}
+.legend span{border-radius:0;background:#000;border:1px solid var(--fg2)}
+.tile,.chart,.card{background:rgba(0,0,0,.92);border:2px solid var(--fg)}
+.card{box-shadow:6px 6px 0 var(--deep)}
+.subs .tile,.opt,.log div,.coach{background:#000;border:1px solid #4a4a4a}
+.opt.on{outline:0;border:2px solid var(--red)}
+.tile b.bad{color:var(--red)}
+.bar{border-radius:0;background:#2a2a2a}.bar i{background:var(--fg)}.bar i.over{background:var(--red)}
+input,select{background:#000;border:2px solid var(--fg);border-radius:0}
+button{font-weight:800;border:2px solid #000;box-shadow:3px 3px 0 var(--fg);margin:0 3px 3px 0}
+button:active:not(:disabled){transform:translate(2px,2px);box-shadow:1px 1px 0 var(--fg)}
+button.tonal{box-shadow:3px 3px 0 var(--red)}
+button.ghost{background:#000;color:var(--fg);border:2px solid var(--fg);box-shadow:none}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.incident,.incident.trace{border:2px solid #000;box-shadow:5px 5px 0 var(--fg);font-weight:600}
+.big{font-family:var(--sans);font-weight:800;font-style:italic;font-size:64px;color:var(--red)}
+.tip{background:var(--fg);color:#000;border:2px solid #000;font-weight:600}
+.strip .trk i{border-radius:0}
+th{border-bottom:2px solid var(--red)}td{border-bottom:1px solid #3a3a3a}
+/* Type: Be Vietnam Pro for headings, Inter for body, Roboto Mono for numbers and labels. */
+h1,h2,h3,.big{font-family:var(--head);font-style:normal}
+.chip,.lbl,.legend span,.tile span{font-family:var(--mono)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Decision Studio</h1>
+    <span class="chip tonal">Simulator, Browser Build</span>
+    <span class="chip" id="gmchip">Game master: scripted</span>
+  </header>
+  <div class="grid">
+    <div class="stagecol">
+      <div class="stage" id="stage">
+        <canvas id="cv" aria-label="3D view of the AI system. Select a component to inspect it."></canvas>
+        <div id="labels"></div>
+        <div class="legend">
+          <span><i class="dot" style="background:#f2eee4"></i>Traced: You See Inside</span>
+          <span><i class="dot" style="background:#3a3a3a;outline:1px solid #b8b2a6"></i>Fog: No Tracing</span>
+          <span><i class="dot" style="background:#ffb000"></i>Symptom</span>
+          <span><i class="dot" style="background:#ff2e1f"></i>Root Cause</span>
+        </div>
+      </div>
+      <div class="hud">
+        <div class="tile"><span>Hour</span><b id="h-hour">0 / 6</b></div>
+        <div class="tile"><span>Spend / Budget</span><b id="h-spend" style="font-size:13px;white-space:nowrap">0</b><div class="bar"><i id="h-bar"></i></div></div>
+        <div class="tile"><span>Runway at This Burn</span><b id="h-run">n/a</b></div>
+        <div class="tile"><span>Run Cost per Completed Task</span><b id="h-cps">n/a</b></div>
+        <div class="tile"><span>Margin per Task</span><b id="h-mar">n/a</b></div>
+        <div class="tile"><span>Slow-Tail Response</span><b id="h-p95">n/a</b></div>
+        <div class="tile"><span>Tasks Completed</span><b id="h-rel">n/a</b></div>
+        <div class="tile"><span>Hours Lost</span><b id="h-time">0.0</b></div>
+        <div class="tile"><span>Harm Events</span><b id="h-harm">0</b></div>
+        <div class="tile"><span>Root Causes Found</span><b id="h-aware">n/a</b></div>
+      </div>
+      <div class="charts" id="charts"></div>
+      <div id="below" class="stagecol"></div>
+    </div>
+    <aside id="rail"></aside>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+/* ---------- Scenario data: plain objects so a Unity build can read the same JSON ---------- */
+const DATA={
+  budget:1500, rounds:6, tasksPerRound:100, price:3, tailFactor:1.8,
+  latency:{agent:{small:400,medium:700,large:1200},tool:300,store:120,router:30,gateway:20},
+  latMult:{injection:1.2,outage:4,cost_spike:1.3,gpu_failure:5,policy_gap:1,slow:3.5,traffic_flood:3},
+  tiers:{small:{label:"Small model",cost:16,quality:0.90},medium:{label:"Medium model",cost:40,quality:0.95},large:{label:"Large model",cost:96,quality:0.98}},
+  baseCost:{agent:0,gpu:15,store:3,tool:2,router:1,gateway:4,input:0,output:0},
+  catalog:{
+    guardrail:{label:"Input guardrail",desc:"Contains prompt injection automatically",cost:80,stops:"injection"},
+    fallback:{label:"Fallback model",desc:"Reroutes around a model or tool outage",cost:90,stops:"outage"},
+    alert:{label:"Budget alert policy",desc:"Throttles runaway spend early",cost:40,stops:"cost_spike"},
+    datapolicy:{label:"Data redaction policy",desc:"Keeps personal data out of logs",cost:50,stops:"policy_gap"},
+    cache:{label:"Response cache",desc:"Cuts model spend by a quarter",cost:60},
+    gateway:{label:"Model gateway",desc:"Rate limits and keys in one place; meters spend per agent",cost:110,stops:"traffic_flood"}
+  },
+  traceCost:25, midRunMarkup:1.5, escalationCost:100,
+  incidents:{
+    injection:{label:"Prompt injection",kinds:["agent","tool"],fix:"quarantine",fail:0.30,hours:0,harm:true},
+    outage:{label:"Model or tool outage",kinds:["agent","tool"],fix:"reroute",fail:0.60,hours:0.5},
+    cost_spike:{label:"Runaway cost spike",kinds:["agent"],fix:"throttle",fail:0,hours:0,cost:250},
+    gpu_failure:{label:"GPU failure",kinds:["gpu"],fix:"replace",fail:0.30,hours:2,fixCost:60},
+    policy_gap:{label:"Personal data in logs",kinds:["store"],fix:"quarantine",fail:0,hours:0,harm:true},
+    slow:{label:"Slow dependency",kinds:["tool","store"],fix:"reroute",fail:0.10,hours:1.5},
+    traffic_flood:{label:"Traffic flood",kinds:["agent"],fix:"throttle",fail:0.40,hours:1,cost:120}
+  },
+  actions:{reroute:"Reroute or restart",throttle:"Throttle",quarantine:"Quarantine",replace:"Replace hardware"},
+  workflows:{
+    single:{label:"Single agent",nodes:[["in","Requests","input",-5,0],["agent","Agent","agent",0,0],["tool","Search tool","tool",-1.5,-3],["store","Vector store","store",1.5,-3],["gpu","GPU","gpu",0,3],["out","Responses","output",5,0]],edges:[["in","agent"],["tool","agent"],["store","agent"],["gpu","agent"],["agent","out"]]},
+    router:{label:"Model router",nodes:[["in","Requests","input",-6,0],["router","Router","router",-3,0],["a","Fast agent","agent",0,-2],["b","Deep agent","agent",0,2],["store","Document store","store",-2,4],["gpu","GPU","gpu",3,4],["out","Responses","output",4,0]],edges:[["in","router"],["router","a"],["router","b"],["store","b"],["gpu","a"],["gpu","b"],["a","out"],["b","out"]]},
+    serial:{label:"Serial chain",nodes:[["in","Requests","input",-7,0],["plan","Planner","agent",-4.2,0],["ret","Retriever","agent",-1.4,0],["write","Writer","agent",1.4,0],["check","Checker","agent",4.2,0],["tool","Search tool","tool",-2.8,-3],["store","Vector store","store",0,-3],["gpu","GPU","gpu",1.4,3],["out","Responses","output",7,0]],edges:[["in","plan"],["plan","ret"],["tool","ret"],["store","ret"],["ret","write"],["gpu","write"],["write","check"],["check","out"]]},
+    parallel:{label:"Parallel fan-out",nodes:[["in","Requests","input",-7,0],["split","Splitter","router",-4,0],["w1","Worker 1","agent",-0.5,-3],["w2","Worker 2","agent",-0.5,0],["w3","Worker 3","agent",-0.5,3],["store","Document store","store",-3.5,3.5],["gpu","GPU pool","gpu",-3.5,-3.5],["merge","Merger","agent",3,0],["out","Responses","output",6.5,0]],edges:[["in","split"],["split","w1"],["split","w2"],["split","w3"],["gpu","w1"],["gpu","w2"],["store","w3"],["w1","merge"],["w2","merge"],["w3","merge"],["merge","out"]]},
+    hier:{label:"Hierarchical team",nodes:[["in","Requests","input",-8,0],["sup","Supervisor","agent",-5,0],["l1","Lead: research","agent",-2,-2.5],["l2","Lead: build","agent",-2,2.5],["wa","Worker A","agent",1.2,-4],["wb","Worker B","agent",1.2,-1.2],["wc","Worker C","agent",1.2,2.5],["tool","Search tool","tool",-1,-5.5],["store","Code store","store",-1,5],["gpu","GPU pool","gpu",3.5,5],["rev","Reviewer","agent",4.5,0],["out","Responses","output",7.8,0]],edges:[["in","sup"],["sup","l1"],["sup","l2"],["l1","wa"],["l1","wb"],["l2","wc"],["tool","wa"],["store","wc"],["gpu","wb"],["gpu","wc"],["wa","rev"],["wb","rev"],["wc","rev"],["rev","out"]]}
+  }
+};
+const $=id=>document.getElementById(id);
+const h=(tag,attrs,...kids)=>{const e=document.createElement(tag);for(const k in (attrs||{})){const v=attrs[k];if(k==="class")e.className=v;else if(k.startsWith("on"))e.addEventListener(k.slice(2),v);else if(v===true)e.setAttribute(k,"");else if(v!==false&&v!=null)e.setAttribute(k,v);}for(const c of kids.flat()){if(c==null||c===false)continue;e.append(c.nodeType?c:document.createTextNode(String(c)));}return e;};
+
+/* ---------- State ---------- */
+const S={phase:"setup",wf:"serial",tier:"medium",owned:{},traced:{},round:0,spend:0,tasksOk:0,tasksAll:0,hoursLost:0,harm:0,safetyEvents:0,diag:0,diagOk:0,plan:[],cur:null,sel:null,log:[],records:[],gm:"scripted",coach:"",busy:false,localUrl:"http://localhost:11434/v1",localModel:"",localModels:[],localStatus:"",gmState:"",shiftId:0,series:[],opCost:0};
+const wfCache={};
+function wf(){const base=DATA.workflows[S.wf];if(!S.owned.gateway)return base;
+  if(!wfCache[S.wf]){const inn=base.nodes.find(n=>n[0]==="in");const nodes=base.nodes.map(n=>n[0]==="in"?[n[0],n[1],n[2],n[3]-1.8,n[4]]:n);nodes.push(["gw","Gateway","gateway",inn[3],inn[4]]);
+    const edges=[];for(const e of base.edges){if(e[0]==="in")edges.push(["in","gw"],["gw",e[1]]);else edges.push(e);}wfCache[S.wf]={label:base.label,nodes,edges};}
+  return wfCache[S.wf];}
+const fixedKind=k=>k==="input"||k==="output"||k==="gateway";
+function curTraced(){const c=S.cur;return !!c&&(!!S.traced[c.target]||(!!S.owned.gateway&&c.type==="cost_spike"));}
+const node=id=>wf().nodes.find(n=>n[0]===id);
+const kindOf=id=>node(id)[2];
+const nameOf=id=>node(id)[1];
+function descendants(id){const out=new Set(),q=[id];while(q.length){const x=q.shift();for(const [a,b] of wf().edges)if(a===x&&!out.has(b)){out.add(b);q.push(b);}}return out;}
+function baseLatency(){const w=wf(),memo={};const lat=id=>{if(memo[id]!=null)return memo[id];let m=0;for(const e of w.edges)if(e[1]===id)m=Math.max(m,lat(e[0]));const n=node(id);return memo[id]=m+(n[2]==="agent"?DATA.latency.agent[S.tier]:(DATA.latency[n[2]]||0));};return lat("out");}
+function roundCost(){let c=0;for(const n of wf().nodes){c+=DATA.baseCost[n[2]]||0;if(n[2]==="agent")c+=DATA.tiers[S.tier].cost*(S.owned.cache?0.75:1);}return Math.round(c);}
+function setupSpend(){let c=0;for(const k in S.owned)if(S.owned[k])c+=DATA.catalog[k].cost;c+=Object.values(S.traced).filter(Boolean).length*DATA.traceCost;return c;}
+function scores(){
+  const spend=S.phase==="setup"?setupSpend()+roundCost()*DATA.rounds:S.spend;
+  const budget=Math.round(100*Math.min(1,DATA.budget/Math.max(1,spend)));
+  const time=Math.round(100*Math.max(0,1-S.hoursLost/(DATA.rounds*2)));
+  const rel=S.tasksAll?Math.round(100*S.tasksOk/S.tasksAll):100;
+  const safety=S.safetyEvents?Math.round(100*(1-S.harm/S.safetyEvents)):100;
+  const aware=S.diag?Math.round(100*S.diagOk/S.diag):100;
+  const parts=[budget,time,rel,safety,aware].map(v=>Math.max(1,v));
+  const index=Math.round(Math.pow(parts.reduce((a,b)=>a*b,1),1/5));
+  return {budget,time,rel,safety,aware,index};
+}
+
+/* ---------- 3D stage ---------- */
+const cv=$("cv"),stage=$("stage");
+const three=window.THREE;let renderer,scene,camera,meshes={},labels={},particles=[],ray,cam={theta:0.6,phi:1.0,r:17},drag=null,reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const COL={fog:0x3a3a3a,traced:0xf2eee4,symptom:0xffb000,root:0xff2e1f,edge:0x8e130c,sel:0xffffff};
+function build3d(){
+  if(!three)return;
+  if(!renderer){renderer=new three.WebGLRenderer({canvas:cv,antialias:true});renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));camera=new three.PerspectiveCamera(42,1.6,0.1,100);ray=new three.Raycaster();}
+  scene=new three.Scene();scene.background=new three.Color(0x000000);
+  scene.add(new three.AmbientLight(0xffffff,0.55));const dl=new three.DirectionalLight(0xffffff,0.8);dl.position.set(6,12,8);scene.add(dl);
+  const grid=new three.GridHelper(30,30,0xff2e1f,0x5a0d08);grid.position.y=-0.45;scene.add(grid);
+  meshes={};particles=[];$("labels").textContent="";labels={};
+  for(const n of wf().nodes){
+    const geo=n[2]==="gpu"?new three.BoxGeometry(1.5,0.5,1.5):n[2]==="store"?new three.CylinderGeometry(0.7,0.7,0.9,24):n[2]==="input"||n[2]==="output"?new three.BoxGeometry(0.9,0.9,0.9):new three.BoxGeometry(1.3,0.9,1.3);
+    const m=new three.Mesh(geo,new three.MeshStandardMaterial({color:COL.fog,roughness:0.6,metalness:0.1,transparent:true}));
+    m.position.set(n[3],0,n[4]);m.userData.id=n[0];scene.add(m);meshes[n[0]]=m;
+    const wire=new three.LineSegments(new three.EdgesGeometry(geo),new three.LineBasicMaterial({color:COL.traced}));m.add(wire);m.userData.wire=wire;
+    const l=h("div",{class:"lbl",onclick:()=>selectNode(n[0])},n[1]);$("labels").append(l);labels[n[0]]=l;
+  }
+  for(const [a,b] of wf().edges){
+    const A=meshes[a].position,B=meshes[b].position;
+    scene.add(new three.Line(new three.BufferGeometry().setFromPoints([A.clone(),B.clone()]),new three.LineBasicMaterial({color:COL.edge})));
+    for(let i=0;i<2;i++){const p=new three.Mesh(new three.SphereGeometry(0.09,10,10),new three.MeshBasicMaterial({color:0xff2e1f}));p.userData={a:A,b:B,t:i/2,from:a};scene.add(p);particles.push(p);}
+  }
+  paint();
+}
+function visible(id){return !!S.traced[id]||fixedKind(kindOf(id));}
+function paint(){
+  if(!three||!scene)return;
+  const c=S.cur,active=c&&!c.resolved&&!c.auto;const sym=active?descendants(c.target):new Set();if(active)sym.add("out");
+  const lifted=S.phase==="debrief";
+  for(const id in meshes){
+    const m=meshes[id],see=lifted||visible(id);let color=see?COL.traced:COL.fog;
+    if(active&&see&&sym.has(id))color=COL.symptom;
+    if(active&&id===c.target&&(curTraced()||lifted))color=COL.root;
+    if(lifted&&S.records.some(r=>r.target===id&&!r.found&&!r.auto))color=COL.root;
+    m.material.color.setHex(color);m.material.opacity=see?0.55:1;m.material.emissive.setHex(see?color:0x000000);m.material.emissiveIntensity=see?0.25:0;
+    m.userData.wire.visible=see;m.userData.wire.material.color.setHex(id===S.sel?COL.sel:color);
+    m.scale.setScalar(id===S.sel?1.15:1);
+    labels[id].className="lbl"+(see?"":" fog")+(id===S.sel?" sel":"");
+  }
+}
+function frame(t){
+  requestAnimationFrame(frame);if(!renderer||!scene)return;
+  const w=stage.clientWidth,hh=stage.clientHeight;if(cv.width!==Math.floor(w*renderer.getPixelRatio())){renderer.setSize(w,hh,false);camera.aspect=w/hh;camera.updateProjectionMatrix();}
+  if(!drag&&!reduce&&!hover&&!(S.cur&&!S.cur.resolved))cam.theta+=0.0012;
+  camera.position.set(cam.r*Math.sin(cam.phi)*Math.sin(cam.theta),cam.r*Math.cos(cam.phi),cam.r*Math.sin(cam.phi)*Math.cos(cam.theta));camera.lookAt(0,0,0);
+  const speed=S.phase==="run"?0.012:0.005;
+  for(const p of particles){if(!reduce)p.userData.t=(p.userData.t+speed)%1;p.position.lerpVectors(p.userData.a,p.userData.b,p.userData.t);p.visible=S.phase!=="setup"||true;}
+  renderer.render(scene,camera);
+  const v=new three.Vector3();for(const id in meshes){v.copy(meshes[id].position);v.y+=0.9;v.project(camera);labels[id].style.left=((v.x+1)/2*w)+"px";labels[id].style.top=((1-v.y)/2*hh)+"px";}
+}
+function pick(ev){const r=cv.getBoundingClientRect();const v=new three.Vector2(((ev.clientX-r.left)/r.width)*2-1,-((ev.clientY-r.top)/r.height)*2+1);ray.setFromCamera(v,camera);const hit=ray.intersectObjects(Object.values(meshes),false)[0];return hit?hit.object.userData.id:null;}
+let hover=false;stage.addEventListener("pointerenter",()=>{hover=true;});stage.addEventListener("pointerleave",()=>{hover=false;});
+cv.addEventListener("pointerdown",ev=>{drag={x:ev.clientX,y:ev.clientY,moved:false};cv.setPointerCapture(ev.pointerId);});
+cv.addEventListener("pointermove",ev=>{if(!drag)return;const dx=ev.clientX-drag.x,dy=ev.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>10)drag.moved=true;if(drag.moved){cam.theta-=dx*0.006;cam.phi=Math.max(0.35,Math.min(1.45,cam.phi-dy*0.005));drag.x=ev.clientX;drag.y=ev.clientY;}});
+cv.addEventListener("pointerup",ev=>{if(drag&&!drag.moved&&three){const id=pick(ev);if(id)selectNode(id);}drag=null;});
+cv.addEventListener("wheel",ev=>{ev.preventDefault();cam.r=Math.max(9,Math.min(28,cam.r+ev.deltaY*0.01));},{passive:false});
+function selectNode(id){
+  if(S.phase==="setup"){if(fixedKind(kindOf(id)))return;S.traced[id]=!S.traced[id];S.sel=id;}
+  else if(S.phase==="run"){S.sel=id;}
+  render();
+}
+
+/* ---------- Game master ---------- */
+let sample=null;
+function parseJSON(text){try{return JSON.parse(text);}catch(e){}const a=text.indexOf("["),b=text.lastIndexOf("]");if(a>=0&&b>a){try{return JSON.parse(text.slice(a,b+1));}catch(e){}}return null;}
+async function askModel(prompt,wantJSON,onText){
+  if(S.gm==="claude"&&sample){if(wantJSON)return await sample.json(prompt,{modelTier:"quick",cache:false});const r=await sample(prompt,{cache:false,onText});return r.text;}
+  if(S.gm==="local"){const headers={"Content-Type":"application/json"};
+    const res=await fetch(S.localUrl.replace(/\/+$/,"")+"/chat/completions",{method:"POST",headers,body:JSON.stringify({model:S.localModel,messages:[{role:"user",content:prompt}],temperature:0.7,max_tokens:wantJSON?900:300,stream:false})});
+    if(!res.ok){const e=new Error("local "+res.status);e.status=res.status;throw e;}
+    const d=await res.json();const text=d&&d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content||"";return wantJSON?parseJSON(text):text;}
+  throw new Error("no model");
+}
+async function findModels(){
+  S.localStatus="Looking for models…";render();
+  try{const res=await fetch(S.localUrl.replace(/\/+$/,"")+"/models");if(!res.ok)throw new Error(String(res.status));const d=await res.json();const ids=(d&&Array.isArray(d.data)?d.data:[]).map(m=>String(m.id)).filter(Boolean);
+    if(ids.length){S.localModels=ids;if(!ids.includes(S.localModel))S.localModel=ids[0];S.localStatus="Connected. "+ids.length+" model(s) found.";}else S.localStatus="The server answered but listed no models.";}
+  catch(e){S.localStatus="Could not reach that address. Check that the server is running and allows requests from this page.";}
+  render();
+}
+function designSummary(){return {workflow:wf().label,components:wf().nodes.map(n=>({id:n[0],name:n[1],kind:n[2],traced:!!S.traced[n[0]]})),flows:wf().edges.map(e=>e[0]+" -> "+e[1]),model_tier:S.tier,purchased:Object.keys(S.owned).filter(k=>S.owned[k]),budget:DATA.budget,committed_spend:setupSpend()+roundCost()*DATA.rounds};}
+const TEMPL={injection:"Responses have started including instructions nobody wrote, and a few users report the system offering things it should refuse.",outage:"A large share of requests are failing or returning empty answers. Nothing has been deployed in the last hour.",cost_spike:"Spend is climbing far faster than traffic. Request volume at the front door looks normal.",gpu_failure:"Latency has roughly tripled and some requests are timing out. Error messages are generic.",policy_gap:"A compliance check has found customer names and emails somewhere they should not be. Responses themselves look fine.",slow:"Answers are arriving, but slowly, and some are missing supporting detail.",traffic_flood:"Request volume has jumped several-fold in minutes. Latency is climbing and so is the bill."};
+function scriptedPlan(){
+  const types=Object.keys(DATA.incidents);const stops=k=>Object.keys(S.owned).some(o=>S.owned[o]&&DATA.catalog[o].stops===k);
+  const order=types.slice().sort((a,b)=>(stops(a)?1:0)-(stops(b)?1:0)||Math.random()-0.5);
+  const plan=[];for(let i=0;i<DATA.rounds;i++){const type=order[i%order.length];plan.push({type,target:pickTarget(type),brief:TEMPL[type],reveal:""});}
+  return plan;
+}
+function pickTarget(type,want){const ok=wf().nodes.filter(n=>DATA.incidents[type].kinds.includes(n[2])).map(n=>n[0]);if(want&&ok.includes(want))return want;if(!ok.length)return null;const fog=ok.filter(id=>!S.traced[id]);const pool=fog.length?fog:ok;return pool[Math.floor(Math.random()*pool.length)];}
+function validatePlan(arr){
+  if(!Array.isArray(arr))return null;const out=[];
+  for(const it of arr){if(!it||!DATA.incidents[it.type])continue;const target=pickTarget(it.type,String(it.target||""));if(!target)continue;out.push({type:it.type,target,brief:String(it.brief||TEMPL[it.type]).slice(0,400),reveal:String(it.reveal||"").slice(0,400)});if(out.length===DATA.rounds)break;}
+  if(out.length<3)return null;const fill=scriptedPlan();while(out.length<DATA.rounds)out.push(fill[out.length]);return out;
+}
+async function makePlan(){
+  if(S.gm==="local"&&!S.localModel)throw new Error("no local model chosen");
+  const prompt="You are the game master of a training simulator. A player operates an AI system for a six-hour shift. Plan six incidents, one per hour, that hit the weakest points of THIS design: untraced components, missing protections, single points of failure. Use at most one incident that a purchased protection already stops.\n\nIncident types and the component kinds each may target:\n"+Object.keys(DATA.incidents).map(k=>"- "+k+": "+DATA.incidents[k].kinds.join(", ")).join("\n")+"\nProtections: guardrail stops injection; fallback stops outage; alert stops cost_spike; datapolicy stops policy_gap; gateway stops traffic_flood and reveals the source of cost_spike.\n\nFor each incident: `brief` is at most 25 words describing only the symptoms seen from outside, never naming the component or the incident type. `reveal` is at most 20 words naming the root cause and the decision that would have exposed or prevented it.\n\nReply with only a JSON array of six objects: {\"type\":\"outage\",\"target\":\"component id\",\"brief\":\"...\",\"reveal\":\"...\"}. No other text.\n\nPLAYER DESIGN:\n"+JSON.stringify(designSummary());
+  const plan=validatePlan(await askModel(prompt,true));if(!plan)throw new Error("unreadable plan");return plan;
+}
+function gmFailText(e){return e&&e.status===429?"The gateway rate-limited the game master, so the scripted deck runs this shift.":e&&e.status===401?"The gateway rejected the API key, so the scripted deck runs this shift.":"The game master model did not return a usable plan, so the scripted deck runs this shift.";}
+async function coach(){
+  const s=scores();
+  const fallback="Stewardship Index "+s.index+". "+(S.records.filter(r=>!r.auto&&!r.found).length?"The incidents that cost you most started in components you could not see into. Tracing them, or buying the protection that contains that incident type, is where the next run improves.":"You found every root cause that needed finding. Next run, try a harder workflow or a tighter model tier.");
+  if(S.gm==="scripted"){S.coach=fallback;return;}
+  const prompt="You are the debrief coach of a training simulator about operating AI systems. In at most 120 words, plain sentences, no lists, tell the player the two decisions that most shaped the result and one thing to try next run. Be specific to this log. Do not flatter.\n\nDESIGN:\n"+JSON.stringify(designSummary())+"\n\nSCORES (0-100; the index is their geometric mean):\n"+JSON.stringify(s)+"\n\nINCIDENT LOG:\n"+JSON.stringify(S.records.map(r=>({hour:r.hour,type:r.type,root_cause:nameOf(r.target),traced:r.traced,contained_automatically:r.auto,player_suspected:r.guess?nameOf(r.guess):null,player_action:r.action,resolved:r.found&&r.right,cost:r.cost,hours_lost:r.hours,minutes_to_detect:r.detect,minutes_to_recover:r.recover})))+"\n\nPRICE PER COMPLETED TASK: "+DATA.price+"\nHOURLY METRICS:\n"+JSON.stringify(S.series.map(p=>({hour:p.hour,cost_per_completed_task:p.cps==null?null:+p.cps.toFixed(2),slow_tail_ms:p.p95})));
+  try{S.coach="";const text=await askModel(prompt,false,({text})=>{S.coach=text;const el=$("coach");if(el)el.textContent=text;});S.coach=String(text||fallback).slice(0,1200);}catch(e){S.coach=fallback;}
+}
+
+/* ---------- Game flow ---------- */
+function logLine(t){S.log.unshift(t);}
+async function startShift(){
+  const id=++S.shiftId;const usesModel=S.gm!=="scripted";const t0=performance.now();
+  S.busy=true;S.gmNote="";S.gmState=usesModel?"planning":"";render();
+  let plan=scriptedPlan(),pending=null;
+  if(usesModel){
+    pending=makePlan().then(p=>({p}),e=>({e}));
+    const first=await Promise.race([pending,new Promise(r=>setTimeout(()=>r(null),4000))]);
+    if(id!==S.shiftId)return;
+    if(first&&first.p){plan=first.p;S.gmState="ready";pending=null;}else if(first&&first.e){S.gmState="failed";S.gmNote=gmFailText(first.e);pending=null;}
+  }
+  Object.assign(S,{plan,phase:"run",round:0,spend:setupSpend(),tasksOk:0,tasksAll:0,hoursLost:0,harm:0,safetyEvents:0,diag:0,diagOk:0,log:[],records:[],series:[],opCost:0,sel:null,busy:false});
+  logLine("Shift started. Setup spend "+S.spend+" credits.");
+  if(usesModel&&S.gmState==="ready")logLine("Game master plan ready after "+((performance.now()-t0)/1000).toFixed(1)+" s.");
+  if(pending){logLine("The game master is still studying your design. The scripted deck covers the shift until its plan arrives.");
+    pending.then(r=>{if(id!==S.shiftId||S.phase!=="run")return;const secs=((performance.now()-t0)/1000).toFixed(1);
+      if(r.p){const from=S.round;for(let i=from;i<DATA.rounds;i++)S.plan[i]=r.p[i];S.gmState="ready";logLine(from<DATA.rounds?"Game master plan arrived after "+secs+" s. It runs the shift from hour "+(from+1)+".":"Game master plan arrived after "+secs+" s, too late for this shift.");}
+      else{S.gmState="failed";S.gmNote=gmFailText(r.e);logLine(S.gmNote);}
+      render();});}
+  nextHour();
+}
+function nextHour(){
+  if(S.round>=DATA.rounds){endShift();return;}
+  S.round++;const it=S.plan[S.round-1];const def=DATA.incidents[it.type];
+  const stopper=Object.keys(S.owned).find(o=>S.owned[o]&&DATA.catalog[o].stops===it.type);
+  S.cur={...it,hour:S.round,auto:!!stopper,stopper,resolved:false,traced:!!S.traced[it.target]};S.sel=curTraced()&&!S.cur.auto?it.target:null;
+  if(def.harm)S.safetyEvents++;
+  if(S.cur.auto)settle(null,null);
+  render();
+}
+function settle(guess,action){
+  const c=S.cur,def=DATA.incidents[c.type];let cost=roundCost(),hours=0,fail=0,harm=0,found=false,right=false;
+  if(c.auto){if(c.type==="outage")hours=0.5;if(c.type==="cost_spike")cost+=50;found=true;right=true;}
+  else{
+    S.diag++;found=guess===c.target;right=found&&action===def.fix;if(found)S.diagOk++;
+    if(right){hours=0.5+(def.hours?0:0);cost+=def.fixCost||0;}
+    else{hours=2+(def.hours||0);fail=def.fail;cost+=(def.cost||0)+DATA.escalationCost;if(def.harm)harm=1;}
+  }
+  const q=DATA.tiers[S.tier].quality;const ok=Math.round(DATA.tasksPerRound*q*(1-fail));
+  S.spend+=cost;S.hoursLost+=hours;S.tasksOk+=ok;S.tasksAll+=DATA.tasksPerRound;S.harm+=harm;
+  const m=DATA.latMult[c.type]||1,lb=baseLatency(),traced=curTraced(),total=Math.round(hours*60);
+  const p50=Math.round(lb*(c.auto||right?1:1+(m-1)*0.3)),p95=Math.round(lb*DATA.tailFactor*(c.auto?1.1:right?1+(m-1)*0.25:m));
+  const detect=c.auto?1:traced?3:found?18:45,recover=c.auto?Math.max(4,total-1):Math.max(5,total-detect);
+  S.opCost+=cost;S.series.push({hour:c.hour,cost,ok,cps:ok?cost/ok:null,p50,p95,spend:S.spend});
+  c.resolved=true;c.result={found,right,cost,hours,harm,guess,action};
+  S.records.push({hour:c.hour,type:c.type,target:c.target,traced:curTraced(),auto:c.auto,guess,action,found,right,cost,hours,harm,detect,recover,reveal:c.reveal});
+  logLine("Hour "+c.hour+": "+def.label+(c.auto?" contained by "+DATA.catalog[c.stopper].label.toLowerCase()+".":right?" resolved at "+nameOf(c.target)+".":found?" found at "+nameOf(c.target)+" but the wrong action was taken; on-call escalated.":" was in "+nameOf(c.target)+(guess?", not where you looked":", and nobody acted")+"; on-call escalated.")+" Cost "+cost+", "+hours.toFixed(1)+" h lost.");
+}
+async function endShift(){S.phase="debrief";S.cur=null;S.sel=null;S.busy=true;render();await coach();S.busy=false;render();}
+function buyMid(key){const cost=Math.round(DATA.catalog[key].cost*DATA.midRunMarkup);S.owned[key]=true;S.spend+=cost;if(key==="gateway")build3d();logLine("Bought "+DATA.catalog[key].label.toLowerCase()+" mid-shift for "+cost+".");render();}
+function traceMid(){const cost=Math.round(DATA.traceCost*DATA.midRunMarkup);S.traced[S.sel]=true;S.spend+=cost;logLine("Added tracing to "+nameOf(S.sel)+" for "+cost+".");render();}
+function reset(){Object.assign(S,{phase:"setup",round:0,spend:0,tasksOk:0,tasksAll:0,hoursLost:0,harm:0,safetyEvents:0,diag:0,diagOk:0,plan:[],cur:null,sel:null,log:[],records:[],series:[],opCost:0,coach:""});render();}
+
+/* ---------- Rail rendering ---------- */
+function hud(){
+  const s=scores();const spend=S.phase==="setup"?setupSpend()+roundCost()*DATA.rounds:S.spend;
+  $("h-hour").textContent=(S.phase==="setup"?0:S.round)+" / "+DATA.rounds;
+  $("h-spend").textContent=spend.toLocaleString("en-US")+" / "+DATA.budget.toLocaleString("en-US");
+  const bar=$("h-bar");bar.style.width=Math.min(100,spend/DATA.budget*100)+"%";bar.className=spend>DATA.budget?"over":"";
+  $("h-rel").textContent=S.tasksAll?s.rel+"%":"n/a";$("h-time").textContent=S.hoursLost.toFixed(1);$("h-harm").textContent=S.harm;$("h-aware").textContent=S.diag?S.diagOk+" of "+S.diag:"n/a";
+  const q=DATA.tiers[S.tier].quality,setup=S.phase==="setup",last=S.series[S.series.length-1];
+  const rate=setup||!last?roundCost():last.cost,left=DATA.budget-(setup?setupSpend():S.spend),hoursLeft=DATA.rounds-(setup?0:S.round),runway=left<=0?0:left/rate;
+  const run=$("h-run");run.textContent=runway.toFixed(1)+" h";run.className=runway<hoursLeft?"bad":"";
+  const cps=setup||!S.tasksOk?roundCost()/(DATA.tasksPerRound*q):S.opCost/S.tasksOk;$("h-cps").textContent=cps.toFixed(2);
+  const mar=$("h-mar");mar.textContent=(DATA.price-cps>=0?"+":"−")+Math.abs(DATA.price-cps).toFixed(2);mar.className=DATA.price-cps<0?"bad":"";
+  $("h-p95").textContent=((last&&!setup?last.p95:baseLatency()*DATA.tailFactor)/1000).toFixed(1)+" s";
+  $("gmchip").textContent="Game master: "+(S.gm==="claude"?"Claude":S.gm==="local"?"local model":"scripted")+(S.gm!=="scripted"&&S.gmState==="planning"?", planning…":S.gm!=="scripted"&&S.gmState==="failed"?", fell back to scripted":"");
+}
+function railSetup(){
+  const committed=setupSpend()+roundCost()*DATA.rounds;
+  const gmOpts=[["scripted","Scripted incident deck"]];if(sample)gmOpts.unshift(["claude","Claude"]);if(!window.claude)gmOpts.push(["local","Local model on this machine"]);
+  const gmCard=h("div",{class:"card"},h("h3",{},"Game Master"),
+    h("label",{},"Who plans the incidents",h("select",{id:"s-gm",onchange:e=>{S.gm=e.target.value;render();}},gmOpts.map(o=>h("option",{value:o[0],selected:o[0]===S.gm},o[1])))),
+    S.gm==="local"?h("div",{class:"opts"},
+      h("label",{},"Local server address (OpenAI-compatible)",h("input",{id:"s-url",value:S.localUrl,oninput:e=>{S.localUrl=e.target.value;}})),
+      S.localModels.length?h("label",{},"Model",h("select",{id:"s-model",onchange:e=>{S.localModel=e.target.value;}},S.localModels.map(m=>h("option",{value:m,selected:m===S.localModel},m)))):h("label",{},"Model name",h("input",{id:"s-model",value:S.localModel,oninput:e=>{S.localModel=e.target.value;}})),
+      h("button",{class:"ghost",id:"findmodels",onclick:findModels},"Find models on this server"),
+      S.localStatus?h("p",{class:"note",id:"localstatus"},S.localStatus):null):null,
+    h("p",{class:"note"},S.gm==="scripted"?"The scripted deck targets your untraced components, but it does not read your design.":"The game master reads your design and plans the incidents most likely to hurt it."));
+  return [gmCard,
+    h("div",{class:"card"},h("h2",{},"Design the System You Will Run"),
+      h("p",{class:"note"},"You have "+DATA.budget.toLocaleString("en-US")+" credits for a six-hour shift. Whatever you do not trace stays in fog: when it breaks you will see only the symptoms downstream."),
+      h("label",{},"Workflow",h("select",{id:"s-wf",onchange:e=>{S.wf=e.target.value;S.traced={};S.sel=null;build3d();render();}},Object.keys(DATA.workflows).map(k=>h("option",{value:k,selected:k===S.wf},DATA.workflows[k].label)))),
+      h("label",{},"Model tier for every agent",h("select",{id:"s-tier",onchange:e=>{S.tier=e.target.value;render();}},Object.keys(DATA.tiers).map(k=>h("option",{value:k,selected:k===S.tier},DATA.tiers[k].label+": "+DATA.tiers[k].cost+" per agent-hour, "+Math.round(DATA.tiers[k].quality*100)+"% task quality"))))),
+    h("div",{class:"card"},h("h3",{},"Protections"),h("div",{class:"opts"},Object.keys(DATA.catalog).map(k=>{const c=DATA.catalog[k];return h("div",{class:"opt"+(S.owned[k]?" on":"")},h("div",{},c.label,h("small",{},c.desc)),h("button",{class:S.owned[k]?"tonal":"ghost",onclick:()=>{S.owned[k]=!S.owned[k];if(k==="gateway"){S.sel=null;build3d();}render();}},S.owned[k]?"Remove":"Buy "+c.cost));})),
+      h("h3",{},"Tracing, "+DATA.traceCost+" Credits per Component"),h("div",{class:"five"},wf().nodes.filter(n=>!fixedKind(n[2])).map(n=>h("button",{class:S.traced[n[0]]?"tonal":"ghost","data-trace":n[0],style:"min-height:32px;border-radius:0;font-size:12px",onclick:()=>{S.traced[n[0]]=!S.traced[n[0]];S.sel=n[0];render();}},n[1]))),h("p",{class:"note"},"Choose components here or select them in the 3D view.")),
+    h("div",{class:"card"},h("h3",{},"Committed Before Anything Goes Wrong"),
+      h("p",{},h("b",{style:"font-family:var(--mono)"},committed.toLocaleString("en-US"))," of "+DATA.budget.toLocaleString("en-US")+" credits: "+roundCost()+" per hour to run, "+setupSpend()+" on protections and tracing."),
+      committed>DATA.budget?h("p",{class:"chip err"},"Over budget before the shift starts"):null,
+      h("button",{id:"start",disabled:S.busy,onclick:startShift},S.busy?"Starting…":"Start the shift"))
+  ];
+}
+function railRun(){
+  const c=S.cur,def=DATA.incidents[c.type];const kids=[];
+  if(S.gmNote)kids.push(h("p",{class:"note"},S.gmNote));
+  if(!c.resolved){
+    kids.push(h("div",{class:"incident"+(curTraced()?" trace":"")},h("h3",{},"Hour "+c.hour+": Something Is Wrong"),h("p",{},c.brief),
+      curTraced()?h("p",{style:"margin-top:6px"},h("b",{},S.traced[c.target]?"Trace: ":"Gateway meter: "),def.label+" at "+nameOf(c.target)+"."):h("p",{style:"margin-top:6px"},"No trace covers the root cause. Amber components are the ones where you can see symptoms.")));
+    kids.push(h("div",{class:"card"},h("h3",{},"Where Do You Act?"),h("label",{},"Suspect component: choose here, or select it in the 3D view",h("select",{id:"suspect",onchange:e=>{S.sel=e.target.value||null;render();}},h("option",{value:""},"Choose a component"),wf().nodes.filter(n=>!fixedKind(n[2])).map(n=>h("option",{value:n[0],selected:n[0]===S.sel},n[1]+(S.traced[n[0]]?" (traced)":" (fog)"))))),
+      S.sel&&!S.traced[S.sel]&&!fixedKind(kindOf(S.sel))?h("button",{class:"ghost",id:"tracemid",onclick:traceMid},"Add tracing here now, "+Math.round(DATA.traceCost*DATA.midRunMarkup)+" credits"):null,
+      h("h3",{},"What Do You Do?"),h("div",{class:"acts"},Object.keys(DATA.actions).map(a=>h("button",{class:"tonal",disabled:!S.sel,"data-act":a,onclick:()=>{settle(S.sel,a);render();}},DATA.actions[a]))),
+      h("button",{class:"ghost",id:"wait",onclick:()=>{settle(null,"wait");render();}},"Wait and let on-call handle it")));
+  }else{
+    const r=c.result;
+    kids.push(h("div",{class:"card"},h("h3",{},"Hour "+c.hour+": "+def.label),
+      h("p",{},c.auto?"Contained automatically by your "+DATA.catalog[c.stopper].label.toLowerCase()+".":r.right?"Resolved. You acted on the right component with the right response.":r.found?"You found the right component but "+DATA.actions[def.fix].toLowerCase()+" was the response it needed.":"The root cause was "+nameOf(c.target)+". On-call escalation cleaned it up."),
+      c.reveal?h("p",{class:"note"},c.reveal):null,
+      h("p",{class:"note"},"This hour: "+r.cost+" credits, "+r.hours.toFixed(1)+" hours lost"+(r.harm?", one harm event":"")+"."),
+      h("button",{id:"next",onclick:nextHour},S.round>=DATA.rounds?"End the shift and debrief":"Next hour")));
+  }
+  const missing=Object.keys(DATA.catalog).filter(k=>!S.owned[k]);
+  if(missing.length)kids.push(h("details",{},h("summary",{},"Buy a protection mid-shift, at 1.5 times the price"),h("div",{class:"opts",style:"margin-top:6px"},missing.map(k=>h("div",{class:"opt"},h("div",{},DATA.catalog[k].label,h("small",{},DATA.catalog[k].desc)),h("button",{class:"ghost",onclick:()=>buyMid(k)},"Buy "+Math.round(DATA.catalog[k].cost*DATA.midRunMarkup)))))));
+  kids.push(h("div",{class:"card"},h("h3",{},"Shift Log"),h("div",{class:"log"},S.log.map(t=>h("div",{},t)))));
+  return kids;
+}
+function railDebrief(){
+  const s=scores();
+  const rows=S.records.map(r=>h("tr",{},h("td",{},r.hour),h("td",{},DATA.incidents[r.type].label),h("td",{},nameOf(r.target)+(r.traced?"":" (fog)")),h("td",{},r.auto?"contained":r.right?"resolved":r.found?"wrong action":"missed"+(r.guess?", looked at "+nameOf(r.guess):"")),h("td",{},r.cost+" / "+r.hours.toFixed(1)+" h")));
+  const fogCost=S.records.filter(r=>!r.auto&&!r.traced&&!r.found);
+  return [
+    h("div",{class:"card"},h("h2",{},"Stewardship Index"),h("div",{class:"big",id:"index"},s.index),
+      h("div",{class:"subs"},[["Budget",s.budget],["Time",s.time],["Reliability",s.rel],["Safety",s.safety],["Awareness",s.aware]].map(x=>h("div",{class:"tile"},h("span",{},x[0]),h("b",{},x[1])))),
+      h("p",{class:"note"},"The index is the geometric mean of the five scores, so one weak area pulls the whole result down. A low bill does not buy back a harm event.")),
+    h("div",{class:"card"},h("h3",{},"The Fog, Lifted"),h("p",{class:"note"},fogCost.length?fogCost.length+" incident(s) started in components you could not see into and were missed. They are marked red in the 3D view.":"No incident was missed because of fog."),
+      h("div",{class:"tw"},h("table",{},h("thead",{},h("tr",{},h("th",{},"Hr"),h("th",{},"Incident"),h("th",{},"Root cause"),h("th",{},"Outcome"),h("th",{},"Cost / time"))),h("tbody",{},rows)))),
+    h("div",{class:"card"},h("h3",{},"Debrief"),h("div",{class:"coach",id:"coach"},S.coach||(S.busy?"The game master is writing your debrief…":"")),
+      h("button",{id:"again",onclick:reset},"Redesign and run again"))
+  ];
+}
+function lineChart(o){
+  const W=300,H=150,L=30,R=44,T=8,B=20,xs=x=>L+(W-L-R)*x/DATA.rounds;
+  let ymax=0;for(const sr of o.series)for(const pt of sr.pts)if(pt.y!=null)ymax=Math.max(ymax,pt.y);for(const r of o.refs||[])ymax=Math.max(ymax,r.y);ymax=ymax*1.15||1;
+  const ys=y=>H-B-(H-T-B)*y/ymax,NS="http://www.w3.org/2000/svg";
+  const el=(t,a,txt)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(txt!=null)e.textContent=txt;return e;};
+  const svg=el("svg",{viewBox:"0 0 "+W+" "+H,role:"img","aria-label":o.title});
+  for(let i=0;i<=2;i++){const v=ymax/1.15*i/2,y=ys(v);svg.append(el("line",{x1:L,x2:W-R,y1:y,y2:y,stroke:"var(--layer2)","stroke-width":1}),el("text",{x:L-4,y:y+3,"text-anchor":"end"},o.fmt(v)));}
+  for(let x=o.x0;x<=DATA.rounds;x++)svg.append(el("text",{x:xs(x),y:H-6,"text-anchor":"middle"},x));
+  for(const r of o.refs||[]){const y=ys(r.y);svg.append(el("line",{x1:L,x2:W-R,y1:y,y2:y,stroke:"var(--fg2)","stroke-width":1,"stroke-dasharray":"3 3"}),el("text",{x:W-R+3,y:y+3},r.label));}
+  for(const sr of o.series){const pts=sr.pts.filter(pt=>pt.y!=null);if(!pts.length)continue;
+    svg.append(el("polyline",{points:pts.map(pt=>xs(pt.x)+","+ys(pt.y)).join(" "),fill:"none",stroke:sr.color,"stroke-width":2,"stroke-linejoin":"round","stroke-linecap":"round","stroke-dasharray":sr.dashed?"4 4":"none"}));
+    if(!sr.dashed)for(const pt of pts)svg.append(el("circle",{cx:xs(pt.x),cy:ys(pt.y),r:3.5,fill:sr.color,stroke:"var(--layer)","stroke-width":2}));}
+  const box=h("div",{class:"chart"},h("h3",{},o.title),h("div",{class:"lg"},o.series.filter(sr=>sr.name).map(sr=>h("span",{},h("i",{style:"background:"+sr.color+(sr.dashed?";opacity:.6":"")}),sr.name))),svg);
+  const tip=h("div",{class:"tip",hidden:true});box.append(tip);
+  svg.addEventListener("pointermove",ev=>{const r=svg.getBoundingClientRect(),fx=(ev.clientX-r.left)/r.width*W;const x=Math.max(o.x0,Math.min(DATA.rounds,Math.round((fx-L)/(W-L-R)*DATA.rounds)));
+    const lines=o.series.map(sr=>{const pt=sr.pts.find(q=>q.x===x);return pt&&pt.y!=null?(sr.name||o.title)+": "+o.fmt(pt.y):null;}).filter(Boolean);
+    if(!lines.length){tip.hidden=true;return;}tip.hidden=false;tip.textContent="Hour "+x+" · "+lines.join(" · ");tip.style.left=Math.max(70,Math.min(r.width-60,(xs(x)/W)*r.width+10))+"px";tip.style.top=(svg.offsetTop+10)+"px";});
+  svg.addEventListener("pointerleave",()=>{tip.hidden=true;});
+  return box;
+}
+function renderCharts(){
+  const box=$("charts");box.textContent="";const setup=S.phase==="setup",q=DATA.tiers[S.tier].quality,hrs=[1,2,3,4,5,6].slice(0,DATA.rounds);
+  const planCps=roundCost()/(DATA.tasksPerRound*q),lb=baseLatency();
+  const sec=v=>(v/1000).toFixed(1)+"s",cr=v=>v.toFixed(v<10?1:0),big=v=>Math.round(v).toLocaleString("en-US");
+  const act=k=>S.series.map(p=>({x:p.hour,y:k(p)}));
+  box.append(lineChart({title:"Run Cost per Completed Task",x0:1,fmt:cr,refs:[{y:DATA.price,label:"Price "+DATA.price}],
+    series:setup?[{name:"Plan",color:"var(--s1)",dashed:true,pts:hrs.map(x=>({x,y:planCps}))}]:[{name:"",color:"var(--s1)",pts:act(p=>p.cps)}]}));
+  box.append(lineChart({title:"Response Time",x0:1,fmt:sec,
+    series:setup?[{name:"Median, plan",color:"var(--s1)",dashed:true,pts:hrs.map(x=>({x,y:lb}))},{name:"Slow tail, plan",color:"var(--s2)",dashed:true,pts:hrs.map(x=>({x,y:lb*DATA.tailFactor}))}]
+      :[{name:"Median",color:"var(--s1)",pts:act(p=>p.p50)},{name:"Slow tail (95th percentile)",color:"var(--s2)",pts:act(p=>p.p95)}]}));
+  const start=setup?setupSpend():(S.series.length?S.series[0].spend-S.series[0].cost:S.spend),spent=[{x:0,y:start}].concat(S.series.map(p=>({x:p.hour,y:p.spend})));
+  const lastPt=spent[spent.length-1],rate=setup||!S.series.length?roundCost():S.series[S.series.length-1].cost,proj=[];for(let x=lastPt.x;x<=DATA.rounds;x++)proj.push({x,y:lastPt.y+(x-lastPt.x)*rate});
+  box.append(lineChart({title:"Spend Against Budget",x0:0,fmt:big,refs:[{y:DATA.budget,label:"Budget"}],
+    series:[{name:"Spent",color:"var(--s1)",pts:setup?[]:spent},{name:"Projected at this burn",color:"var(--s1)",dashed:true,pts:proj.length>1?proj:[]}]}));
+}
+function renderBelow(){
+  const box=$("below");box.textContent="";if(S.phase!=="debrief")return;
+  const max=Math.max(1,...S.records.map(r=>r.detect+r.recover));
+  box.append(h("div",{class:"card"},h("h3",{},"Time to Detect and Time to Recover, Minutes"),
+    h("div",{class:"lg",style:"display:flex;gap:12px;font-size:11px;color:var(--fg2)"},h("span",{},h("i",{style:"display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--s2);margin-right:4px;vertical-align:middle"}),"Detect"),h("span",{},h("i",{style:"display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--s1);margin-right:4px;vertical-align:middle"}),"Recover")),
+    S.records.map(r=>h("div",{class:"strip"},h("span",{},"Hr "+r.hour+" · "+DATA.incidents[r.type].label),h("div",{class:"trk"},h("i",{style:"background:var(--s2);width:"+(r.detect/max*100)+"%"}),h("i",{style:"background:var(--s1);width:"+(r.recover/max*100)+"%"})),h("span",{},r.detect+" + "+r.recover))),
+    h("p",{class:"note"},"Tracing shortens the first bar. The right response shortens the second.")));
+  box.append(h("div",{class:"card"},h("h3",{},"Hour by Hour"),h("div",{class:"tw"},h("table",{},h("thead",{},h("tr",{},["Hr","Cost","Completed","Cost per task","Margin per Task","Median","Slow tail"].map(t=>h("th",{},t)))),
+    h("tbody",{},S.series.map(p=>h("tr",{},h("td",{},p.hour),h("td",{},p.cost),h("td",{},p.ok),h("td",{},p.cps==null?"n/a":p.cps.toFixed(2)),h("td",{},p.cps==null?"n/a":(DATA.price-p.cps).toFixed(2)),h("td",{},(p.p50/1000).toFixed(1)+" s"),h("td",{},(p.p95/1000).toFixed(1)+" s"))))))));
+}
+function render(){
+  const rail=$("rail");rail.textContent="";
+  for(const k of (S.phase==="setup"?railSetup():S.phase==="run"?railRun():railDebrief()))rail.append(k);
+  hud();renderCharts();renderBelow();paint();
+}
+
+build3d();render();if(three)requestAnimationFrame(frame);
+else $("stage").append(h("p",{style:"position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#c6c6c6;padding:16px;text-align:center"},"The 3D view could not load. The simulator still runs from the controls on the right."));
+if(window.claude&&window.claude.use){window.claude.use("sample").then(s=>{if(s){sample=s;if(S.phase==="setup"){S.gm="claude";render();}}});}
+})();
+</script>
