@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Orrery Nine</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 fill=%27%23000%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2711%27 fill=%27none%27 stroke=%27%23ff2e1f%27 stroke-width=%272%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%274%27 fill=%27%23ff2e1f%27/%3E%3Ccircle cx=%2725.5%27 cy=%2710.5%27 r=%272.5%27 fill=%27%23f2eee4%27/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;700;800&family=Inter:wght@400;600;700&family=Roboto+Mono:wght@400;500;700&display=swap">
 <style>
 /* One idea: a minimal comic. Each section is a full-window panel with one high-resolution illustration, a black gutter between panels, caption boxes with a hard red shadow, and heavy italic lettering. One red, black, and bone. */
@@ -133,11 +134,11 @@ h1,h2{letter-spacing:-.03em}
 
 <script>
 (function(){
-/* Where the launch buttons go: the Unity web export if it is present, otherwise the browser build. */
+/* Where the launch buttons go. Set USE_UNITY to true once the Unity web export sits in a folder named decision-studio-unity beside this page. */
+var USE_UNITY=false;
 var LAUNCH={unity:"decision-studio-unity/index.html",browser:"decision-studio-sim.html"};
 function setLaunch(url){["launch","launch2"].forEach(function(id){var a=document.getElementById(id);if(a)a.href=url;});}
-setLaunch(LAUNCH.browser);
-if(LAUNCH.unity&&window.fetch&&location.protocol.indexOf("http")===0){fetch(LAUNCH.unity,{method:"HEAD"}).then(function(r){if(r.ok)setLaunch(LAUNCH.unity);}).catch(function(){});}
+setLaunch(USE_UNITY?LAUNCH.unity:LAUNCH.browser);
 var reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* ---------- The orrery: a vector drawing that answers to scroll and pointer ---------- */
@@ -203,7 +204,7 @@ bsize();setProg();requestAnimationFrame(frame);
 /* ---------- Teaser: a workflow under halftone fog that clears around the pointer ---------- */
 var RED="#ff2e1f",BONE="#f2eee4",AMBER="#ffb000";
 var box=document.getElementById("teaser"),fc=document.getElementById("fog"),ctx=fc.getContext("2d");
-var fogc=document.createElement("canvas"),fx=fogc.getContext("2d");
+var fogc=document.createElement("canvas"),fx=fogc.getContext("2d",{willReadFrequently:true});
 var N=[["Requests",.07,.5],["Planner",.24,.5],["Retriever",.41,.5],["Writer",.58,.5],["Checker",.75,.5],["Responses",.93,.5],["Search Tool",.33,.2],["Vector Store",.49,.2],["GPU",.58,.82]];
 var E=[[0,1],[1,2],[2,3],[3,4],[4,5],[6,2],[7,2],[8,3]];
 var ptr=null,W=0,H=0,tt=0,fault=3,D=1;
