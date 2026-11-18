@@ -1,0 +1,881 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Decision Studio</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 fill=%27%23000%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2711%27 fill=%27none%27 stroke=%27%23ff2e1f%27 stroke-width=%272%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%274%27 fill=%27%23ff2e1f%27/%3E%3Ccircle cx=%2725.5%27 cy=%2710.5%27 r=%272.5%27 fill=%27%23f2eee4%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;700;800&family=Inter:wght@400;600;700&family=Roboto+Mono:wght@400;500;700&display=swap">
+<style>
+/* Decision Studio, live build. One full-window 3D stage is the system you run; glass panels float over it.
+   Fog is the idea: components you did not trace sit inside smoke, and the floor grid only shows where you can see. */
+:root{--red:#ff2e1f;--deep:#8e130c;--bone:#f2eee4;--bone2:#b8b2a6;--amber:#ffb000;--glass:rgba(6,1,1,.78);
+  --head:"Be Vietnam Pro","Helvetica Neue",Arial,sans-serif;--sans:"Inter","Helvetica Neue",Arial,sans-serif;--mono:"Roboto Mono",Menlo,Consolas,monospace;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#000;color:var(--bone);font:14px/1.4 var(--sans);overflow:hidden}
+#app{position:fixed;inset:0;overflow:hidden;background:#000}
+#gl{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#gl.drag{cursor:grabbing}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lbl{position:absolute;transform:translate(-50%,-100%);white-space:nowrap;font:500 11px var(--mono);padding:3px 8px;background:rgba(0,0,0,.72);border:1px solid rgba(242,238,228,.35);color:var(--bone);pointer-events:auto;cursor:pointer;display:flex;align-items:center;gap:5px;transition:opacity .3s}
+.lbl.fog{color:var(--bone2);border-color:rgba(184,178,166,.25);font-style:italic}
+.lbl.sym{border-color:var(--amber);color:var(--amber)}
+.lbl.root{background:var(--red);color:#000;border-color:#000;font-weight:700}
+.lbl.sel{outline:2px solid var(--bone);outline-offset:2px}
+.lbl.was::after{content:"· was in fog";color:var(--amber);margin-left:5px}
+#mix[hidden],#huep[hidden]{display:none}
+#huep{position:absolute;left:18px;top:54px;z-index:6;width:270px;padding:12px 14px}
+#huep label{display:grid;grid-template-columns:86px 1fr 30px;align-items:center;gap:8px;font:500 11px var(--mono);margin:7px 0}
+#huep input[type=range]{width:100%;accent-color:var(--red)}
+#huep h2{font-size:14px;margin-bottom:6px}
+#huep .row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+#huep .wheel{height:8px;border:1px solid var(--bone);background:linear-gradient(90deg,#ff2e1f,#ffd21f,#3dff1f,#1fffd2,#1f6bff,#a01fff,#ff1fa0,#ff2e1f);margin:2px 0 4px}
+.cost{position:absolute;transform:translate(-50%,-50%);z-index:2;pointer-events:none;font:700 13px var(--mono);color:var(--amber);text-shadow:0 0 4px #000,0 1px 0 #000;white-space:nowrap}
+.cost.big{font-size:20px;color:#000;background:var(--red);padding:1px 7px;text-shadow:none}
+.chart text{font:500 10px var(--mono);fill:var(--bone2)}.chart text.v{fill:var(--bone)}
+.chart [data-tip]{cursor:default}.chart [data-tip]:hover,.chart [data-tip]:focus{outline:none;stroke:var(--bone);stroke-width:1.5}
+.chart .tip{font:500 11px var(--mono);color:var(--bone);min-height:2.6em;margin-top:6px}
+.chart .key{display:flex;gap:12px;font:500 10px var(--mono);color:var(--bone2);margin-bottom:6px}.chart .key i{display:inline-block;width:10px;height:10px;margin-right:5px;vertical-align:-1px}
+#mix{position:absolute;left:18px;top:54px;z-index:6;width:270px;padding:12px 14px}
+#mix label{display:grid;grid-template-columns:86px 1fr 30px;align-items:center;gap:8px;font:500 11px var(--mono);margin:7px 0}
+#mix input[type=range]{width:100%;accent-color:var(--red)}
+#mix h2{font-size:14px;margin-bottom:6px}
+#mix .row{display:flex;gap:8px;margin-top:10px}
+.card.guide{border-color:var(--amber);box-shadow:5px 5px 0 var(--amber)}
+.card.guide h2{color:var(--amber);font-size:15px}
+.ico{display:inline-flex}.ico svg{display:block}
+h1,h2,h3{font-family:var(--head);margin:0}
+.brand{position:absolute;left:18px;top:16px;display:flex;align-items:center;gap:12px;z-index:3}
+.brand h1{font-size:22px;font-weight:800;background:var(--bone);color:#000;padding:3px 12px;box-shadow:5px 5px 0 var(--red)}
+.chip{font:500 11px var(--mono);border:1px solid var(--bone);padding:3px 9px;background:rgba(0,0,0,.6)}
+.rail{position:absolute;right:16px;top:16px;bottom:16px;width:372px;max-width:calc(100vw - 32px);overflow:auto;display:flex;flex-direction:column;gap:12px;z-index:3;scrollbar-width:thin}
+.card{background:var(--glass);border:2px solid var(--bone);padding:14px 16px;backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+.card h2{font-size:17px;font-weight:800;margin-bottom:8px}
+.card h3{font-size:12px;font-weight:700;margin:12px 0 6px;display:flex;align-items:center;gap:6px}
+p{margin:0 0 8px}.note{font-size:12px;color:var(--bone2)}
+label{display:block;font-size:12px;color:var(--bone2);margin:8px 0 3px}
+select,input{width:100%;font:14px var(--sans);color:var(--bone);background:#000;border:2px solid var(--bone);padding:8px 10px;border-radius:0}
+button{font:700 13px var(--sans);color:#000;background:var(--red);border:2px solid #000;box-shadow:3px 3px 0 var(--bone);padding:9px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;text-align:left}
+button:active:not(:disabled){transform:translate(2px,2px);box-shadow:1px 1px 0 var(--bone)}
+button.ghost{background:rgba(0,0,0,.6);color:var(--bone);border-color:var(--bone);box-shadow:none;font-weight:600}
+button.on{background:var(--bone);color:#000;box-shadow:3px 3px 0 var(--red)}
+button.big{width:100%;justify-content:center;font:800 16px var(--head);padding:13px}
+button:disabled{opacity:.4;cursor:not-allowed}
+button:focus-visible,select:focus-visible,input:focus-visible,.lbl:focus-visible{outline:2px solid var(--bone);outline-offset:2px}
+.opts{display:grid;gap:6px}
+.opt{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid #4a4a4a;padding:7px 9px;background:rgba(0,0,0,.5)}
+.opt small{display:block;color:var(--bone2);font-size:11px}
+.opt b{font:500 12px var(--mono);white-space:nowrap}
+.opt.on{border:2px solid var(--red)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{padding:5px 9px;font-size:12px}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tiles{position:absolute;left:18px;bottom:16px;display:grid;grid-template-columns:repeat(6,minmax(0,136px));gap:8px;z-index:3;max-width:calc(100vw - 420px)}
+.tile{background:var(--glass);border:2px solid var(--bone);padding:8px 10px;backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);min-width:0}
+.tile span{display:block;font:500 10px var(--mono);color:var(--bone2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile b{font:700 16px var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;display:block;overflow:hidden;text-overflow:ellipsis}
+.tile b.bad{color:var(--red)}
+.bar{height:5px;background:#2a2a2a;margin-top:5px}.bar i{display:block;height:100%;background:var(--bone)}.bar i.over{background:var(--red)}
+.alert{position:absolute;left:50%;top:16px;transform:translateX(-50%);width:min(560px,calc(100vw - 440px));z-index:4;background:var(--amber);color:#000;border:2px solid #000;box-shadow:7px 7px 0 var(--bone);padding:12px 16px}
+.alert.trace{background:var(--red)}
+.alert h3{font-size:16px;font-weight:800;display:flex;align-items:center;gap:8px;margin:0 0 4px}
+.alert p{margin:0;font-weight:600}
+.alert .fuse{height:6px;background:rgba(0,0,0,.25);margin-top:9px}.alert .fuse i{display:block;height:100%;background:#000}
+.legend{position:absolute;left:18px;top:62px;display:flex;gap:6px;flex-wrap:wrap;z-index:3;font:500 10px var(--mono)}
+.legend span{display:flex;align-items:center;gap:5px;background:rgba(0,0,0,.6);border:1px solid rgba(184,178,166,.4);padding:2px 7px}
+.legend i{width:8px;height:8px;display:inline-block}
+.big-index{font:800 76px/1 var(--head);color:var(--red)}
+.subs{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin:8px 0}
+.subs div{border:1px solid #4a4a4a;padding:5px 6px;background:rgba(0,0,0,.5)}
+.subs span{display:block;font:500 9px var(--mono);color:var(--bone2)}.subs b{font:700 15px var(--mono)}
+table{width:100%;border-collapse:collapse;font-size:12px}th{font:700 10px var(--mono);color:var(--bone2);text-align:left;border-bottom:2px solid var(--red);padding:4px 5px 4px 0}td{padding:5px 5px 5px 0;border-bottom:1px solid #3a3a3a;vertical-align:top}
+.log{font-size:12px;display:grid;gap:4px;max-height:130px;overflow:auto}.log div{border-left:2px solid var(--deep);padding-left:7px;color:var(--bone2)}
+.speed{display:flex;gap:6px}.speed button{padding:5px 10px;font-size:12px}
+.hint{position:absolute;left:18px;bottom:92px;font:500 11px var(--mono);color:var(--bone2);z-index:2}
+@media (max-width:900px){.rail{top:auto;left:8px;right:8px;bottom:8px;width:auto;max-height:46vh}.tiles{left:8px;bottom:auto;top:98px;grid-template-columns:repeat(3,minmax(0,1fr));max-width:calc(100vw - 16px)}.alert{width:calc(100vw - 16px);top:56px}.legend,.hint{display:none}.brand{left:8px;top:8px}}
+@media (prefers-reduced-motion:reduce){.lbl{transition:none}}
+</style>
+<div id="app">
+  <canvas id="gl" aria-label="3D view of the AI system you are running"></canvas>
+  <div id="labels"></div>
+  <div class="brand"><h1>Decision Studio</h1><span class="chip" id="phase">Design</span><button class="ghost" id="snd" style="padding:3px 9px;font:500 11px var(--mono)">Sound</button><button class="ghost" id="hueb" style="padding:3px 9px;font:500 11px var(--mono)">Hue</button></div>
+  <div id="huep" class="card" hidden></div>
+  <div id="mix" class="card" hidden></div>
+  <div class="legend"><span><i style="background:#f2eee4"></i>Traced: You See Inside</span><span><i style="background:#3a1a18;outline:1px solid #b8b2a6"></i>Fog: No Tracing</span><span><i style="background:#ffb000"></i>Symptom</span><span><i style="background:var(--red)"></i>Root Cause</span></div>
+  <div id="alert"></div>
+  <div class="tiles" id="tiles"></div>
+  <div class="hint" id="hint">Drag to orbit. Scroll to zoom. Select a component to inspect it.</div>
+  <div class="rail" id="rail"></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+/* ---------- Scenario data, shared with the earlier builds ---------- */
+const DATA={
+  budget:1500, rounds:6, tasksPerRound:100, price:3, tailFactor:1.8,
+  latency:{agent:{small:400,medium:700,large:1200},tool:300,store:120,router:30,gateway:20,gate:30,human:1200},
+  latMult:{injection:1.2,outage:4,cost_spike:1.3,gpu_failure:5,policy_gap:1,slow:3.5,traffic_flood:3,stale_index:1.1,runaway_loop:2.6,escalation_storm:1.5,approval_backlog:5},
+  tiers:{small:{label:"Small model",cost:16,quality:0.90},medium:{label:"Medium model",cost:40,quality:0.95},large:{label:"Large model",cost:96,quality:0.98}},
+  baseCost:{agent:0,gpu:15,store:3,tool:2,router:1,gateway:4,gate:1,human:12,input:0,output:0},
+  catalog:{
+    guardrail:{icon:"guardrail",label:"Input guardrail",desc:"Contains prompt injection automatically",cost:80,stops:"injection"},
+    fallback:{icon:"fallback",label:"Fallback model",desc:"Reroutes around a model or tool outage",cost:90,stops:"outage"},
+    alert:{icon:"budget-alert-policy",label:"Budget alert policy",desc:"Throttles runaway spend early",cost:40,stops:"cost_spike"},
+    datapolicy:{icon:"data-redaction-policy",label:"Data redaction policy",desc:"Keeps personal data out of logs",cost:50,stops:"policy_gap"},
+    cache:{icon:"cache",label:"Response cache",desc:"Cuts model spend by a quarter",cost:60},
+    gateway:{icon:"model-gateway",label:"Model gateway",desc:"Rate limits and keys in one place; meters spend per agent",cost:110,stops:"traffic_flood"}
+  },
+  traceCost:25, midRunMarkup:1.5, escalationCost:100,
+  incidents:{
+    injection:{icon:"incident-prompt-injection",label:"Prompt injection",kinds:["agent","tool"],fix:"quarantine",fail:0.30,hours:0,harm:true},
+    outage:{icon:"incident-outage",label:"Model or tool outage",kinds:["agent","tool"],fix:"reroute",fail:0.60,hours:0.5},
+    cost_spike:{icon:"incident-cost-spike",label:"Runaway cost spike",kinds:["agent"],fix:"throttle",fail:0,hours:0,cost:250},
+    gpu_failure:{icon:"incident-gpu-failure",label:"GPU failure",kinds:["gpu"],fix:"replace",fail:0.30,hours:2,fixCost:60},
+    policy_gap:{icon:"incident-data-in-logs",label:"Personal data in logs",kinds:["store"],fix:"quarantine",fail:0,hours:0,harm:true},
+    slow:{icon:"incident-slow-dependency",label:"Slow dependency",kinds:["tool","store"],fix:"reroute",fail:0.10,hours:1.5},
+    traffic_flood:{icon:"incident-traffic-flood",label:"Traffic flood",kinds:["agent"],fix:"throttle",fail:0.40,hours:1,cost:120},
+    /* generic:true means the Unity build applies fail, latMult and cost from these numbers alone, with no incident-specific code */
+    stale_index:{icon:"incident-stale-index",label:"Stale retrieval index",kinds:["store"],fix:"reroute",fail:0.28,hours:1,generic:true},
+    runaway_loop:{icon:"incident-retry-loop",label:"Runaway retry loop",kinds:["agent"],fix:"throttle",fail:0.08,hours:0.5,cost:200,generic:true},
+    escalation_storm:{icon:"incident-escalation-storm",label:"Escalation storm",kinds:["gate"],fix:"throttle",fail:0,hours:0,cost:180,generic:true},
+    approval_backlog:{icon:"incident-approval-backlog",label:"Approval backlog",kinds:["human"],fix:"reroute",fail:0.05,hours:1.5,generic:true}
+  },
+  actions:{reroute:"Reroute or restart",throttle:"Throttle",quarantine:"Quarantine",replace:"Replace hardware"},
+  actionIcons:{"reroute":"action-reroute-restart","throttle":"action-throttle","quarantine":"action-quarantine","replace":"action-replace-hardware"},
+  workflows:{
+    single:{label:"Single agent",nodes:[["in","Requests","input",-5,0,"requests"],["agent","Agent","agent",0,0,"agent"],["tool","Search tool","tool",-1.5,-3,"search-tool"],["store","Vector store","store",1.5,-3,"vector-store"],["gpu","GPU","gpu",0,3,"gpu"],["out","Responses","output",5,0,"responses"]],edges:[["in","agent"],["tool","agent"],["store","agent"],["gpu","agent"],["agent","out"]]},
+    router:{label:"Model router",nodes:[["in","Requests","input",-6,0,"requests"],["router","Router","router",-3,0,"router"],["a","Fast agent","agent",0,-2,"agent-fast"],["b","Deep agent","agent",0,2,"agent-deep"],["store","Document store","store",-2,4,"document-store"],["gpu","GPU","gpu",3,4,"gpu"],["out","Responses","output",4,0,"responses"]],edges:[["in","router"],["router","a"],["router","b"],["store","b"],["gpu","a"],["gpu","b"],["a","out"],["b","out"]]},
+    serial:{label:"Serial chain",nodes:[["in","Requests","input",-7,0,"requests"],["plan","Planner","agent",-4.2,0,"planner"],["ret","Retriever","agent",-1.4,0,"retriever"],["write","Writer","agent",1.4,0,"writer"],["check","Checker","agent",4.2,0,"checker"],["tool","Search tool","tool",-2.8,-3,"search-tool"],["store","Vector store","store",0,-3,"vector-store"],["gpu","GPU","gpu",1.4,3,"gpu"],["out","Responses","output",7,0,"responses"]],edges:[["in","plan"],["plan","ret"],["tool","ret"],["store","ret"],["ret","write"],["gpu","write"],["write","check"],["check","out"]]},
+    parallel:{label:"Parallel fan-out",nodes:[["in","Requests","input",-7,0,"requests"],["split","Splitter","router",-4,0,"splitter"],["w1","Worker 1","agent",-0.5,-3,"workers"],["w2","Worker 2","agent",-0.5,0,"workers"],["w3","Worker 3","agent",-0.5,3,"workers"],["store","Document store","store",-3.5,3.5,"document-store"],["gpu","GPU pool","gpu",-3.5,-3.5,"gpu-pool"],["merge","Merger","agent",3,0,"merger"],["out","Responses","output",6.5,0,"responses"]],edges:[["in","split"],["split","w1"],["split","w2"],["split","w3"],["gpu","w1"],["gpu","w2"],["store","w3"],["w1","merge"],["w2","merge"],["w3","merge"],["merge","out"]]},
+    hier:{label:"Hierarchical team",nodes:[["in","Requests","input",-8,0,"requests"],["sup","Supervisor","agent",-5,0,"supervisor"],["l1","Lead: research","agent",-2,-2.5,"team-lead"],["l2","Lead: build","agent",-2,2.5,"team-lead"],["wa","Worker A","agent",1.2,-4,"workers"],["wb","Worker B","agent",1.2,-1.2,"workers"],["wc","Worker C","agent",1.2,2.5,"workers"],["tool","Search tool","tool",-1,-5.5,"search-tool"],["store","Code store","store",-1,5,"code-store"],["gpu","GPU pool","gpu",3.5,5,"gpu-pool"],["rev","Reviewer","agent",4.5,0,"reviewer"],["out","Responses","output",7.8,0,"responses"]],edges:[["in","sup"],["sup","l1"],["sup","l2"],["l1","wa"],["l1","wb"],["l2","wc"],["tool","wa"],["store","wc"],["gpu","wb"],["gpu","wc"],["wa","rev"],["wb","rev"],["wc","rev"],["rev","out"]]},
+    /* The sixth value of a node names its icon in the workflow icon set; a leading minus mirrors it. A gate sends each request down one branch: the first edge listed is the usual path, the last is the escalation. */
+    rag:{label:"Retrieval pipeline",nodes:[["in","Requests","input",-7,0,"requests"],["ret","Retriever","agent",-4,0,"retriever"],["rank","Reranker","agent",-1,0,"reranker"],["gen","Generator","agent",2.2,0,"generator"],["store","Document index","store",-5.2,-3,"document-index"],["tool","Embedding service","tool",-2.8,-3,"embedding"],["gpu","GPU","gpu",0.6,3.2,"gpu"],["out","Responses","output",6,0,"responses"]],edges:[["in","ret"],["store","ret"],["tool","ret"],["ret","rank"],["gpu","rank"],["rank","gen"],["gpu","gen"],["gen","out"]]},
+    critic:{label:"Generate and critique",nodes:[["in","Requests","input",-7,0,"requests"],["gen","Generator","agent",-4,0,"generator"],["crit","Critic","agent",-1,0,"critic"],["rev","Reviser","agent",2,0,"reviser"],["tool","Test runner","tool",-1,-3,"test-runner"],["store","Style guide store","store",2,-3,"style-guide-store"],["gpu","GPU","gpu",-1,3.2,"gpu"],["out","Responses","output",6,0,"responses"]],edges:[["in","gen"],["gpu","gen"],["gen","crit"],["tool","crit"],["crit","rev"],["store","rev"],["gpu","rev"],["rev","out"]]},
+    cascade:{label:"Cheap-first cascade",nodes:[["in","Requests","input",-7,0,"requests"],["fast","Small model","agent",-4,0,"small-model"],["gate","Confidence gate","gate",-1,0,"confidence-gate"],["deep","Large model","agent",2.4,2.8,"large-model"],["store","Document store","store",-4,-3,"document-store"],["gpu","GPU","gpu",-1,4.4,"gpu"],["out","Responses","output",6,0,"responses"]],edges:[["in","fast"],["store","fast"],["gpu","fast"],["fast","gate"],["gate","out"],["gate","deep"],["gpu","deep"],["deep","out"]]},
+    approval:{label:"Human approval gate",nodes:[["in","Requests","input",-7.5,0,"requests"],["draft","Drafter","agent",-4.5,0,"drafter"],["gate","Risk gate","gate",-1.5,0,"risk-gate"],["human","Human approver","human",1.2,-2.8,"human-approver"],["send","Sender","agent",4,0,"sender"],["store","Policy store","store",-4.5,-3,"policy-store"],["gpu","GPU","gpu",-1.5,3.2,"gpu"],["tool","Email tool","tool",4,3,"email-tool"],["out","Responses","output",7.5,0,"responses"]],edges:[["in","draft"],["store","draft"],["gpu","draft"],["draft","gate"],["gate","send"],["gate","human"],["human","send"],["tool","send"],["send","out"]]}
+  }
+};
+const TEMPL={injection:"Responses have started including instructions nobody wrote, and a few users report the system offering things it should refuse.",outage:"A large share of requests are failing or returning empty answers. Nothing has been deployed in the last hour.",cost_spike:"Spend is climbing far faster than traffic. Request volume at the front door looks normal.",gpu_failure:"Latency has roughly tripled and some requests are timing out. Error messages are generic.",policy_gap:"A compliance check has found customer names and emails somewhere they should not be. Responses themselves look fine.",slow:"Answers are arriving, but slowly, and some are missing supporting detail.",traffic_flood:"Request volume has jumped several-fold in minutes. Latency is climbing and so is the bill.",stale_index:"Answers read fluently but cite material that was replaced weeks ago. Users are flagging outdated facts.",runaway_loop:"One stage keeps sending work back for another pass. Latency and spend are rising while finished output falls.",escalation_storm:"Almost every request is taking the expensive path. Quality looks fine, and the bill has several times its usual slope.",approval_backlog:"Requests are piling up waiting for sign-off. Nothing is failing, and almost nothing is finishing."};
+const ICONS={"action-add-tracing":"<path d=\"M4 26H9V7H19V26H28\"/><circle cx=\"9\" cy=\"17\" r=\"3\"/><circle cx=\"19\" cy=\"17\" r=\"3\"/><path d=\"M25 3V11 M21 7H29\"/>","action-quarantine":"<rect x=\"11\" y=\"11\" width=\"10\" height=\"10\"/><path d=\"M3 10V3H10 M22 3H29V10 M29 22V29H22 M10 29H3V22\"/>","action-replace-hardware":"<rect x=\"10\" y=\"10\" width=\"12\" height=\"12\"/><rect x=\"14\" y=\"14\" width=\"4\" height=\"4\"/><path d=\"M4 5H26 M23 4L26 5L23 8 M28 27H6 M9 24L6 27L9 28 M16 8V10 M16 22V24\"/>","action-reroute-restart":"<path d=\"M4 8H19V4L27 10L19 16V12H10V24H22 M22 20L27 24L22 28\"/>","action-throttle":"<path d=\"M9 5H23 M16 5V11 M3 16H7 M25 16H29 M7 16L16 11L25 16L16 21Z\"/>","action-wait-on-call":"<circle cx=\"11\" cy=\"14\" r=\"8\"/><path d=\"M11 9V14H15\"/><circle cx=\"24\" cy=\"9\" r=\"3\"/><path d=\"M20 28V23C20 18 29 18 29 23V28\"/>","agent-deep":"<path d=\"M9 4H21L25 8V24L21 28H9L5 24V8Z\"/><circle cx=\"15\" cy=\"16\" r=\"7\"/><circle cx=\"15\" cy=\"16\" r=\"3\"/>","agent-fast":"<path d=\"M9 4H21L25 8V24L21 28H9L5 24V8Z M25 12L28 16L25 20\"/><path d=\"M17 8L11 17H16L13 24L21 13H16Z\"/>","agent":"<path d=\"M9 4H21L25 8V24L21 28H9L5 24V8Z\"/><rect x=\"12\" y=\"11\" width=\"6\" height=\"10\"/>","budget-alert-policy":"<ellipse cx=\"10\" cy=\"18\" rx=\"6\" ry=\"3\"/><path d=\"M4 18V25C4 29 16 29 16 25V18 M4 22C4 26 16 26 16 22\"/><path d=\"M20 28V4H28L25 9L28 14H20 M23 6V9\"/><circle cx=\"23\" cy=\"11.5\" r=\"0.7\" fill=\"currentColor\" stroke=\"none\"/>","cache":"<ellipse cx=\"13\" cy=\"14\" rx=\"9\" ry=\"3\"/><path d=\"M4 14V24C4 28 22 28 22 24V14\"/><path d=\"M7 6H20C24 6 25 9 25 13V19 M22 15L25 19L28 15 M7 6L11 4 M7 6L11 9\"/>","checker":"<rect x=\"7\" y=\"7\" width=\"18\" height=\"18\"/><path d=\"M13 7V25 M19 7V25 M7 13H25 M7 19H25 M3 16H29 M9 3H3V9 M23 3H29V9 M3 23V29H9 M23 29H29V23\"/>","code-store":"<path d=\"M3 9V27H29V9 M3 22H29 M12 6L6 13L12 20 M20 6L26 13L20 20\"/>","confidence-gate":"<path d=\"M4 29V4H28V29 M8 25V21H13V16H18V11H24\"/><path d=\"M4 9H9 M23 9H28\"/>","critic":"<rect x=\"11\" y=\"6\" width=\"10\" height=\"20\"/><path d=\"M7 4L3 16L7 28 M25 4L29 16L25 28 M14 12H18 M14 17H18\"/>","data-redaction-policy":"<path d=\"M6 29V3H21L26 8V29Z M21 3V8H26\"/><rect x=\"10\" y=\"13\" width=\"12\" height=\"4\" fill=\"currentColor\" stroke=\"none\"/><rect x=\"10\" y=\"21\" width=\"12\" height=\"4\" fill=\"currentColor\" stroke=\"none\"/>","document-index":"<rect x=\"7\" y=\"4\" width=\"16\" height=\"24\"/><path d=\"M11 4V28 M14 10H20 M14 17H20 M14 24H20\"/><rect x=\"23\" y=\"7\" width=\"5\" height=\"4\"/><rect x=\"23\" y=\"14\" width=\"5\" height=\"4\"/><rect x=\"23\" y=\"21\" width=\"5\" height=\"4\"/>","document-store":"<rect x=\"3\" y=\"8\" width=\"7\" height=\"20\"/><rect x=\"12\" y=\"5\" width=\"7\" height=\"23\"/><rect x=\"21\" y=\"3\" width=\"7\" height=\"25\"/><path d=\"M5 13H8 M14 10H17 M23 8H26\"/>","drafter":"<path d=\"M3 24H22V10 M7 28H26V14 M3 10H16\"/><path d=\"M13 21L14 16L23 7L27 11L18 20Z M14 16L18 20\"/>","email-tool":"<rect x=\"3\" y=\"7\" width=\"26\" height=\"18\"/><path d=\"M4 8L16 18L28 8 M4 24L11 18 M28 24L21 18\"/>","embedding":"<rect x=\"3\" y=\"7\" width=\"8\" height=\"18\"/><path d=\"M5 12H9 M5 17H9 M13 16H17 M15 13L18 16L15 19\"/><rect x=\"20\" y=\"6\" width=\"2\" height=\"20\" fill=\"currentColor\" stroke=\"none\"/><rect x=\"24\" y=\"10\" width=\"2\" height=\"12\" fill=\"currentColor\" stroke=\"none\"/><rect x=\"28\" y=\"13\" width=\"2\" height=\"6\" fill=\"currentColor\" stroke=\"none\"/>","fallback":"<path d=\"M3 7H28 M23 4L28 7L23 11 M3 25H28 M23 21L28 25L23 28 M8 7V18C8 22 12 25 16 25\"/><rect x=\"12\" y=\"4\" width=\"6\" height=\"6\"/><rect x=\"12\" y=\"22\" width=\"6\" height=\"6\"/>","gateway":"<circle cx=\"16\" cy=\"16\" r=\"10\"/><circle cx=\"16\" cy=\"16\" r=\"3\"/><path d=\"M3 16H6 M26 16H29 M16 13V8 M13 18L9 21 M19 18L23 21\"/>","generator":"<rect x=\"3\" y=\"11\" width=\"10\" height=\"10\"/><rect x=\"23\" y=\"3\" width=\"6\" height=\"6\"/><rect x=\"23\" y=\"13\" width=\"6\" height=\"6\"/><rect x=\"23\" y=\"23\" width=\"6\" height=\"6\"/><path d=\"M13 16H18V6H23 M18 16H23 M18 16V26H23\"/>","gpu-pool":"<rect x=\"4\" y=\"9\" width=\"6\" height=\"12\"/><rect x=\"13\" y=\"9\" width=\"6\" height=\"12\"/><rect x=\"22\" y=\"9\" width=\"6\" height=\"12\"/><rect x=\"6\" y=\"12\" width=\"2\" height=\"6\" fill=\"currentColor\" stroke=\"none\"/><rect x=\"15\" y=\"12\" width=\"2\" height=\"6\" fill=\"currentColor\" stroke=\"none\"/><rect x=\"24\" y=\"12\" width=\"2\" height=\"6\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M3 26H29 M7 21V26 M16 21V26 M25 21V26 M7 5V9 M16 5V9 M25 5V9\"/>","gpu":"<rect x=\"7\" y=\"7\" width=\"18\" height=\"18\"/><rect x=\"12\" y=\"12\" width=\"8\" height=\"8\"/><path d=\"M3 11H7 M3 16H7 M3 21H7 M25 11H29 M25 16H29 M25 21H29 M11 3V7 M16 3V7 M21 3V7 M11 25V29 M16 25V29 M21 25V29\"/>","guardrail":"<path d=\"M16 3L25 7V17C25 23 16 28 16 28C16 28 7 23 7 17V7Z M3 10V25 M29 10V25 M3 14H7 M25 14H29\"/>","human-approver":"<circle cx=\"12\" cy=\"8\" r=\"5\"/><path d=\"M3 29V25C3 19 21 19 21 25V29\"/><path d=\"M21 13L24 16L28 10 M25 20V28\"/>","incident-approval-backlog":"<path d=\"M10 4H22L28 10V22L22 28H10L4 22V10L7 7\"/><rect x=\"9\" y=\"9\" width=\"9\" height=\"13\"/><path d=\"M13 24H22V12 M16 26H25V15\"/><rect x=\"12\" y=\"12\" width=\"2\" height=\"6\" fill=\"currentColor\" stroke=\"none\"/><rect x=\"16\" y=\"12\" width=\"2\" height=\"6\" fill=\"currentColor\" stroke=\"none\"/>","incident-cost-spike":"<path d=\"M10 4H22L28 10V22L22 28H10L4 22V10L7 7\"/><rect x=\"10\" y=\"18\" width=\"3\" height=\"5\"/><rect x=\"15\" y=\"14\" width=\"3\" height=\"9\"/><rect x=\"20\" y=\"9\" width=\"3\" height=\"14\"/>","incident-data-in-logs":"<path d=\"M10 4H22L28 10V22L22 28H10L4 22V10L7 7\"/><path d=\"M10 8H21V24H10Z M13 12H18 M13 16H18 M16 21H24 M21 18L24 21L21 24\"/>","incident-escalation-storm":"<path d=\"M10 4H22L28 10V22L22 28H10L4 22V10L7 7\"/><path d=\"M9 11V16H23V11 M16 9V23 M7 13L9 11L11 13 M13 12L16 9L19 12 M21 13L23 11L25 13\"/>","incident-gpu-failure":"<path d=\"M10 4H22L28 10V22L22 28H10L4 22V10L7 7\"/><rect x=\"10\" y=\"10\" width=\"12\" height=\"12\"/><path d=\"M13 10L16 14L14 18L18 22 M8 13H10 M22 19H24\"/>","incident-outage":"<path d=\"M10 4H22L28 10V22L22 28H10L4 22V10L7 7\"/><path d=\"M9 16H13 M19 16H23 M13 12V20 M19 12V20 M14 9L18 23\"/>","incident-prompt-injection":"<path d=\"M10 4H22L28 10V22L22 28H10L4 22V10L7 7\"/><rect x=\"13\" y=\"10\" width=\"8\" height=\"12\"/><path d=\"M8 16H18 M14 12L18 16L14 20\"/>","incident-retry-loop":"<path d=\"M10 4H22L28 10V22L22 28H10L4 22V10L7 7\"/><path d=\"M10 20C6 14 10 9 16 9C22 9 26 15 22 21C19 25 13 24 10 21 M10 15V21H16\"/>","incident-slow-dependency":"<path d=\"M10 4H22L28 10V22L22 28H10L4 22V10L7 7\"/><circle cx=\"16\" cy=\"16\" r=\"7\"/><path d=\"M16 11V16L20 19\"/>","incident-stale-index":"<path d=\"M10 4H22L28 10V22L22 28H10L4 22V10L7 7\"/><path d=\"M10 9H18V23H10Z M12 13H16 M12 18H16\"/><circle cx=\"21\" cy=\"19\" r=\"4\"/><path d=\"M21 17V19H23\"/>","incident-traffic-flood":"<path d=\"M10 4H22L28 10V22L22 28H10L4 22V10L7 7\"/><path d=\"M10 10V20 M8 17L10 20L12 17 M16 9V20 M14 17L16 20L18 17 M22 10V20 M20 17L22 20L24 17 M10 24H22\"/>","incident":"<path d=\"M16 4L28 16L16 28L4 16L11 9 M9 17H13L15 11L18 22L20 17H23\"/>","large-model":"<rect x=\"3\" y=\"25\" width=\"26\" height=\"4\"/><rect x=\"4\" y=\"14\" width=\"6\" height=\"11\"/><rect x=\"13\" y=\"4\" width=\"6\" height=\"21\"/><rect x=\"22\" y=\"14\" width=\"6\" height=\"11\"/><rect x=\"6\" y=\"17\" width=\"2\" height=\"2\" fill=\"currentColor\" stroke=\"none\"/><rect x=\"15\" y=\"8\" width=\"2\" height=\"2\" fill=\"currentColor\" stroke=\"none\"/><rect x=\"24\" y=\"17\" width=\"2\" height=\"2\" fill=\"currentColor\" stroke=\"none\"/>","merger":"<path d=\"M3 6H10L20 16 M3 16H28 M3 26H10L20 16 M24 12L28 16L24 20\"/><circle cx=\"20\" cy=\"16\" r=\"2\" fill=\"currentColor\" stroke=\"none\"/>","model-gateway":"<rect x=\"7\" y=\"4\" width=\"17\" height=\"24\"/><rect x=\"12\" y=\"11\" width=\"7\" height=\"10\"/><path d=\"M3 16H7 M24 9H29 M24 16H29 M24 23H29\"/>","planner":"<rect x=\"3\" y=\"21\" width=\"7\" height=\"7\"/><rect x=\"12\" y=\"12\" width=\"7\" height=\"7\"/><rect x=\"22\" y=\"3\" width=\"7\" height=\"7\"/><path d=\"M10 24H16V19 M19 15H25V10\"/>","policy-store":"<path d=\"M5 3H25V29H5Z M9 3V29\"/><path d=\"M17 10L23 12V17C23 21 17 25 17 25C17 25 11 21 11 17V12Z\"/>","requests":"<rect x=\"4\" y=\"3\" width=\"5\" height=\"5\"/><rect x=\"13\" y=\"3\" width=\"5\" height=\"5\"/><rect x=\"22\" y=\"3\" width=\"5\" height=\"5\"/><path d=\"M6 11V18 M16 11V18 M25 11V18 M3 21V28H29V21 M11 21V24H21V21\"/>","reranker":"<path d=\"M3 5H13 M3 16H20 M3 27H27 M24 5V18 M20 14L24 18L28 14\"/><rect x=\"13\" y=\"3\" width=\"2\" height=\"4\" fill=\"currentColor\" stroke=\"none\"/><rect x=\"20\" y=\"14\" width=\"2\" height=\"4\" fill=\"currentColor\" stroke=\"none\"/><rect x=\"27\" y=\"25\" width=\"2\" height=\"4\" fill=\"currentColor\" stroke=\"none\"/>","response-action":"<path d=\"M4 10V27L9 22L13 28L17 26L13 20L22 19Z M23 4L20 7L21 11L25 12L28 9 M22 11L17 16\"/>","responses":"<path d=\"M4 5H28V23H20L15 28V23H4Z M8 10H24 M8 15H24 M8 19H17\"/>","retriever":"<path d=\"M4 6V27H17 M4 13H12 M4 20H12\"/><rect x=\"18\" y=\"4\" width=\"10\" height=\"17\"/><path d=\"M27 26H12 M17 22L12 26L17 28\"/>","reviewer":"<path d=\"M4 29V3H16L21 8V11 M16 3V8H21 M4 29H21V25 M8 9H13 M8 14H12 M8 20H12\"/><circle cx=\"22\" cy=\"18\" r=\"5\"/><path d=\"M25 22L28 26\"/>","reviser":"<rect x=\"10\" y=\"9\" width=\"12\" height=\"16\"/><path d=\"M7 9V4H23C28 4 28 8 28 12 M7 4L4 8 M7 4L11 8 M25 23V28H9C4 28 4 24 4 20 M25 28L28 24 M25 28L21 24\"/>","risk-gate":"<path d=\"M4 29V4H28V29 M4 16H28\"/><rect x=\"7\" y=\"13\" width=\"3\" height=\"6\" fill=\"currentColor\" stroke=\"none\"/><rect x=\"22\" y=\"13\" width=\"3\" height=\"6\" fill=\"currentColor\" stroke=\"none\"/>","router":"<path d=\"M16 29V18 M16 18L5 7 M16 18L27 7 M5 13V7H11 M21 7H27V13\"/><rect x=\"13\" y=\"15\" width=\"6\" height=\"6\"/>","search-tool":"<circle cx=\"13\" cy=\"13\" r=\"9\"/><path d=\"M20 20L28 28\"/>","sender":"<path d=\"M3 20V28H23V20 M8 20V24H18V20 M13 19V11H28 M23 6L28 11L23 16\"/>","small-model":"<rect x=\"8\" y=\"8\" width=\"16\" height=\"16\"/><rect x=\"13\" y=\"13\" width=\"6\" height=\"6\"/><path d=\"M16 3V8 M16 24V29 M3 16H8 M24 16H29\"/>","splitter":"<path d=\"M3 16H12 M12 16L21 7H28 M12 16H28 M12 16L21 25H28 M25 4L28 7L25 10 M25 13L28 16L25 19 M25 22L28 25L25 28\"/>","style-guide-store":"<path d=\"M3 5C8 3 12 4 16 7C20 4 24 3 29 5V27C24 25 20 26 16 28C12 26 8 25 3 27Z M16 7V28 M6 11H11 M21 11H26 M6 16H11 M21 16H26\"/>","supervisor":"<rect x=\"11\" y=\"3\" width=\"10\" height=\"9\"/><rect x=\"3\" y=\"23\" width=\"7\" height=\"6\"/><rect x=\"22\" y=\"23\" width=\"7\" height=\"6\"/><path d=\"M16 12V18 M6 23V18H25V23\"/><rect x=\"14\" y=\"6\" width=\"4\" height=\"3\" fill=\"currentColor\" stroke=\"none\"/>","team-lead":"<rect x=\"12\" y=\"7\" width=\"8\" height=\"14\"/><rect x=\"3\" y=\"14\" width=\"6\" height=\"7\"/><rect x=\"23\" y=\"14\" width=\"6\" height=\"7\"/><rect x=\"15\" y=\"11\" width=\"2\" height=\"4\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M3 25H29 M6 21V25 M16 21V25 M26 21V25 M6 25V29 M26 25V29\"/>","test-runner":"<path d=\"M3 6L12 12L3 18Z M16 6H29 M16 13H29 M3 26H29\"/><path d=\"M17 21L20 24L26 18\"/>","vector-store":"<ellipse cx=\"14\" cy=\"6\" rx=\"10\" ry=\"3\"/><path d=\"M4 6V24C4 28 24 28 24 24V6 M4 15C4 19 24 19 24 15\"/><path d=\"M25 8L28 12L25 17\"/><circle cx=\"28\" cy=\"22\" r=\"1\" fill=\"currentColor\" stroke=\"none\"/>","workers":"<rect x=\"3\" y=\"10\" width=\"7\" height=\"15\"/><rect x=\"12\" y=\"10\" width=\"7\" height=\"15\"/><rect x=\"22\" y=\"10\" width=\"7\" height=\"15\"/><path d=\"M6 6V10 M16 6V10 M25 6V10 M6 25V29 M16 25V29 M25 25V29\"/>","writer":"<path d=\"M12 28H5V4H20L25 9V12 M20 4V9H25 M8 10H15 M8 15H12\"/><path d=\"M14 27L16 21L25 11L28 14L19 24Z M16 21L19 24\"/>"};
+function icon(id,size){if(!id)return null;const flip=id[0]==="-";const k=flip?id.slice(1):id;if(!ICONS[k])return null;const e=document.createElement("span");e.className="ico";e.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="'+(size||14)+'" height="'+(size||14)+'" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"'+(flip?' style="transform:scaleX(-1)"':'')+'>'+ICONS[k]+'</svg>';return e;}
+const h=(tag,attrs,...kids)=>{const e=document.createElement(tag);for(const k in attrs||{}){const v=attrs[k];if(v==null||v===false)continue;if(k==="class")e.className=v;else if(k.slice(0,2)==="on")e.addEventListener(k.slice(2),v);else if(k==="disabled"||k==="selected")e[k]=!!v;else e.setAttribute(k,v);}kids.flat(3).forEach(c=>{if(c==null||c===false)return;e.appendChild(c.nodeType?c:document.createTextNode(String(c)));});return e;};
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),lerp=(a,b,t)=>a+(b-a)*t,rnd=()=>Math.random();
+
+/* ---------- Tunable rules ---------- */
+const HOUR=40;          /* real seconds per simulated hour */
+const TOKEN_SPEED=7;    /* stage units per second */
+const ESCALATE=26;      /* seconds before on-call takes over */
+const DT=0.025;         /* the simulation advances in fixed ticks, so a shift can be replayed exactly */
+const LOCK=5, FIX=3, WRONG_COST=30, ONCALL_FIX=8, GATE_ESCALATES=0.3, HARM_AFTER=10;
+
+/* ---------- State ---------- */
+const S={guided:false,phase:"design",wf:"serial",tier:"medium",owned:{},traced:{},sel:null,gm:"scripted",localUrl:"http://localhost:11434/v1",localModel:"",models:[],modelNote:"",speed:1,busy:false,coach:""};
+let G=null,R=null,sample=null;
+const NR=()=>S.guided?2:DATA.rounds,ESC=()=>S.guided?75:ESCALATE;
+/* seeded random numbers for everything that decides the simulation; visual effects use Math.random */
+let _seed=1;const sr=()=>{_seed=_seed+0x6D2B79F5|0;let t=Math.imul(_seed^_seed>>>15,1|_seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+const isRes=k=>k==="tool"||k==="store"||k==="gpu",fixedKind=k=>k==="input"||k==="output"||k==="gateway",serves=k=>k==="agent"||k==="human";
+
+function buildGraph(){
+  const base=DATA.workflows[S.wf];let nodes=base.nodes.map(n=>n.slice()),edges=base.edges.map(e=>e.slice());
+  if(S.owned.gateway){const inn=nodes.find(n=>n[0]==="in"),gx=inn[3],gz=inn[4];inn[3]-=2.4;nodes.push(["gw","Gateway","gateway",gx,gz,"gateway"]);edges=edges.map(e=>e[0]==="in"?["gw",e[1]]:e);edges.push(["in","gw"]);}
+  const N={};nodes.forEach(n=>N[n[0]]={id:n[0],name:n[1],kind:n[2],x:n[3],z:n[4],icon:n[5],next:[],preds:[],deps:[],queue:[],busy:[],cap:n[2]==="human"?2:4,join:{},reveal:0,heat:0,fails:0});
+  const E=[];edges.forEach(([a,b])=>{const dep=isRes(N[a].kind);E.push({a,b,dep,count:0});if(dep)N[b].deps.push(a);else{N[a].next.push(b);N[b].preds.push(a);}});
+  G={N,E,list:nodes.map(n=>N[n[0]]),agents:nodes.filter(n=>n[2]==="agent").length};
+  Object.keys(S.traced).forEach(id=>{if(!N[id]||fixedKind(N[id].kind))delete S.traced[id];});
+  if(S.sel&&!N[S.sel])S.sel=null;
+}
+const visible=n=>fixedKind(n.kind)||!!S.traced[n.id]||S.phase==="debrief"||S.phase==="replay";
+const setupCost=()=>Object.keys(S.owned).filter(k=>S.owned[k]).reduce((a,k)=>a+DATA.catalog[k].cost,0)+Object.keys(S.traced).length*DATA.traceCost;
+const hourlyBase=()=>G.list.reduce((a,n)=>a+(DATA.baseCost[n.kind]||0),0)+G.agents*DATA.tiers[S.tier].cost*(S.owned.cache?0.75:1);
+const projected=()=>setupCost()+hourlyBase()*NR();
+
+/* ---------- Game master ---------- */
+function pickTarget(type,want){const ok=G.list.filter(n=>DATA.incidents[type].kinds.includes(n.kind)).map(n=>n.id);if(!ok.length)return null;if(want&&ok.includes(want))return want;const un=ok.filter(id=>!S.traced[id]);const pool=un.length&&rnd()<0.8?un:ok;return pool[Math.floor(rnd()*pool.length)];}
+function scriptedPlan(){
+  const stops=Object.keys(S.owned).filter(k=>S.owned[k]).map(k=>DATA.catalog[k].stops);
+  let types=Object.keys(DATA.incidents).filter(t=>pickTarget(t));
+  types.sort(()=>rnd()-0.5);types.sort((a,b)=>(stops.includes(a)?1:0)-(stops.includes(b)?1:0));
+  const plan=[];for(let i=1;i<=NR();i++){const type=types[(i-1)%types.length];plan.push({hour:i,type,target:pickTarget(type),brief:TEMPL[type]});}
+  return plan;
+}
+function gmPrompt(){
+  const nodes=G.list.map(n=>({id:n.id,name:n.name,kind:n.kind,traced:!!S.traced[n.id]}));
+  const kinds={};Object.keys(DATA.incidents).forEach(t=>kinds[t]=DATA.incidents[t].kinds);
+  return "You are the game master of an incident simulation for people who run AI systems. The player designed this system: "+JSON.stringify({workflow:DATA.workflows[S.wf].label,nodes,protections:Object.keys(S.owned).filter(k=>S.owned[k])})+". Incident types and the component kinds each may target: "+JSON.stringify(kinds)+". Protections stop these types: guardrail injection, fallback outage, alert cost_spike, datapolicy policy_gap, gateway traffic_flood. Plan "+NR()+" incidents, one per hour, that test this design where it is weakest: prefer components the player left untraced and types with no protection. Use each type at most once and only target a node whose kind the type allows. Return only a JSON array of "+NR()+" objects: {\"hour\":1,\"type\":\"<type>\",\"target\":\"<node id>\",\"brief\":\"<one or two sentences describing only the symptoms a user or dashboard would notice; never name the component or the incident type>\"}.";
+}
+function cleanPlan(text){
+  try{const m=String(text).match(/\[[\s\S]*\]/);if(!m)return null;const arr=JSON.parse(m[0]);if(!Array.isArray(arr))return null;const out=[],used={};
+    for(let i=1;i<=NR();i++){const it=arr.find(x=>x&&+x.hour===i)||arr[i-1];let type=it&&DATA.incidents[it.type]&&!used[it.type]&&pickTarget(it.type)?it.type:null;
+      if(!type)type=Object.keys(DATA.incidents).find(t=>!used[t]&&pickTarget(t));used[type]=1;
+      const target=pickTarget(type,it&&it.target);const brief=it&&typeof it.brief==="string"&&it.brief.length>12&&it.type===type?it.brief.slice(0,260):TEMPL[type];out.push({hour:i,type,target,brief});}
+    return out;}catch(e){return null;}
+}
+async function askModel(prompt){
+  if(S.gm==="claude"&&sample){const r=await sample(prompt,{cache:false});return r&&r.text;}
+  if(S.gm==="local"&&S.localModel){const res=await fetch(S.localUrl.replace(/\/+$/,"")+"/chat/completions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:S.localModel,messages:[{role:"user",content:prompt}],temperature:0.9,stream:false})});if(!res.ok)throw new Error("HTTP "+res.status);const j=await res.json();return j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content;}
+  return null;
+}
+async function findModels(){S.modelNote="Looking…";render();try{const r=await fetch(S.localUrl.replace(/\/+$/,"")+"/models");const j=await r.json();S.models=(j.data||[]).map(m=>m.id);S.localModel=S.models[0]||"";S.modelNote=S.models.length?S.models.length+" model(s) found.":"The server answered with no models.";}catch(e){S.models=[];S.modelNote="No answer from that address. Check that the server is running and allows requests from this page.";}render();}
+async function begin(){
+  if(S.busy)return;SND.init();if(S.guided){startShift(guidePlan(),false);return;}S.busy=true;render();let plan=null;
+  if(S.gm!=="scripted"){try{plan=cleanPlan(await Promise.race([askModel(gmPrompt()),new Promise(r=>setTimeout(()=>r(null),S.gm==="local"?20000:9000))]));}catch(e){plan=null;}}
+  const byModel=!!plan;if(!plan)plan=scriptedPlan();
+  S.busy=false;startShift(plan,byModel);
+}
+
+/* ---------- Simulation ---------- */
+function makeRun(plan,seed){
+  buildGraph();FX.rebuild();_seed=seed;
+  return {t:0,tick:0,seed,spend:setupCost(),done:0,fail:0,harm:0,degraded:0,tokens:[],nextId:1,acc:0,plan,idx:0,cur:null,records:[],lat:[],log:[],failed:{},recentFail:0,recentDone:0,ended:false,hs:[],hs0:setupCost(),inputs:[],init:{traced:Object.assign({},S.traced)}};
+}
+function startShift(plan,byModel){
+  plan.forEach(it=>{if(it.onset==null)it.onset=(it.hour-1)*HOUR+5+rnd()*7;});
+  R=makeRun(plan,(Math.random()*2147483647)|0);
+  S.phase="run";S.coach="";S.speed=1;log(S.guided?"Guided shift started.":byModel?"The game master studied your design and planned the shift.":"Shift started on the scripted incident deck.");render();
+}
+/* one fixed tick of a live shift */
+let simAcc=0;
+function liveFrame(dt){simAcc+=dt*S.speed;let n=0;while(simAcc>=DT&&n<30&&S.phase==="run"){simAcc-=DT;n++;step(DT);R.tick++;}if(n>=30)simAcc=0;}
+function log(s){if(!R)return;R.log.unshift("Hr "+hourNow()+"  "+s);if(R.log.length>30)R.log.pop();}
+const hourNow=()=>R?Math.min(NR(),Math.floor(R.t/HOUR)+1):0;
+const inc=()=>{const c=R&&R.cur;return c&&c.live&&!c.resolved?c:null;};
+const curTraced=c=>!!S.traced[c.it.target]||(S.owned.gateway&&c.it.type==="cost_spike");
+function svcTime(n){
+  let ms=n.kind==="human"?DATA.latency.human:DATA.latency.agent[S.tier];n.deps.forEach(d=>ms+=(DATA.latency[G.N[d].kind]||0)*0.5);
+  const c=inc();if(c){const ty=c.it.type,tg=c.it.target;if(tg===n.id||n.deps.includes(tg)){const m=ty==="gpu_failure"?1.6:ty==="traffic_flood"?1:(DATA.latMult[ty]||1);ms*=m;}}
+  return ms/1000*(0.8+sr()*0.4);
+}
+function capOf(n){const c=inc();return c&&c.it.type==="gpu_failure"&&n.deps.includes(c.it.target)?1:n.cap;}
+function failChance(n){
+  const c=inc();if(n.kind==="human")return c&&c.it.target===n.id?DATA.incidents[c.it.type].fail:0;
+  const q=DATA.tiers[S.tier].quality;let f=1-(S.wf==="router"?q:Math.pow(q,1/Math.max(1,G.agents)));
+  if(c){const d=DATA.incidents[c.it.type];if(c.it.target===n.id)f=Math.max(f,c.it.type==="outage"?0.85:d.fail);else if(n.deps.includes(c.it.target))f=Math.max(f,c.it.type==="outage"?d.fail:d.fail*0.7);}
+  return f;
+}
+function svcCost(n){
+  if(n.kind==="human")return 0;let c=DATA.tiers[S.tier].cost*(S.owned.cache?0.75:1)/DATA.tasksPerRound;
+  const i=inc();if(i&&DATA.incidents[i.it.type].cost){const tg=G.N[i.it.target];if(i.it.target===n.id||(tg.kind==="gate"&&tg.next.includes(n.id)))c*=6;}
+  return c;
+}
+function spawn(){const t={id:R.nextId++,origin:0,w:1,born:R.t,state:"travel",at:"in",to:null,p:0};t.origin=t.id;depart(G.N.in,t);}
+function travel(t,from,to){const a=G.N[from],b=G.N[to];t.state="travel";t.at=from;t.to=to;t.p=0;t.len=Math.max(0.5,Math.hypot(b.x-a.x,b.z-a.z));R.tokens.push(t);}
+function depart(n,t){
+  const nx=n.next;if(!nx.length)return;
+  if(nx.length===1){travel(t,n.id,nx[0]);return;}
+  if(n.kind==="gate"){const c=inc(),storm=c&&c.it.target===n.id;travel(t,n.id,(storm||sr()<GATE_ESCALATES)?nx[nx.length-1]:nx[0]);return;}
+  if(S.wf==="router"&&n.kind==="router"){travel(t,n.id,nx[Math.floor(sr()*nx.length)]);return;}
+  nx.forEach(id=>travel({id:R.nextId++,origin:t.origin,w:t.w/nx.length,born:t.born},n.id,id));
+}
+function failToken(n,t){
+  n.fails++;n.heat=Math.min(1,n.heat+0.25);
+  if(!R.failed[t.origin]){R.failed[t.origin]=1;R.fail++;R.recentFail++;}
+  if(visible(n)){FX.burst(n.x,1.1,n.z,[3,0.35,0.2],14,3.2);SND.ev("fail");}
+}
+function arrive(n,t){
+  if(R.failed[t.origin])return;                                   /* a sibling already failed this request */
+  if((n.preds.length>=2||n.kind==="output")&&t.w<0.999){const j=n.join[t.origin]||(n.join[t.origin]={w:0,born:t.born});j.w+=t.w;if(j.w<0.999)return;delete n.join[t.origin];t.w=1;}
+  if(n.kind==="output"){SND.ev("done");R.done++;R.recentDone++;R.lat.push(R.t-t.born);if(R.lat.length>90)R.lat.shift();FX.burst(n.x,0.9,n.z,[1.6,1.5,1.35],3,1.4);return;}
+  if(serves(n.kind)){t.state="queue";t.at=n.id;t.q0=R.t;n.queue.push(t);return;}
+  depart(n,t);
+}
+function step(dt){
+  R.t+=dt;
+  /* arrivals */
+  const c=inc(),flood=c&&c.it.type==="traffic_flood";
+  R.acc+=dt*DATA.tasksPerRound/HOUR*(flood?2.5:1);while(R.acc>=1){R.acc-=1;spawn();}
+  /* travel */
+  const keep=[];G.E.forEach(e=>e.count=0);
+  for(const t of R.tokens){t.p+=dt*TOKEN_SPEED/t.len;if(t.p>=1)arrive(G.N[t.to],t);else{keep.push(t);}}
+  R.tokens=keep;
+  for(const t of R.tokens){const e=FX.edgeOf(t.at,t.to);if(e)e.count++;}
+  /* service */
+  for(const n of G.list){if(!serves(n.kind))continue;const cap=capOf(n);
+    while(n.busy.length<cap&&n.queue.length){const t=n.queue.shift();t.state="serve";t.svc=t.total=svcTime(n);n.busy.push(t);}
+    for(let i=n.busy.length-1;i>=0;i--){const t=n.busy[i];t.svc-=dt;if(t.svc<=0){n.busy.splice(i,1);{const sc=svcCost(n);R.spend+=sc;n.burn=(n.burn||0)+sc;if(n.burn>=15){if(visible(n))FX.cost(n.id,n.burn);n.burn=0;}}if(sr()<failChance(n))failToken(n,t);else depart(n,t);}}
+    n.heat=Math.max(0,n.heat-dt*0.35);
+  }
+  R.hs[Math.min(NR()-1,Math.floor(R.t/HOUR))]=R.spend;
+  /* running cost of tools, stores, GPUs and people */
+  R.spend+=dt/HOUR*G.list.reduce((a,n)=>a+(DATA.baseCost[n.kind]||0),0);
+  stepIncident(dt);
+  if(!R.ended&&R.t>=NR()*HOUR&&(!R.cur||R.cur.resolved))endShift();
+}
+function stepIncident(dt){
+  const c=R.cur;
+  if(!c){const it=R.plan[R.idx];if(it&&R.t>=it.onset&&R.t<NR()*HOUR){R.idx++;beginIncident(it);}return;}
+  if(c.resolved){if(R.t>c.resolvedAt+1.2){R.cur=null;render();}return;}
+  R.degraded+=dt;
+  const def=DATA.incidents[c.it.type];
+  if(def.harm&&!c.harmed&&R.t-c.onset>HARM_AFTER){c.harmed=true;R.harm++;log("Harm reached users before containment.");}
+  if(c.fixAt!=null){if(R.t>=c.fixAt)resolveIncident(c);return;}
+  if(R.t>=c.onset+ESC()){c.escalated=true;c.fixAt=R.t+ONCALL_FIX;R.spend+=DATA.escalationCost;FX.cost("out",DATA.escalationCost,true);if(def.harm&&!c.harmed){c.harmed=true;R.harm++;}log("On-call took over. "+DATA.escalationCost+" credits.");FX.shock(0.5);SND.ev("oncall");render();}
+}
+function beginIncident(it){
+  const def=DATA.incidents[it.type],stop=Object.keys(S.owned).find(k=>S.owned[k]&&DATA.catalog[k].stops===it.type);
+  const c={it,onset:R.t,live:!stop,auto:!!stop,resolved:false,found:false,attempts:0,lockUntil:0,fixAt:null,right:false,traced:false};
+  c.traced=curTraced(c);R.cur=c;const n=G.N[it.target];
+  if(stop){c.resolved=true;c.resolvedAt=R.t;c.detect=0;c.recover=0;R.records.push(c);log(DATA.catalog[stop].label+" contained "+def.label.toLowerCase()+" at "+n.name+".");FX.ring(n.x,n.z,2);FX.burst(n.x,1.2,n.z,[1.6,1.5,1.35],40,4);SND.ev("contain");}
+  else{log("Something is wrong.");FX.shock(1);FX.alarm=1;SND.ev("hit");if(c.traced){FX.ring(n.x,n.z,1);FX.burst(n.x,1.2,n.z,[3,0.3,0.15],90,6);}else{const o=G.N.out;FX.ring(o.x,o.z,1);}}
+  if(S.phase==="replay")replayNote(c);
+  render();
+}
+function resolveIncident(c){
+  c.resolved=true;c.resolvedAt=R.t;c.recover=R.t-c.onset;if(c.detect==null)c.detect=c.recover;R.records.push(c);const n=G.N[c.it.target];
+  log((c.right?"Resolved: ":"On-call resolved: ")+DATA.incidents[c.it.type].label.toLowerCase()+" at "+n.name+".");
+  if(visible(n)){FX.ring(n.x,n.z,2);FX.burst(n.x,1.2,n.z,[1.6,1.5,1.35],50,4.5);}FX.alarm=0;SND.ev("resolve");render();
+}
+function act(action){
+  const c=inc();if(!c||c.fixAt!=null||!S.sel||R.t<c.lockUntil||S.speed===0)return;if(S.phase==="run")R.inputs.push({tick:R.tick,k:"act",sel:S.sel,action});c.attempts++;const def=DATA.incidents[c.it.type];
+  if(S.sel===c.it.target){if(!c.found){c.found=true;c.first=c.attempts===1;c.detect=R.t-c.onset;}
+    if(action===def.fix){c.right=true;c.fixAt=R.t+FIX;R.spend+=def.fixCost||0;if(def.fixCost)FX.cost(S.sel,def.fixCost);log("Right call: "+DATA.actions[action].toLowerCase()+" at "+G.N[S.sel].name+".");const n=G.N[S.sel];FX.ring(n.x,n.z,2);SND.ev("right");render();return;}}
+  R.spend+=WRONG_COST;FX.cost(S.sel,WRONG_COST,true);c.lockUntil=R.t+LOCK;log("Wrong call at "+G.N[S.sel].name+". "+WRONG_COST+" credits.");FX.shock(0.6);SND.ev("wrong");render();
+}
+function traceMid(){const n=G.N[S.sel];if(!n||S.traced[n.id]||fixedKind(n.kind))return;const cost=Math.round(DATA.traceCost*DATA.midRunMarkup);if(S.phase==="run")R.inputs.push({tick:R.tick,k:"trace",id:n.id});S.traced[n.id]=true;SND.ev("trace");R.spend+=cost;FX.cost(n.id,cost);log("Added tracing to "+n.name+" for "+cost+".");FX.ring(n.x,n.z,2);const c=inc();if(c)c.traced=curTraced(c);render();}
+function scores(){
+  const total=R.done+R.fail,inc=R.records.length;
+  const B=R.spend<=DATA.budget?100:Math.max(0,100-(R.spend-DATA.budget)/DATA.budget*250);
+  const T=100*(1-clamp(R.degraded/(NR()*HOUR),0,1));
+  const Rl=total?100*R.done/total:100,Sf=Math.max(0,100-50*R.harm);
+  const A=inc?100*R.records.filter(r=>r.auto||r.first).length/inc:100;
+  const parts={Budget:B,Time:T,Reliability:Rl,Safety:Sf,Awareness:A};
+  const idx=Math.round(Math.pow(Object.values(parts).reduce((a,v)=>a*Math.max(1,v),1),1/5));
+  return {parts,idx};
+}
+function endShift(){
+  if(S.phase==="replay"){finishReplay();return;}
+  R.ended=true;SND.ev("lift");if(R.cur&&!R.cur.resolved){const c=R.cur;c.resolved=true;c.resolvedAt=R.t;c.recover=R.t-c.onset;if(c.detect==null)c.detect=c.recover;R.records.push(c);}
+  S.phase="debrief";S.sel=null;FX.alarm=0;FX.liftFog();
+  const sc=scores(),missed=R.records.filter(r=>!r.auto&&!r.found);
+  S.coach="Stewardship Index "+sc.idx+". "+(missed.length?missed.length+" incident(s) began in components you could not see into, so the cause stayed hidden while damage accrued. Tracing those components, or buying the protection that contains that incident type, is where the next shift improves most.":"You found every root cause. The remaining gains are in spend and in how fast each fix landed.");
+  render();
+  if(S.gm!=="scripted"){const facts=R.records.map(r=>({hour:r.it.hour,incident:DATA.incidents[r.it.type].label,at:G.N[r.it.target].name,traced:r.traced,outcome:r.auto?"contained by a protection":r.right?"fixed by the player":r.found?"found, wrong action":"missed",seconds_to_recover:Math.round(r.recover)}));
+    askModel("You are coaching a player after a simulated shift running an AI system. Facts from this run, which you must not change: "+JSON.stringify({index:sc.idx,scores:sc.parts,spend:Math.round(R.spend),budget:DATA.budget,incidents:facts})+". In four sentences or fewer, tell the player the one design decision that cost them most and the one change to make next shift. Cite incidents from this run by name. Plain text only.").then(t=>{if(t&&S.phase==="debrief"){S.coach=String(t).trim().slice(0,900);render();}}).catch(()=>{});}
+}
+function reset(){R=null;S.phase="design";S.sel=null;S.guided=false;buildGraph();FX.rebuild();render();}
+
+/* ---------- Replay: the same shift again, from the same seed and the same calls, with nothing hidden ---------- */
+let RP=null;
+function startReplay(){
+  if(!R||RP)return;RP={saved:R,traced:S.traced,i:0,slow:1.5,cap:"The same shift, with the fog removed. Red marks each root cause from the moment it began."};
+  S.traced=Object.assign({},R.init.traced);const live=R;S.phase="replay";S.sel=null;S.speed=1;
+  R=makeRun(live.plan,live.seed);R.inputs=live.inputs;SND.replay=true;SND.ev("lift");render();
+}
+function replayNote(c){const n=G.N[c.it.target],def=DATA.incidents[c.it.type];S.sel=n.id;RP.slow=2.6;
+  RP.cap="Hour "+c.it.hour+": "+def.label+" began at "+n.name+". "+(c.auto?"Your protection contained it.":RP.saved.init.traced[n.id]||S.traced[n.id]?"You had traced it, so you could see this.":"It sat in fog. You saw only the effects downstream.");}
+function replayFrame(dt){
+  if(!RP)return;RP.slow=Math.max(0,RP.slow-dt);let n=RP.slow>0?2:14;
+  while(n-->0&&S.phase==="replay"){
+    const inp=R.inputs;
+    while(RP.i<inp.length&&inp[RP.i].tick<=R.tick){const e=inp[RP.i++];RP.slow=1.8;
+      if(e.k==="act"){const c=inc(),ok=c&&e.sel===c.it.target&&e.action===DATA.incidents[c.it.type].fix;S.sel=e.sel;RP.cap=(ok?"Your call was right: ":"Your call missed: ")+String(DATA.actions[e.action]||e.action).toLowerCase()+" at "+G.N[e.sel].name+"."+(ok||!c?"":" The cause was "+G.N[c.it.target].name+".");act(e.action);}
+      else{S.sel=e.id;RP.cap="You paid to trace "+G.N[e.id].name+" here.";traceMid();}}
+    step(DT);if(S.phase==="replay")R.tick++;
+  }
+}
+function finishReplay(){if(!RP)return;R=RP.saved;S.traced=RP.traced;RP=null;S.phase="debrief";S.sel=null;SND.replay=false;FX.alarm=0;buildGraph();FX.rebuild();FX.liftFog(1);render();}
+
+/* ---------- Guided first shift: two incidents, one you can see and one you cannot ---------- */
+const guidePlan=()=>[{hour:1,type:"runaway_loop",target:"ret",brief:TEMPL.runaway_loop,onset:10},{hour:2,type:"slow",target:"tool",brief:TEMPL.slow,onset:HOUR+7}];
+function startGuide(){SND.init();S.guided=true;S.wf="serial";S.tier="medium";S.owned={};S.traced={};S.sel=null;S.gm="scripted";buildGraph();FX.rebuild();render();}
+function guideText(){
+  if(S.phase==="design")return S.traced.ret?["Step 2 of 5: Start the Shift","The smoke around the Retriever has cleared, and the floor grid shows beneath it. Everything else is still in fog. Press Start the Shift."]:["Step 1 of 5: Buy Awareness","Every component starts in fog. Under Tracing, select Retriever and watch the smoke clear. That is what 25 credits buys."];
+  if(S.phase==="replay")return ["Step 5 of 5: The Fog, Lifted","This is the shift you just ran, with nothing hidden. Watch where each cause began."];
+  if(S.phase==="debrief")return ["Step 5 of 5: See What You Missed","Press Watch the Replay Without Fog. It reruns your shift with every component visible."];
+  const c=inc(),done=R.records.length;
+  if(c&&c.it.hour===1)return curTraced(c)?["Step 3 of 5: A Cause You Can See","The Retriever turned red and the alert names the problem, because you traced it. Select Retriever, then choose Throttle."]:["Step 3 of 5: A Cause in Fog","You skipped tracing, so the alert cannot name the cause. Select Retriever, then choose Throttle."];
+  if(c)return curTraced(c)?["Step 4 of 5: Now You Can See It","Tracing revealed the cause. Choose Reroute or Restart."]:["Step 4 of 5: A Cause in Fog","The alert cannot name this one. Look at the Retriever: it is slow and its queue is growing, yet it is healthy, so the trouble is in something that feeds it. Select Search tool, then Reroute or Restart. You can also pay to trace it now."];
+  return done===0?["Step 3 of 5: Watch the Flow","Bright dots are requests moving left to right. At the Retriever you can see requests waiting, in amber, and in service. At fogged components they vanish from view."]:done===1?["Step 4 of 5: The Next One Is Hidden","That was quick because you could see it. The next incident starts inside the fog."]:["Step 5 of 5: Finish the Shift","Both incidents are over. The debrief follows when the clock runs out. Press Fast to skip ahead."];
+}
+function guideCard(){const g=guideText();return h("div",{class:"card guide"},h("h2",{},g[0]),h("p",{},g[1]),S.phase==="design"||S.phase==="debrief"?h("button",{class:"ghost",onclick:()=>{S.guided=false;if(S.phase==="design"){buildGraph();FX.rebuild();}render();}},"Leave the Guide"):null);}
+
+/* ---------- Interface ---------- */
+function tile(label,val,bad,bar){return h("div",{class:"tile"},h("span",{},label),h("b",{class:bad?"bad":""},val),bar!=null?h("div",{class:"bar"},h("i",{class:bar>1?"over":"",style:"width:"+Math.min(100,bar*100)+"%"})):null);}
+function p95(){if(!R||!R.lat.length)return 0;const a=R.lat.slice().sort((x,y)=>x-y);return a[Math.floor(a.length*0.95)]||a[a.length-1];}
+function renderTiles(){
+  const el=$("tiles");el.textContent="";
+  if(S.phase==="design"||!R){const pr=projected();el.append(tile("Budget",DATA.budget),tile("Setup Spend",setupCost()),tile("Projected Spend",Math.round(pr),pr>DATA.budget,pr/DATA.budget),tile("Traced",Object.keys(S.traced).length+" of "+G.list.filter(n=>!fixedKind(n.kind)).length),tile("Agents",G.agents),tile("Shift",NR()+" hours"));return;}
+  const total=R.done+R.fail,cpt=R.done?R.spend/R.done:0,mins=Math.floor((R.t%HOUR)/HOUR*60);
+  el.append(tile("Clock","Hr "+hourNow()+" :"+String(mins).padStart(2,"0")),tile("Spend / Budget",Math.round(R.spend)+" / "+DATA.budget,R.spend>DATA.budget,R.spend/DATA.budget),
+    tile("Completed",R.done),tile("Failed",R.fail,total&&R.fail/total>0.15),tile("Slow Tail",p95().toFixed(1)+" s",p95()>6),tile("Margin per Task",(DATA.price-cpt>=0?"+":"−")+Math.abs(DATA.price-cpt).toFixed(2),DATA.price-cpt<0));
+}
+function renderAlert(){
+  const el=$("alert");el.textContent="";const c=inc();if(!c||S.phase!=="run")return;const tr=curTraced(c),def=DATA.incidents[c.it.type],left=clamp(1-(R.t-c.onset)/ESC(),0,1);
+  el.append(h("div",{class:"alert"+(tr?" trace":"")},h("h3",{},icon(tr?def.icon:"incident",20),"Hour "+c.it.hour+": Something Is Wrong"),h("p",{},c.it.brief),
+    h("p",{style:"margin-top:5px;font-weight:700"},tr?(S.traced[c.it.target]?"Trace: ":"Gateway meter: ")+def.label+" at "+G.N[c.it.target].name+".":"The cause sits in fog. Watch where requests queue, stall, or vanish."),
+    h("div",{class:"fuse"},h("i",{id:"fuse",style:"width:"+left*100+"%"}))));
+}
+function railDesign(){
+  const cards=[];
+  if(!S.guided)cards.push(h("div",{class:"card"},h("h2",{},"New Here?"),h("p",{class:"note"},"A two-hour practice shift shows what tracing buys and what fog hides."),h("button",{id:"guide",onclick:startGuide},"Take the Guided First Shift")));
+  cards.push(h("div",{class:"card"},h("h2",{},"Game Master"),h("label",{for:"s-gm"},"Who plans the incidents"),
+    h("select",{id:"s-gm",onchange:e=>{S.gm=e.target.value;render();}},[["scripted","Scripted incident deck"],sample?["claude","Claude reads your design"]:null,["local","A model on your own machine"]].filter(Boolean).map(o=>h("option",{value:o[0],selected:S.gm===o[0]},o[1]))),
+    S.gm==="local"?[h("label",{for:"s-url"},"Server address (OpenAI-compatible)"),h("input",{id:"s-url",value:S.localUrl,onchange:e=>{S.localUrl=e.target.value;}}),h("div",{style:"margin-top:8px"},h("button",{class:"ghost",onclick:findModels},"Find Models on This Server")),
+      S.models.length?[h("label",{for:"s-model"},"Model"),h("select",{id:"s-model",onchange:e=>{S.localModel=e.target.value;}},S.models.map(m=>h("option",{value:m,selected:S.localModel===m},m)))]:null,S.modelNote?h("p",{class:"note",style:"margin-top:6px"},S.modelNote):null]:
+      h("p",{class:"note",style:"margin-top:8px"},S.gm==="claude"?"Claude studies your design and plans incidents where it is weakest, then coaches the debrief.":"The scripted deck targets your untraced components without reading your design.")));
+  cards.push(h("div",{class:"card"},h("h2",{},"Design the System You Will Run"),h("p",{class:"note"},"You have "+DATA.budget+" credits for a "+NR()+"-hour shift. Whatever you leave untraced stays in fog: when it breaks you see only the effects downstream."),
+    h("label",{for:"s-wf"},"Workflow"),h("select",{id:"s-wf",onchange:e=>{S.wf=e.target.value;S.traced={};S.sel=null;buildGraph();FX.rebuild();render();}},Object.keys(DATA.workflows).map(k=>h("option",{value:k,selected:S.wf===k},DATA.workflows[k].label))),
+    h("label",{for:"s-tier"},"Model tier for every agent"),h("select",{id:"s-tier",onchange:e=>{S.tier=e.target.value;render();}},Object.keys(DATA.tiers).map(k=>h("option",{value:k,selected:S.tier===k},DATA.tiers[k].label+": "+DATA.tiers[k].cost+" per agent-hour, "+Math.round(DATA.tiers[k].quality*100)+"% quality"))),
+    h("h3",{},icon("action-add-tracing",15),"Tracing, "+DATA.traceCost+" Credits per Component"),
+    h("div",{class:"chips"},G.list.filter(n=>!fixedKind(n.kind)).map(n=>h("button",{class:S.traced[n.id]?"on":"ghost","data-trace":n.id,onclick:()=>{SND.init();if(S.traced[n.id])delete S.traced[n.id];else{S.traced[n.id]=true;FX.ring(n.x,n.z,2);SND.ev("trace");}S.sel=n.id;render();}},icon(n.icon,14),n.name))),
+    h("h3",{},"Protections"),h("div",{class:"opts"},Object.keys(DATA.catalog).map(k=>{const c=DATA.catalog[k];return h("div",{class:"opt"+(S.owned[k]?" on":"")},h("div",{},h("span",{style:"display:flex;align-items:center;gap:6px;font-weight:600"},icon(c.icon,15),c.label),h("small",{},c.desc)),h("div",{style:"display:flex;align-items:center;gap:8px"},h("b",{},c.cost),h("button",{class:S.owned[k]?"on":"ghost","data-buy":k,onclick:()=>{S.owned[k]=!S.owned[k];if(k==="gateway"){buildGraph();FX.rebuild();}render();}},S.owned[k]?"Owned":"Buy")));}))));
+  cards.push(h("div",{class:"card"},h("button",{class:"big",id:"start",disabled:S.busy,onclick:begin},S.busy?"The Game Master Is Reading Your Design…":"Start the Shift")));
+  return cards;
+}
+function railRun(){
+  const cards=[],c=inc();
+  cards.push(h("div",{class:"card"},h("div",{style:"display:flex;justify-content:space-between;align-items:center"},h("h2",{style:"margin:0"},"Shift"),h("div",{class:"speed"},[["Pause",0],["Normal",1],["Fast",3]].map(o=>h("button",{class:S.speed===o[1]?"on":"ghost",onclick:()=>{S.speed=o[1];render();}},o[0]))))));
+  if(c){const locked=R.t<c.lockUntil,fixing=c.fixAt!=null;
+    cards.push(h("div",{class:"card"},h("h2",{},"Where Do You Act?"),h("p",{class:"note"},"Select the suspect here or in the 3D view."),
+      h("div",{class:"chips"},G.list.filter(n=>!fixedKind(n.kind)).map(n=>h("button",{class:S.sel===n.id?"on":"ghost","data-sus":n.id,onclick:()=>{S.sel=n.id;render();}},icon(n.icon,14),n.name+(S.traced[n.id]?"":" (fog)")))),
+      S.sel&&!S.traced[S.sel]&&!fixedKind(G.N[S.sel].kind)?h("div",{style:"margin-top:10px"},h("button",{class:"ghost",id:"tracemid",onclick:traceMid},icon("action-add-tracing",15),"Add tracing here now, "+Math.round(DATA.traceCost*DATA.midRunMarkup)+" credits")):null,
+      h("h3",{},icon("response-action",15),"What Do You Do?"),
+      fixing?h("p",{},c.escalated?"On-call is handling it.":"Right call. The system is recovering."):locked?h("p",{},"Wrong call. Act again in a few seconds."):null,
+      h("div",{class:"acts"},Object.keys(DATA.actions).map(a=>h("button",{disabled:!S.sel||locked||fixing||S.speed===0,"data-act":a,onclick:()=>act(a)},icon(DATA.actionIcons[a],15),DATA.actions[a]))),
+      S.speed===0?h("p",{class:"note",style:"margin-top:8px"},"The clock is paused. Resume to act."):null));
+  } else cards.push(inspectCard());
+  cards.push(h("div",{class:"card"},h("h2",{},"Shift Log"),h("div",{class:"log"},R.log.map(l=>h("div",{},l)))));
+  return cards;
+}
+function inspectCard(){
+  const n=S.sel&&G.N[S.sel];if(!n)return h("div",{class:"card"},h("h2",{},"All Quiet"),h("p",{class:"note"},"Requests are flowing. Select a component to look inside it, if you traced it."));
+  if(!visible(n))return h("div",{class:"card"},h("h2",{style:"display:flex;gap:8px;align-items:center"},icon(n.icon,20),n.name),h("p",{class:"note"},"This component sits in fog. You did not trace it, so its queue, failures, and spend are hidden."),S.phase==="run"?h("button",{class:"ghost",onclick:traceMid},icon("action-add-tracing",15),"Add tracing now, "+Math.round(DATA.traceCost*DATA.midRunMarkup)+" credits"):null);
+  const rows=[];if(serves(n.kind)){rows.push(["In service",n.busy.length+" of "+capOf(n)],["Waiting",n.queue.length],["Failures so far",n.fails]);}else if(isRes(n.kind)){rows.push(["Feeds",G.list.filter(x=>x.deps.includes(n.id)).map(x=>x.name).join(", ")||"nothing"]);}else rows.push(["Passes requests to",n.next.map(id=>G.N[id].name).join(", ")||"users"]);
+  return h("div",{class:"card"},h("h2",{style:"display:flex;gap:8px;align-items:center"},icon(n.icon,20),"Inside "+n.name),h("table",{},rows.map(r=>h("tr",{},h("td",{},r[0]),h("td",{style:"font-family:var(--mono)"},r[1])))));
+}
+function railDebrief(){
+  const sc=scores();
+  return [h("div",{class:"card"},h("h2",{},"Stewardship Index"),h("div",{class:"big-index"},sc.idx),h("div",{class:"subs"},Object.keys(sc.parts).map(k=>h("div",{},h("span",{},k),h("b",{},Math.round(sc.parts[k]))))),h("p",{class:"note"},"The index is the geometric mean of the five scores, so one weak area pulls the whole result down.")),
+    h("div",{class:"card"},h("h2",{},"The Fog, Lifted"),h("table",{},h("tr",{},["Hr","Incident","Root Cause","Outcome"].map(t=>h("th",{},t))),R.records.map(r=>h("tr",{},h("td",{},r.it.hour),h("td",{},h("span",{style:"display:flex;gap:5px;align-items:flex-start"},icon(DATA.incidents[r.it.type].icon,14),DATA.incidents[r.it.type].label)),h("td",{},G.N[r.it.target].name+(r.traced?"":" (fog)")),h("td",{},r.auto?"contained":r.right?"fixed in "+Math.round(r.recover)+" s":r.found?"found, wrong action":"missed"))))),
+    h("div",{class:"card"},h("h2",{},"Time to Find and Fix"),h("p",{class:"note"},"Seconds from the start of each incident."),R.records.length?chartTimeline():h("p",{},"No incidents this shift.")),
+    h("div",{class:"card"},h("h2",{},"Spend Against Budget"),h("p",{class:"note"},"Total credits by the end of each hour."),chartSpend()),
+    h("div",{class:"card"},h("h2",{},"Debrief"),h("p",{},S.coach),h("button",{class:"big",id:"replay",onclick:startReplay},"Watch the Replay Without Fog")),
+    h("div",{class:"card"},h("button",{class:"big",onclick:reset},"Design Another Shift"))];
+}
+/* debrief charts, drawn as inline SVG */
+function chartBox(svg,key){
+  const d=h("div",{class:"chart"});d.innerHTML=(key||"")+svg+'<div class="tip" role="status">Point at a bar or a dot for the numbers.</div>';const tip=d.querySelector(".tip");
+  const show=e=>{const t=e.target.closest&&e.target.closest("[data-tip]");if(t)tip.textContent=t.getAttribute("data-tip");};d.addEventListener("pointerover",show);d.addEventListener("focusin",show);return d;
+}
+function chartTimeline(){
+  const W=336,L=44,Rr=40,rowH=22,recs=R.records,esc=ESC(),max=Math.max(esc+ONCALL_FIX+2,...recs.map(r=>r.recover||0)),sx=v=>L+(W-L-Rr)*v/max,H=recs.length*rowH+26;
+  let g="";const step=max>60?30:10;
+  for(let v=0;v<=max;v+=step)g+=`<line x1="${sx(v)}" x2="${sx(v)}" y1="0" y2="${H-22}" stroke="#f2eee4" stroke-opacity=".12"/><text x="${sx(v)}" y="${H-10}" text-anchor="middle">${v}</text>`;
+  g+=`<line x1="${sx(esc)}" x2="${sx(esc)}" y1="0" y2="${H-22}" style="stroke:var(--amber)" stroke-dasharray="3 3"/><text x="${sx(esc)}" y="${H}" text-anchor="middle" style="fill:var(--amber)">on-call</text><text x="${W}" y="${H-10}" text-anchor="end">s</text>`;
+  recs.forEach((r,i)=>{const y=i*rowH+4,def=DATA.incidents[r.it.type],nm=def.label+" at "+G.N[r.it.target].name,det=Math.min(r.detect==null?r.recover:r.detect,r.recover),found=r.found&&det<r.recover;
+    g+=`<text x="0" y="${y+11}" class="v">Hr ${r.it.hour}</text>`;
+    if(r.auto){g+=`<circle cx="${sx(0)+5}" cy="${y+7}" r="5" fill="#f2eee4" tabindex="0" data-tip="Hour ${r.it.hour}: ${nm}. A protection contained it at once."/><text x="${sx(0)+16}" y="${y+11}" class="v">contained</text>`;return;}
+    const x0=sx(0),xd=sx(det),x1=sx(r.recover),tipU=`Hour ${r.it.hour}: ${nm}. ${r.found?"Cause found after "+det.toFixed(0)+" s.":"Cause never found; on-call took over."} Recovered at ${r.recover.toFixed(0)} s.`;
+    g+=`<rect x="${x0}" y="${y}" width="${Math.max(2,xd-x0-(found?2:0))}" height="14" rx="${found?0:2}" style="fill:var(--red)" tabindex="0" data-tip="${tipU}"/>`;
+    if(found)g+=`<rect x="${xd}" y="${y}" width="${Math.max(2,x1-xd)}" height="14" rx="2" fill="#f2eee4" tabindex="0" data-tip="${tipU}"/>`;
+    g+=`<text x="${Math.min(x1+5,W-26)}" y="${y+11}" class="v">${r.recover.toFixed(0)} s</text>`;});
+  return chartBox(`<svg viewBox="0 0 ${W} ${H+2}" width="100%" role="img" aria-label="Seconds from the start of each incident to finding the cause and to recovery">${g}</svg>`,'<div class="key"><span><i style="background:var(--red)"></i>Cause not yet found</span><span><i style="background:#f2eee4"></i>Found, not yet fixed</span></div>');
+}
+function chartSpend(){
+  const W=336,H=150,L=38,Rr=44,T=10,Bm=22,n=NR(),pts=[R.hs0].concat(Array.from({length:n},(_,i)=>R.hs[i]!=null?R.hs[i]:R.spend));pts[n]=R.spend;
+  const max=Math.max(DATA.budget,R.spend)*1.12,sx=i=>L+(W-L-Rr)*i/n,sy=v=>T+(H-T-Bm)*(1-v/max),by=sy(DATA.budget),over=R.spend>DATA.budget;
+  let g="";const st=max>3000?1000:500;for(let v=0;v<=max;v+=st)g+=`<line x1="${L}" x2="${W-Rr}" y1="${sy(v)}" y2="${sy(v)}" stroke="#f2eee4" stroke-opacity=".12"/><text x="${L-6}" y="${sy(v)+3}" text-anchor="end">${v}</text>`;
+  for(let i=0;i<=n;i++)g+=`<text x="${sx(i)}" y="${H-6}" text-anchor="middle">${i===0?"Start":"Hr "+i}</text>`;
+  g+=`<line x1="${L}" x2="${W-Rr}" y1="${by}" y2="${by}" stroke="#f2eee4" stroke-width="1.5" stroke-dasharray="5 4"/><text x="${W-Rr+5}" y="${by+(over?12:-4)}" class="v">Budget</text>`;
+  g+=`<polyline fill="none" style="stroke:var(--red)" stroke-width="2" stroke-linejoin="round" points="${pts.map((v,i)=>sx(i)+","+sy(v)).join(" ")}"/>`;
+  pts.forEach((v,i)=>{const d=i?v-pts[i-1]:v;g+=`<circle cx="${sx(i)}" cy="${sy(v)}" r="4.5" style="fill:var(--red)" stroke="#000" stroke-width="2" tabindex="0" data-tip="${i===0?"Before the shift: "+Math.round(v)+" credits on setup, tracing and protections.":"Hour "+i+": "+Math.round(d)+" credits spent this hour, "+Math.round(v)+" in total."+(v>DATA.budget?" Over budget by "+Math.round(v-DATA.budget)+".":"")}"/>`;});
+  g+=`<text x="${W-Rr+5}" y="${sy(R.spend)+(over?-4:12)}" class="v">${Math.round(R.spend)}</text>`;
+  return chartBox(`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Total credits spent by the end of each hour, against the budget">${g}</svg>`);
+}
+function railReplay(){
+  return [h("div",{class:"card"},h("h2",{},"Replay: The Fog, Lifted"),h("p",{style:"font-weight:600;min-height:3.9em"},RP?RP.cap:""),h("div",{class:"bar"},h("i",{id:"rbar",style:"width:"+clamp(R.t/(NR()*HOUR),0,1)*100+"%"})),h("p",{class:"note",style:"margin-top:8px"},"Components marked in amber were in fog while you played."),h("button",{class:"ghost",onclick:finishReplay},"Skip to the Debrief"))];
+}
+function render(){
+  $("phase").textContent=S.phase==="design"?"Design":S.phase==="run"?"On Shift":S.phase==="replay"?"Replay":"Debrief";
+  const rail=$("rail");rail.textContent="";rail.append(...(S.guided?[guideCard()]:[]),...(S.phase==="design"?railDesign():S.phase==="run"?railRun():S.phase==="replay"?railReplay():railDebrief()));
+  renderTiles();renderAlert();FX.sync();
+}
+
+/* ---------- Hue: one setting shared by the Orrery Nine site and Decision Studio, remembered in this browser ---------- */
+var HUE=(function(){
+  var st={deg:0,cycle:false,speed:2},subs=[],acc=0,sv=0;
+  try{var v=JSON.parse(localStorage.getItem("o9-hue")||"null");if(v){st.deg=((+v.deg||0)%360+360)%360;st.cycle=!!v.cycle;st.speed=Math.min(12,Math.max(0.5,+v.speed||2));}}catch(e){}
+  function save(){try{localStorage.setItem("o9-hue",JSON.stringify(st));}catch(e){}}
+  /* turn a colour around the wheel; hues that come out darker than the original are lifted so black text on them stays readable */
+  function tint(hex){
+    if(!st.deg)return hex;var n=parseInt(hex.slice(1),16),c=[(n>>16)/255,(n>>8&255)/255,(n&255)/255];
+    var mx=Math.max(c[0],c[1],c[2]),mn=Math.min(c[0],c[1],c[2]),d=mx-mn,h=0;if(d)h=mx===c[0]?((c[1]-c[2])/d+6)%6:mx===c[1]?(c[2]-c[0])/d+2:(c[0]-c[1])/d+4;
+    h=((h*60+st.deg)%360+360)%360;var x=d*(1-Math.abs(h/60%2-1)),q=h<60?[d,x,0]:h<120?[x,d,0]:h<180?[0,d,x]:h<240?[0,x,d]:h<300?[x,0,d]:[d,0,x],r=[q[0]+mn,q[1]+mn,q[2]+mn];
+    var L=function(a){return .299*a[0]+.587*a[1]+.114*a[2];},l0=L(c),l1=L(r);
+    if(l1<l0)r=r.map(function(u){return Math.min(1,u+l0-l1);});else if(l1>0){var k=(l0+l1)/2/l1;r=r.map(function(u){return u*k;});}
+    return "#"+r.map(function(u){return ("0"+Math.round(u*255).toString(16)).slice(-2);}).join("");
+  }
+  function fire(){for(var i=0;i<subs.length;i++)subs[i]();}
+  return {st:st,tint:tint,on:function(f){subs.push(f);},
+    set:function(k,v){st[k]=v;if(k==="deg")st.deg=((v%360)+360)%360;save();fire();},
+    reset:function(){st.deg=0;st.cycle=false;st.speed=2;save();fire();},
+    /* call once per frame with the seconds elapsed; returns true while the hue is drifting */
+    frame:function(dt){if(!st.cycle)return false;st.deg=(st.deg+dt*st.speed)%360;acc+=dt;sv+=dt;if(acc>0.15){acc=0;fire();}if(sv>3){sv=0;save();}return true;}};
+})();
+HUE.on(function(){const r=document.documentElement.style;r.setProperty("--red",HUE.tint("#ff2e1f"));r.setProperty("--deep",HUE.tint("#8e130c"));r.setProperty("--amber",HUE.tint("#ffb000"));const o=$("hdeg");if(o&&HUE.st.cycle){o.value=String(Math.round(HUE.st.deg));$("hdegv").textContent=o.value;}});
+function huePanel(){
+  const m=$("huep");m.innerHTML="";const st=HUE.st;
+  const deg=h("input",{id:"hdeg",type:"range",min:"0",max:"359",step:"1",value:String(Math.round(st.deg)),"aria-label":"Hue shift in degrees"}),dv=h("span",{id:"hdegv"},String(Math.round(st.deg)));
+  const cyc=h("button",{class:"ghost",onclick:()=>{HUE.set("cycle",!st.cycle);cyc.textContent=st.cycle?"Stop Cycling":"Cycle Slowly";}},st.cycle?"Stop Cycling":"Cycle Slowly");
+  deg.addEventListener("input",()=>{if(st.cycle)HUE.set("cycle",false);HUE.set("deg",+deg.value);dv.textContent=deg.value;cyc.textContent="Cycle Slowly";});
+  const sp=h("input",{type:"range",min:"0.5",max:"12",step:"0.5",value:String(st.speed),"aria-label":"Cycle speed in degrees per second"}),spv=h("span",{},String(st.speed));
+  sp.addEventListener("input",()=>{HUE.set("speed",+sp.value);spv.textContent=sp.value;});
+  m.append(h("h2",{},"Hue"),h("div",{class:"wheel"}),h("label",{},"Shift",deg,dv),h("label",{},"Cycle speed",sp,spv),h("p",{class:"note"},"Speed is in degrees per second. At 2, a full turn takes three minutes."),
+    h("div",{class:"row"},cyc,h("button",{class:"ghost",onclick:()=>{HUE.reset();huePanel();}},"Reset to Red"),h("button",{class:"ghost",onclick:()=>{m.hidden=true;}},"Close")));
+}
+
+/* ---------- Sound: everything is generated in the browser, no audio files ---------- */
+const SND=(function(){
+  let ac=null,master=null,hum=null,on=true,lastDone=0,lastFail=0,nextBeep=0,nbuf=null,bus=null;const api={replay:false},B={};
+  /* one volume per kind of sound, remembered in this browser */
+  const DEF={master:0.7,hum:0.3,beep:0.7,incident:1,call:1,flow:0.6},vol=Object.assign({},DEF);
+  try{const v=JSON.parse(localStorage.getItem("ds-sound")||"null");if(v){Object.keys(DEF).forEach(k=>{if(typeof v[k]==="number")vol[k]=clamp(v[k],0,1);});on=v.on!==false;}}catch(e){}
+  const save=()=>{try{localStorage.setItem("ds-sound",JSON.stringify(Object.assign({on},vol)));}catch(e){}};
+  const apply=()=>{if(!ac)return;master.gain.value=on?vol.master*0.8:0;["hum","beep","incident","call","flow"].forEach(k=>B[k].gain.value=vol[k]);};
+  const BUS={done:"flow",fail:"flow",hit:"incident",oncall:"incident",contain:"incident",resolve:"incident",lift:"incident",right:"call",wrong:"call",trace:"call"};
+  function init(){
+    if(ac){if(ac.state==="suspended")ac.resume();return;}const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+    try{ac=new AC();}catch(e){ac=null;return;}
+    master=ac.createGain();const comp=ac.createDynamicsCompressor();master.connect(comp);comp.connect(ac.destination);
+    ["hum","beep","incident","call","flow"].forEach(k=>{B[k]=ac.createGain();B[k].connect(master);});bus=B.call;apply();
+    /* the hum: two detuned saws and a sine through a low-pass filter; traffic opens the filter, an incident detunes it */
+    const g=ac.createGain();g.gain.value=0;const f=ac.createBiquadFilter();f.type="lowpass";f.frequency.value=160;
+    const o1=ac.createOscillator(),o2=ac.createOscillator(),o3=ac.createOscillator();o1.type="sawtooth";o2.type="sawtooth";o3.type="sine";o1.frequency.value=55;o2.frequency.value=55.6;o3.frequency.value=110;
+    [o1,o2,o3].forEach(o=>{o.connect(f);o.start();});f.connect(g);g.connect(B.hum);hum={g,f,o2};
+  }
+  function tone(freq,dur,type,vol,to,delay){if(!ac||!on)return;const t=ac.currentTime+(delay||0),o=ac.createOscillator(),g=ac.createGain();o.type=type||"sine";o.frequency.setValueAtTime(freq,t);if(to)o.frequency.exponentialRampToValueAtTime(to,t+dur);
+    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.012);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);o.connect(g);g.connect(bus);o.start(t);o.stop(t+dur+0.05);}
+  function noise(dur,vol,f0,f1,delay){if(!ac||!on)return;if(!nbuf){nbuf=ac.createBuffer(1,ac.sampleRate*2,ac.sampleRate);const d=nbuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;}
+    const t=ac.currentTime+(delay||0),src=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();src.buffer=nbuf;f.type="bandpass";f.Q.value=0.8;f.frequency.setValueAtTime(f0,t);f.frequency.exponentialRampToValueAtTime(f1,t+dur);
+    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+dur*0.25);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);src.connect(f);f.connect(g);g.connect(bus);src.start(t);src.stop(t+dur+0.05);}
+  api.init=init;api.isOn=()=>on;
+  api.toggle=function(){on=!on;init();apply();save();return on;};
+  api.vol=vol;api.set=function(k,v){vol[k]=clamp(v,0,1);init();apply();save();};api.reset=function(){Object.assign(vol,DEF);on=true;init();apply();save();};
+  api.test=function(k){init();if(k==="beep"){bus=B.beep;tone(800,0.07,"square",0.08);tone(800,0.07,"square",0.08,null,0.3);}else api.ev({incident:"hit",call:"right",flow:"done",master:"resolve"}[k]||"resolve");};
+  api.ev=function(k){
+    if(!ac||!on)return;bus=B[BUS[k]||"call"];const now=ac.currentTime,q=api.replay?0.55:1;
+    if(k==="done"){if(now-lastDone<0.07)return;lastDone=now;tone(1500+Math.random()*500,0.05,"sine",0.035*q);}
+    else if(k==="fail"){if(now-lastFail<0.12)return;lastFail=now;tone(150,0.16,"triangle",0.1*q,70);}
+    else if(k==="hit"){tone(130,0.9,"sine",0.5*q,36);noise(0.5,0.22*q,2400,200);tone(466,0.22,"square",0.07*q,null,0.12);tone(349,0.34,"square",0.07*q,null,0.36);}
+    else if(k==="right"){tone(660,0.12,"triangle",0.14*q);tone(990,0.2,"triangle",0.14*q,null,0.1);}
+    else if(k==="wrong"){tone(110,0.3,"square",0.12*q,82);}
+    else if(k==="resolve"){[392,494,587,784].forEach((f,i)=>tone(f,0.9,"sine",0.09*q,null,i*0.07));}
+    else if(k==="contain"){tone(880,0.5,"sine",0.1*q);tone(1320,0.7,"sine",0.07*q,null,0.08);noise(0.4,0.05*q,3000,6000);}
+    else if(k==="trace"){noise(0.9,0.12,300,4200);tone(740,0.6,"sine",0.06,1480,0.15);}
+    else if(k==="lift"){noise(2.6,0.16,200,5000);[330,415,494,659].forEach((f,i)=>tone(f,1.6,"sine",0.06,null,0.3+i*0.25));}
+    else if(k==="oncall"){tone(220,0.5,"sawtooth",0.08*q,110);}
+  };
+  /* called every frame while a shift runs: traffic and alarm shape the hum; fuse from 0 to 1 drives the countdown beeps */
+  api.frame=function(traffic,alarm,fuse){
+    if(!ac||!hum)return;const t=ac.currentTime;hum.g.gain.setTargetAtTime(0.05+traffic*0.07+alarm*0.06,t,0.4);hum.f.frequency.setTargetAtTime(140+traffic*260+alarm*500,t,0.5);hum.o2.frequency.setTargetAtTime(55.6+alarm*3.2,t,0.3);
+    if(fuse>=0&&t>=nextBeep){bus=B.beep;nextBeep=t+lerp(1.1,0.16,fuse);tone(lerp(440,1100,fuse),0.07,"square",0.05+fuse*0.05);}
+  };
+  api.idle=function(){if(hum&&ac)hum.g.gain.setTargetAtTime(0,ac.currentTime,0.5);};
+  return api;
+})();
+
+/* ---------- The 3D stage ---------- */
+const FX=(function(){
+  const T=window.THREE,api={alarm:0,ok:false};
+  const stub=()=>{};["rebuild","sync","ring","burst","shock","liftFog","frame"].forEach(k=>api[k]=stub);api.edgeOf=()=>null;
+  if(!T)return api;
+  const canvas=$("gl");let renderer;
+  try{renderer=new T.WebGLRenderer({canvas,antialias:false,powerPreference:"high-performance"});}catch(e){return api;}
+  api.ok=true;
+  const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let W=1,H=1,DPR=1,quality=1,time=0,shock=0,alarmS=0;
+  const scene=new T.Scene(),cam=new T.PerspectiveCamera(40,1,0.1,400);
+  const MAXN=16,MAXE=40;
+  const KIND_COL={input:[1,0.42,0.3],output:[1,0.93,0.86],agent:[1,0.93,0.86],router:[1,0.6,0.48],gate:[1,0.72,0.2],tool:[1,0.74,0.4],store:[1,0.5,0.4],gpu:[1,0.26,0.16],gateway:[1,0.62,0.25],human:[1,0.93,0.86]};
+  const NOISE="float hash(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x),f.y);}float fbm(vec2 p){float a=.5,s=0.;for(int i=0;i<4;i++){s+=a*noise(p);p=p*2.03+17.;a*=.5;}return s;}";
+
+  /* floor: a red grid under smoke; the smoke opens around components you can see */
+  const nodeU=[],ringU=[];for(let i=0;i<MAXN;i++)nodeU.push(new T.Vector4(0,0,0,0));for(let i=0;i<6;i++)ringU.push(new T.Vector4(0,0,-99,0));
+  const floorMat=new T.ShaderMaterial({uniforms:{uTime:{value:0},uNodes:{value:nodeU},uRings:{value:ringU},uAlarm:{value:0}},extensions:{derivatives:true},
+    vertexShader:"varying vec3 vW;void main(){vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}",
+    fragmentShader:"precision highp float;uniform float uTime,uAlarm;uniform vec4 uNodes["+MAXN+"];uniform vec4 uRings[6];varying vec3 vW;"+NOISE+
+      "float grid(vec2 p,float s){vec2 q=p/s;vec2 w=fwidth(q);vec2 g=abs(fract(q-.5)-.5)/w;return (1.-min(min(g.x,g.y),1.))*smoothstep(.55,.08,max(w.x,w.y));}"+
+      "void main(){vec2 p=vW.xz;float d=length(p);float g1=grid(p,1.),g5=grid(p,5.);float reveal=0.;"+
+      "for(int i=0;i<"+MAXN+";i++){vec4 n=uNodes[i];float dd=length(p-n.xy);reveal=max(reveal,n.z*smoothstep(4.6,1.1,dd));}"+
+      "float f=fbm(p*.16+vec2(uTime*.035,uTime*.02));float f2=fbm(p*.45-vec2(uTime*.06,uTime*.015));"+
+      "float fog=clamp(.35+.9*f,0.,1.)*(1.-reveal);vec3 red=vec3(1.,.18,.12);"+
+      "vec3 col=red*(g1*.3+g5*.9)*(.1+2.2*reveal);"+
+      "col=mix(col,vec3(.03,.004,.003)*(.2+1.5*f2*f2)+col*.22,fog*.85);"+
+      "col+=red*.035*reveal+vec3(.5,.42,.36)*.02*reveal;"+
+      "for(int i=0;i<6;i++){vec4 r=uRings[i];float age=uTime-r.z;if(r.w>0.&&age>0.&&age<2.2){float dd=abs(length(p-r.xy)-age*6.);float k=1.-age/2.2;vec3 rc=r.w>1.5?vec3(1.,.92,.8):vec3(1.5,.2,.1);col+=rc*exp(-dd*dd*34.)*k*k*.8;}}"+
+      "col+=red*uAlarm*.12*g5;col*=smoothstep(70.,14.,d);gl_FragColor=vec4(col,1.);}"});
+  const floor=new T.Mesh(new T.PlaneGeometry(160,160),floorMat);floor.rotation.x=-Math.PI/2;scene.add(floor);
+
+  const sky=new T.Mesh(new T.SphereGeometry(180,24,16),new T.ShaderMaterial({side:T.BackSide,depthWrite:false,uniforms:{uTime:{value:0},uAlarm:{value:0}},
+    vertexShader:"varying vec3 vD;void main(){vD=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
+    fragmentShader:"precision highp float;varying vec3 vD;uniform float uTime,uAlarm;"+NOISE+"void main(){vec3 d=normalize(vD);float hz=exp(-abs(d.y)*17.);float az=atan(d.z,d.x);float cl=fbm(vec2(az*3.,d.y*14.-uTime*.02));vec3 col=vec3(1.,.14,.08)*hz*(.35+.9*cl)*(.4+uAlarm*.8);col+=vec3(.018,.002,.0015)*smoothstep(.5,0.,d.y)*cl;float st=step(.9975,hash(floor(vec2(az*160.,d.y*160.))));col+=vec3(.9,.8,.7)*st*smoothstep(.05,.3,d.y)*.7;gl_FragColor=vec4(col,1.);}"}));
+  sky.renderOrder=-1;scene.add(sky);
+  const beamGeo=new T.CylinderGeometry(0.1,0.42,11,16,1,true);beamGeo.translate(0,5.5,0);
+  const beamMat=()=>new T.ShaderMaterial({uniforms:{uA:{value:0},uCol:{value:new T.Vector3(1,1,1)},uTime:{value:0}},transparent:true,depthWrite:false,side:T.DoubleSide,blending:T.AdditiveBlending,
+    vertexShader:"varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
+    fragmentShader:"precision highp float;varying vec2 vUv;uniform float uA,uTime;uniform vec3 uCol;void main(){float y=vUv.y;float a=pow(1.-y,2.6)*(.7+.3*sin(y*70.-uTime*6.));gl_FragColor=vec4(uCol*a*uA*.38,1.);}"});
+  /* node material: faceted lighting, a rim that blooms, and a ghost state for components in fog */
+  function nodeMat(detail){return new T.ShaderMaterial({uniforms:{uCol:{value:new T.Vector3(1,1,1)},uGlow:{value:0},uFog:{value:1},uTime:{value:0},uPulse:{value:0},uDetail:{value:detail}},side:T.DoubleSide,
+    vertexShader:"varying vec3 vN,vV,vW;void main(){vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;vN=normalize(mat3(modelMatrix)*normal);vV=normalize(cameraPosition-w.xyz);gl_Position=projectionMatrix*viewMatrix*w;}",
+    fragmentShader:"precision highp float;uniform vec3 uCol;uniform float uGlow,uFog,uTime,uPulse,uDetail;varying vec3 vN,vV,vW;"+
+      "void main(){vec3 N=normalize(vN);if(!gl_FrontFacing)N=-N;vec3 V=normalize(vV);float diff=max(dot(N,normalize(vec3(.35,.9,.25))),0.)*.8+.2;float rim=pow(1.-max(dot(N,V),0.),3.);"+
+      "vec3 base=uCol*diff*mix(.62,.07,uDetail);vec3 col=base+uCol*uGlow*(.25+.9*rim)*mix(1.,.3,uDetail)+vec3(1.,.25,.16)*rim*.55;"+
+      "col*=1.+uPulse*(.6+.6*sin(uTime*10.));"+
+      "float scan=.8+.2*sin(vW.y*46.-uTime*4.);vec3 ghost=vec3(.12,.02,.016)*(.4+3.*rim)*scan;col=mix(col,ghost,uFog);gl_FragColor=vec4(col,1.);}"});}
+
+  /* shared particle sprite */
+  const SPRITE_V="attribute float aSize;attribute vec3 aCol;varying vec3 vCol;uniform float uScale;void main(){vCol=aCol;vec4 mv=modelViewMatrix*vec4(position,1.);gl_PointSize=aSize*uScale/-mv.z;gl_Position=projectionMatrix*mv;}";
+  const SPRITE_F="precision highp float;varying vec3 vCol;void main(){vec2 c=gl_PointCoord-.5;float r=length(c);float a=smoothstep(.5,0.,r);a*=a;gl_FragColor=vec4(vCol*a,a);}";
+  function pointCloud(max,vs,fs,uniforms,blend){const g=new T.BufferGeometry();g.setAttribute("position",new T.BufferAttribute(new Float32Array(max*3),3));g.setAttribute("aCol",new T.BufferAttribute(new Float32Array(max*3),3));g.setAttribute("aSize",new T.BufferAttribute(new Float32Array(max),1));g.setDrawRange(0,0);
+    const m=new T.ShaderMaterial({uniforms:Object.assign({uScale:{value:1}},uniforms||{}),vertexShader:vs||SPRITE_V,fragmentShader:fs||SPRITE_F,transparent:true,depthWrite:false,blending:blend||T.AdditiveBlending});const p=new T.Points(g,m);p.frustumCulled=false;return p;}
+  const MAXTOK=3200,tokPts=pointCloud(MAXTOK);tokPts.renderOrder=6;scene.add(tokPts);
+  const MAXSP=900,spPts=pointCloud(MAXSP);spPts.renderOrder=7;scene.add(spPts);
+  const sparks=[];
+  api.burst=function(x,y,z,col,n,sp){for(let i=0;i<n&&sparks.length<MAXSP;i++){const a=rnd()*6.283,e=rnd()*1.2-0.2,v=sp*(0.35+rnd()*0.9);sparks.push({x,y,z,vx:Math.cos(a)*Math.cos(e)*v,vy:Math.sin(e)*v+1.2,vz:Math.sin(a)*Math.cos(e)*v,life:0.6+rnd()*0.8,max:1.4,c:col,s:26+rnd()*30});}};
+  let ringI=0;api.ring=function(x,z,kind){const r=ringU[ringI++%6];r.set(x,z,time,kind);};
+  api.shock=function(v){if(!reduce)shock=Math.max(shock,v);};
+
+  /* dust: depth and scale */
+  const dust=pointCloud(500);(function(){const p=dust.geometry.attributes.position.array,c=dust.geometry.attributes.aCol.array,s=dust.geometry.attributes.aSize.array;for(let i=0;i<500;i++){p[i*3]=(rnd()-0.5)*70;p[i*3+1]=rnd()*14+0.4;p[i*3+2]=(rnd()-0.5)*70;const b=0.05+rnd()*0.12;c[i*3]=b*3;c[i*3+1]=b*0.7;c[i*3+2]=b*0.5;s[i]=10+rnd()*22;}dust.geometry.setDrawRange(0,500);})();scene.add(dust);
+
+  /* graph objects, rebuilt when the design changes */
+  let group=null,nodeObj={},edges=[],edgeMap={},flowPts=null,fogPts=null,sandPts=null,bolts=null,labels={},pickers=[],FORMS=null,fogLift=0;
+  const fogReveal=new Float32Array(MAXN),rateU=new Float32Array(MAXE);
+  function formGeo(id){if(!FORMS||!id)return null;const flip=id[0]==="-",f=FORMS[flip?id.slice(1):id];if(!f)return null;const pos=[],sx=flip?-1:1;let nb=0;for(const mat of [0,1]){for(let t=0;t<f.m.length;t++){if(f.m[t]!==mat)continue;for(let c=0;c<3;c++){const i=f.t[t*3+c]*3;pos.push(f.v[i]*sx,f.v[i+1],f.v[i+2]);}}if(mat===0)nb=pos.length/3;}const g=new T.BufferGeometry();g.setAttribute("position",new T.Float32BufferAttribute(pos,3));g.addGroup(0,nb,0);g.addGroup(nb,pos.length/3-nb,1);g.computeVertexNormals();return g;}
+  function arc(a,b,p,hgt,out){out.x=lerp(a.x,b.x,p);out.z=lerp(a.z,b.z,p);out.y=0.75+Math.sin(p*Math.PI)*hgt;return out;}
+  api.edgeOf=(a,b)=>edgeMap[a+">"+b]||null;
+  api.rebuild=function(){
+    if(group){scene.remove(group);group.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose());}});}
+    costs.forEach(c=>c.e.remove());costs.length=0;const lab=$("labels");lab.textContent="";labels={};nodeObj={};pickers=[];edges=[];edgeMap={};fogLift=0;
+    group=new T.Group();scene.add(group);if(!G)return;
+    G.list.forEach((n,i)=>{
+      n.idx=i;n.reveal=fixedKind(n.kind)||S.traced[n.id]?1:0;
+      const geo=formGeo(n.icon)||new T.BoxGeometry(1.2,0.9,1.2),form=!!(geo.groups&&geo.groups.length===2);
+      const body=nodeMat(0),detail=nodeMat(1),mesh=new T.Mesh(geo,form?[body,detail]:body);
+      if(form){mesh.scale.setScalar(1.9);mesh.position.set(n.x,0,n.z);}else mesh.position.set(n.x,0.5,n.z);
+      const wire=new T.LineSegments(new T.EdgesGeometry(geo,form?24:1),new T.LineBasicMaterial({color:0xffffff,transparent:true}));mesh.add(wire);group.add(mesh);
+      const pick=new T.Mesh(new T.SphereGeometry(1.5,8,6),new T.MeshBasicMaterial({visible:false}));pick.position.set(n.x,0.9,n.z);pick.userData.id=n.id;group.add(pick);pickers.push(pick);
+      const beam=new T.Mesh(beamGeo,beamMat());beam.position.set(n.x,0,n.z);beam.renderOrder=3;group.add(beam);
+      nodeObj[n.id]={mesh,body,detail,wire,beam,col:new T.Vector3(1,1,1),glow:0,fog:1,pulse:0};
+      const l=h("div",{class:"lbl",tabindex:"0",onclick:()=>select(n.id),onkeydown:e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();select(n.id);}}},icon(n.icon,13),n.name);lab.appendChild(l);labels[n.id]=l;
+    });
+    /* flow: particles ride each connection; density follows the live traffic on it */
+    const per=G.E.map(e=>e.dep?70:240),total=per.reduce((a,b)=>a+b,0);
+    const A=new Float32Array(total*3),B=new Float32Array(total*3),CA=new Float32Array(total*3),CB=new Float32Array(total*3),PH=new Float32Array(total*4);let k=0;
+    G.E.forEach((e,ei)=>{const a=G.N[e.a],b=G.N[e.b],ca=KIND_COL[a.kind]||[1,1,1],cb=KIND_COL[b.kind]||[1,1,1];e.idx=ei;e.len=Math.hypot(b.x-a.x,b.z-a.z);e.h=e.dep?0.25:0.55;edges.push(e);edgeMap[e.a+">"+e.b]=e;
+      for(let i=0;i<per[ei];i++,k++){A.set([a.x,0,a.z],k*3);B.set([b.x,0,b.z],k*3);CA.set(ca,k*3);CB.set(cb,k*3);PH.set([rnd(),rnd(),ei,e.dep?1:0],k*4);}});
+    const fg=new T.BufferGeometry();fg.setAttribute("position",new T.BufferAttribute(A,3));fg.setAttribute("aB",new T.BufferAttribute(B,3));fg.setAttribute("aCA",new T.BufferAttribute(CA,3));fg.setAttribute("aCB",new T.BufferAttribute(CB,3));fg.setAttribute("aP",new T.BufferAttribute(PH,4));
+    flowPts=new T.Points(fg,new T.ShaderMaterial({uniforms:{uTime:{value:0},uScale:{value:1},uRate:{value:rateU}},transparent:true,depthWrite:false,blending:T.AdditiveBlending,
+      vertexShader:"attribute vec3 aB,aCA,aCB;attribute vec4 aP;uniform float uTime,uScale;uniform float uRate["+MAXE+"];varying vec3 vCol;varying float vA;"+
+        "void main(){float dep=aP.w;float rate=uRate[int(aP.z+.5)];float t=fract(aP.x+uTime*mix(.34,.12,dep)*(.7+.6*aP.y));vec3 p=mix(position,aB,t);float hgt=mix(.55,.25,dep);p.y=.75+sin(t*3.14159)*hgt;"+
+        "float w=sin(aP.y*91.7+t*9.+uTime*.6);vec3 dir=normalize(aB-position+vec3(.0001));vec3 side=vec3(-dir.z,0.,dir.x);p+=side*w*.09+vec3(0.,cos(aP.y*57.+t*7.)*.07,0.);"+
+        "vA=step(aP.y,rate)*smoothstep(0.,.08,t)*smoothstep(1.,.92,t);vCol=mix(aCA,aCB,t)*mix(1.5,.6,dep);vec4 mv=modelViewMatrix*vec4(p,1.);gl_PointSize=(7.+aP.y*9.)*uScale/-mv.z;gl_Position=projectionMatrix*mv;}",
+      fragmentShader:"precision highp float;varying vec3 vCol;varying float vA;void main(){float r=length(gl_PointCoord-.5);float a=smoothstep(.5,0.,r);a*=a*vA;gl_FragColor=vec4(vCol*a,a);}"}));
+    flowPts.frustumCulled=false;flowPts.renderOrder=5;group.add(flowPts);
+    /* faint guide line under each connection */
+    const lp=[];G.E.forEach(e=>{const a=G.N[e.a],b=G.N[e.b],v=new T.Vector3();for(let i=0;i<14;i++){arc(a,b,i/14,e.h,v);lp.push(v.x,v.y,v.z);arc(a,b,(i+1)/14,e.h,v);lp.push(v.x,v.y,v.z);}});
+    const lg=new T.BufferGeometry();lg.setAttribute("position",new T.Float32BufferAttribute(lp,3));group.add(new T.LineSegments(lg,new T.LineBasicMaterial({color:new T.Color(0.5,0.07,0.05),transparent:true,opacity:0.7,blending:T.AdditiveBlending,depthWrite:false})));
+    /* fog: smoke sprites wrapped around every component you did not trace */
+    const FPN=120,fn=G.list.length*FPN,FP=new Float32Array(fn*3),FO=new Float32Array(fn*4);k=0;
+    G.list.forEach(n=>{for(let i=0;i<FPN;i++,k++){FP.set([n.x,0,n.z],k*3);const a=rnd()*6.283,r=Math.pow(rnd(),0.6)*2.1;FO.set([Math.cos(a)*r,rnd()*2.3,Math.sin(a)*r,n.idx+rnd()*0.9],k*4);}});
+    const fgeo=new T.BufferGeometry();fgeo.setAttribute("position",new T.BufferAttribute(FP,3));fgeo.setAttribute("aO",new T.BufferAttribute(FO,4));
+    fogPts=new T.Points(fgeo,new T.ShaderMaterial({uniforms:{uTime:{value:0},uScale:{value:1},uReveal:{value:fogReveal}},transparent:true,depthWrite:false,blending:T.NormalBlending,
+      vertexShader:"attribute vec4 aO;uniform float uTime,uScale;uniform float uReveal["+MAXN+"];varying float vA;varying float vS;"+
+        "void main(){float idx=floor(aO.w);float seed=fract(aO.w)/.9;float rv=uReveal[int(idx+.5)];float ang=uTime*(.12+seed*.22)*(seed>.5?1.:-1.);float c=cos(ang),s=sin(ang);vec3 o=vec3(aO.x*c-aO.z*s,aO.y,aO.x*s+aO.z*c);"+
+        "o.xz*=1.+rv*2.6;o.y+=rv*2.2+sin(uTime*.5+seed*40.)*.12;vec3 p=position+o;vA=(1.-rv)*(.5+.5*seed);vS=seed;vec4 mv=modelViewMatrix*vec4(p,1.);gl_PointSize=(190.+seed*170.)*uScale/-mv.z;gl_Position=projectionMatrix*mv;}",
+      fragmentShader:"precision highp float;varying float vA,vS;void main(){float r=length(gl_PointCoord-.5);float a=smoothstep(.5,.05,r);a=a*a*vA*.3;vec3 col=mix(vec3(.02,.003,.003),vec3(.17,.022,.016),vS*vS*vS);gl_FragColor=vec4(col,a);}"}));
+    fogPts.frustumCulled=false;fogPts.renderOrder=4;group.add(fogPts);
+    /* sand: fine grains circling every untraced component, fastest near the middle; an incident whips the storm up, tracing blows it away */
+    const SPN=5000,sn=G.list.length*SPN,SP=new Float32Array(sn*3),SO=new Float32Array(sn*4);k=0;
+    G.list.forEach(n=>{for(let i=0;i<SPN;i++,k++){SP.set([n.x,0,n.z],k*3);SO.set([0.15+Math.pow(rnd(),1.1)*2.25,rnd()*3.0,rnd()*6.283,n.idx+rnd()*0.9],k*4);}});
+    const sgeo=new T.BufferGeometry();sgeo.setAttribute("position",new T.BufferAttribute(SP,3));sgeo.setAttribute("aO",new T.BufferAttribute(SO,4));
+    sandPts=new T.Points(sgeo,new T.ShaderMaterial({uniforms:{uTime:{value:0},uScale:{value:1},uAlarm:{value:0},uReveal:{value:fogReveal}},transparent:true,depthWrite:false,blending:T.NormalBlending,
+      vertexShader:"attribute vec4 aO;uniform float uTime,uScale,uAlarm;uniform float uReveal["+MAXN+"];varying float vA;varying vec3 vC;"+
+        "void main(){float idx=floor(aO.w);float seed=fract(aO.w)/.9;float s2=fract(seed*77.31);float s3=fract(seed*191.7);float rv=uReveal[int(idx+.5)];"+
+        "float t=uTime*(1.+uAlarm*.9);float r=aO.x+sin(t*.7+seed*30.)*.16;float ang=aO.z+t*(.35+s2*.5)/(.35+r*.55);"+
+        "float y=mod(aO.y+t*(.10+s3*.22),3.0);float edge=smoothstep(0.,.35,y)*smoothstep(3.0,2.3,y);"+
+        /* gusts: sheets of grains lean with a slow wind */
+        "float gust=sin(t*.9+y*1.7+idx*2.1)*.22+sin(t*2.3+seed*12.)*.06;"+
+        "r=r*(1.+rv*3.2)+rv*s2*2.;vec3 o=vec3(cos(ang)*r+gust,y*(.55+.45*smoothstep(0.,2.4,aO.x))+rv*(1.+s3*3.),sin(ang)*r+gust*.6);"+
+        "vec3 p=position+o;float tw=.55+.45*sin(t*5.+seed*90.);vA=(1.-rv)*(1.-rv)*edge*tw;"+
+        "float glint=step(.955,s3);vC=mix(vec3(.80,.66,.52),vec3(1.,.24,.14),s2*s2)*(.44+glint*1.3);"+
+        "vec4 mv=modelViewMatrix*vec4(p,1.);gl_PointSize=clamp((1.5+s2*1.9+glint*1.3)*uScale/-mv.z,1.2,5.);gl_Position=projectionMatrix*mv;}",
+      fragmentShader:"precision highp float;varying float vA;varying vec3 vC;void main(){float r=length(gl_PointCoord-.5);float a=smoothstep(.5,.15,r)*vA;if(a<.01)discard;gl_FragColor=vec4(vC,a*.8);}"}));
+    sandPts.frustumCulled=false;sandPts.renderOrder=5;group.add(sandPts);
+    /* lightning from a root cause you can see */
+    const bg=new T.BufferGeometry();bg.setAttribute("position",new T.BufferAttribute(new Float32Array(6*12*6),3));bg.setDrawRange(0,0);
+    bolts=new T.LineSegments(bg,new T.LineBasicMaterial({color:new T.Color(3,0.45,0.25),transparent:true,blending:T.AdditiveBlending,depthWrite:false}));bolts.frustumCulled=false;bolts.renderOrder=8;group.add(bolts);
+    api.sync();
+  };
+  api.liftFog=function(v){fogLift=v||0.0001;};
+  function nodeState(n){
+    const c=inc(),vis=visible(n);if(!vis)return "fog";
+    if(S.phase==="debrief"&&R&&R.records.some(r=>r.it.target===n.id&&!r.auto&&!r.found))return "root";
+    if(c&&c.it.target===n.id&&(S.traced[n.id]||fixedKind(n.kind)||S.phase==="replay"))return "root";
+    if(R&&(S.phase==="run"||S.phase==="replay")){if(n.kind==="output"){const tot=R.recentDone+R.recentFail;if((tot>6&&R.recentFail/tot>0.18)||p95()>7)return "sym";}else if(n.heat>0.45||n.queue.length>capOf(n)*3)return "sym";}
+    return "ok";
+  }
+  api.sync=function(){if(!G)return;G.list.forEach(n=>{const l=labels[n.id];if(!l)return;const st=nodeState(n);l.className="lbl"+(st==="fog"?" fog":st==="sym"?" sym":st==="root"?" root":"")+(S.sel===n.id?" sel":"")+(S.phase==="replay"&&!fixedKind(n.kind)&&!S.traced[n.id]?" was":"");});};
+  function select(id){if(S.phase==="replay")return;S.sel=S.sel===id&&S.phase!=="run"?null:id;render();}
+
+  /* cost trail: credits float up from the component that spent them */
+  const costs=[];
+  api.cost=function(id,amt,big){const n=G.N[id];if(!n||amt<1||(costs.length>=(big?22:14)))return;const e=document.createElement("div");e.className="cost"+(big?" big":"");e.textContent="\u2212"+Math.round(amt);e.setAttribute("aria-hidden","true");$("app").appendChild(e);costs.push({e,x:n.x+(Math.random()-0.5)*0.9,z:n.z+(Math.random()-0.5)*0.5,t:0,life:big?2.4:1.7});};
+  /* camera */
+  const view={zoom:1,th:-0.55,ph:0.98,dist:21,tx:0,ty:0.6,tz:0,drag:false,lx:0,ly:0,moved:0,idle:0,intro:1};
+  canvas.addEventListener("pointerdown",e=>{view.drag=true;view.lx=e.clientX;view.ly=e.clientY;view.moved=0;canvas.setPointerCapture(e.pointerId);canvas.classList.add("drag");});
+  canvas.addEventListener("pointermove",e=>{if(!view.drag)return;const dx=e.clientX-view.lx,dy=e.clientY-view.ly;view.lx=e.clientX;view.ly=e.clientY;view.moved+=Math.abs(dx)+Math.abs(dy);view.th-=dx*0.005;view.ph=clamp(view.ph-dy*0.004,0.25,1.45);view.idle=0;});
+  canvas.addEventListener("pointerup",e=>{view.drag=false;canvas.classList.remove("drag");if(view.moved<5){const r=canvas.getBoundingClientRect(),m=new T.Vector2((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1),rc=new T.Raycaster();rc.setFromCamera(m,cam);const hit=rc.intersectObjects(pickers)[0];if(hit)select(hit.object.userData.id);}});
+  canvas.addEventListener("wheel",e=>{e.preventDefault();view.dist=clamp(view.dist*(1+e.deltaY*0.001),11,52);view.idle=0;},{passive:false});
+
+  /* post: scene to an HDR target, bright parts blurred at three sizes and added back, then tone mapping, vignette and grain */
+  const gl=renderer.getContext(),gl2=renderer.capabilities.isWebGL2;
+  const rtType=(gl2&&renderer.extensions.get("EXT_color_buffer_float"))||(!gl2&&renderer.extensions.get("EXT_color_buffer_half_float")&&renderer.extensions.get("OES_texture_half_float_linear"))?T.HalfFloatType:T.UnsignedByteType;
+  const mkRT=(w,h)=>new T.WebGLRenderTarget(Math.max(2,w),Math.max(2,h),{type:rtType,minFilter:T.LinearFilter,magFilter:T.LinearFilter,depthBuffer:false});
+  let rtScene,rtA=[],rtB=[];
+  const quadCam=new T.OrthographicCamera(-1,1,1,-1,0,1),quadScene=new T.Scene(),quad=new T.Mesh(new T.PlaneGeometry(2,2));quadScene.add(quad);
+  const QV="varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}";
+  const brightMat=new T.ShaderMaterial({uniforms:{tex:{value:null},uThr:{value:rtType===T.UnsignedByteType?0.55:0.85}},vertexShader:QV,fragmentShader:"precision highp float;uniform sampler2D tex;uniform float uThr;varying vec2 vUv;void main(){vec3 c=texture2D(tex,vUv).rgb;float l=max(c.r,max(c.g,c.b));gl_FragColor=vec4(c*smoothstep(uThr,uThr+.5,l),1.);}",depthTest:false,depthWrite:false});
+  const blurMat=new T.ShaderMaterial({uniforms:{tex:{value:null},uDir:{value:new T.Vector2()}},vertexShader:QV,fragmentShader:"precision highp float;uniform sampler2D tex;uniform vec2 uDir;varying vec2 vUv;void main(){vec3 c=texture2D(tex,vUv).rgb*.227;c+=(texture2D(tex,vUv+uDir*1.385).rgb+texture2D(tex,vUv-uDir*1.385).rgb)*.316;c+=(texture2D(tex,vUv+uDir*3.231).rgb+texture2D(tex,vUv-uDir*3.231).rgb)*.07;gl_FragColor=vec4(c,1.);}",depthTest:false,depthWrite:false});
+  const finalMat=new T.ShaderMaterial({uniforms:{tS:{value:null},t1:{value:null},t2:{value:null},t3:{value:null},uTime:{value:0},uShock:{value:0},uAlarm:{value:0},uHue:{value:0},uRes:{value:new T.Vector2()}},vertexShader:QV,depthTest:false,depthWrite:false,
+    fragmentShader:"precision highp float;uniform sampler2D tS,t1,t2,t3;uniform float uTime,uShock,uAlarm,uHue;uniform vec2 uRes;varying vec2 vUv;"+
+      /* the same turn around the colour wheel that the interface colours get */
+      "vec3 hue(vec3 c,float h){vec4 K=vec4(0.,-1./3.,2./3.,-1.);vec4 p=mix(vec4(c.bg,K.wz),vec4(c.gb,K.xy),step(c.b,c.g));vec4 q=mix(vec4(p.xyw,c.r),vec4(c.r,p.yzx),step(p.x,c.r));float d=q.x-min(q.w,q.y);vec3 hsv=vec3(abs(q.z+(q.w-q.y)/(6.*d+1e-10)),d/(q.x+1e-10),q.x);"+
+      "vec3 r=hsv.z*mix(vec3(1.),clamp(abs(fract(hsv.x+h+vec3(1.,2./3.,1./3.))*6.-3.)-1.,0.,1.),hsv.y);vec3 W=vec3(.299,.587,.114);float l0=dot(c,W),l1=dot(r,W);return l1<l0?min(r+(l0-l1),1.):r*((l0+l1)*.5/max(l1,1e-5));}"+
+      "float hash(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}"+
+      "vec3 aces(vec3 x){return clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.);}"+
+      "void main(){vec2 uv=vUv;vec2 c=uv-.5;float r2=dot(c,c);uv+=c*uShock*.05*sin(r2*46.-uTime*34.);float ca=.0012+uShock*.012;"+
+      "vec3 col=vec3(texture2D(tS,uv+c*ca).r,texture2D(tS,uv).g,texture2D(tS,uv-c*ca).b);"+
+      "vec3 bloom=texture2D(t1,uv).rgb*.5+texture2D(t2,uv).rgb*.55+texture2D(t3,uv).rgb*.6;col+=bloom*.7;"+
+      "col+=vec3(.9,.03,.01)*uAlarm*smoothstep(.08,.5,r2)*(.55+.45*sin(uTime*5.));"+
+      "col=aces(col*1.08);col*=1.-r2*.85;col=pow(max(col,0.),vec3(1./2.2));if(uHue>0.)col=hue(col,uHue);col+=(hash(uv*uRes+fract(uTime)*91.)-.5)*.022;gl_FragColor=vec4(col,1.);}"});
+  function pass(mat,target){quad.material=mat;renderer.setRenderTarget(target);renderer.render(quadScene,quadCam);}
+  function resize(){
+    const r=canvas.getBoundingClientRect();W=Math.max(2,r.width);H=Math.max(2,r.height);DPR=Math.min(window.devicePixelRatio||1,1.75)*quality;
+    renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);cam.aspect=W/H;const off=W>900?Math.min(388,W*0.3)/2:0;if(off)cam.setViewOffset(W,H,off,W>900?-20:0,W,H);else cam.clearViewOffset();cam.updateProjectionMatrix();
+    const pw=Math.round(W*DPR),ph=Math.round(H*DPR);[rtScene].concat(rtA,rtB).forEach(t=>t&&t.dispose());
+    rtScene=new T.WebGLRenderTarget(pw,ph,{type:rtType,minFilter:T.LinearFilter,magFilter:T.LinearFilter,depthBuffer:true});
+    rtA=[];rtB=[];for(let i=1;i<=3;i++){const d=Math.pow(2,i);rtA.push(mkRT(Math.round(pw/d),Math.round(ph/d)));rtB.push(mkRT(Math.round(pw/d),Math.round(ph/d)));}
+    finalMat.uniforms.uRes.value.set(pw,ph);
+    const sc=ph*0.5/Math.tan(cam.fov*Math.PI/360)*0.012;[tokPts,spPts,dust,flowPts,fogPts,sandPts].forEach(p=>{if(p)p.material.uniforms.uScale.value=sc;});
+  }
+  addEventListener("resize",resize);
+
+  /* per-frame update */
+  const tmp=new T.Vector3(),tmp2=new T.Vector3(),COLS={ok:[1,0.93,0.86],sym:[1,0.62,0.05],root:[1,0.16,0.09]};
+  let last=0,slow=0,boltT=0;
+  function frame(ts){
+    requestAnimationFrame(frame);
+    const rawDt=Math.min(0.1,(ts-last)/1000||0.016);last=ts;time+=rawDt;
+    /* drop resolution if the machine cannot hold the frame rate */
+    if(rawDt>0.034)slow++;else slow=Math.max(0,slow-2);if(slow>90&&quality>0.6){quality-=0.2;slow=0;resize();}
+    if(R&&S.phase==="run"&&S.speed>0)liveFrame(rawDt);else if(S.phase==="replay")replayFrame(rawDt);
+    if(!G)return;
+    if(R&&R.recentDone+R.recentFail>60){R.recentDone*=0.6;R.recentFail*=0.6;}
+    /* reveal and state easing */
+    if(fogLift>0)fogLift=Math.min(1,fogLift+rawDt*0.35);
+    const c=inc();
+    G.list.forEach((n,i)=>{
+      let target=fixedKind(n.kind)||S.traced[n.id]?1:0;if(S.phase==="debrief")target=fogLift*G.list.length>i?1:0;else if(S.phase==="replay")target=1;
+      n.reveal=lerp(n.reveal,target,1-Math.exp(-rawDt*2.6));fogReveal[i]=n.reveal;nodeU[i].set(n.x,n.z,n.reveal,0);
+      const o=nodeObj[n.id];if(!o)return;const st=nodeState(n),col=COLS[st==="fog"?"ok":st];
+      o.col.x=lerp(o.col.x,col[0],0.12);o.col.y=lerp(o.col.y,col[1],0.12);o.col.z=lerp(o.col.z,col[2],0.12);
+      const glow=st==="root"?1.9:st==="sym"?1.0:S.sel===n.id?0.75:0.32,pulse=st==="root"?1:0;
+      o.glow=lerp(o.glow,glow,0.1);o.pulse=lerp(o.pulse,pulse,0.1);o.fog=1-n.reveal;
+      [o.body,o.detail].forEach(m=>{m.uniforms.uCol.value.copy(o.col);m.uniforms.uGlow.value=o.glow;m.uniforms.uFog.value=o.fog;m.uniforms.uTime.value=time;m.uniforms.uPulse.value=o.pulse;});
+      const wb=lerp(0.22,st==="root"?3.2:st==="sym"?2.2:1.5,n.reveal);o.wire.material.color.setRGB(o.col.x*wb,o.col.y*wb*(n.reveal<0.5?0.3:1),o.col.z*wb*(n.reveal<0.5?0.25:1));
+      o.beam.material.uniforms.uA.value=n.reveal*(fixedKind(n.kind)?0.25:st==="root"?1.6:st==="sym"?1.1:0.6);o.beam.material.uniforms.uCol.value.copy(o.col);o.beam.material.uniforms.uTime.value=time;
+      o.mesh.rotation.y=st==="root"?Math.sin(time*40)*0.03:0;
+    });
+    for(let i=G.list.length;i<MAXN;i++)nodeU[i].set(0,0,0,0);
+    /* flow density per connection */
+    G.E.forEach(e=>{const want=e.dep?0.28:R&&S.phase==="run"?clamp(e.count/(e.len*0.42),0.06,1):0.22;rateU[e.idx]=lerp(rateU[e.idx]||0,want,0.06);});
+    /* requests */
+    const pa=tokPts.geometry.attributes.position.array,ca=tokPts.geometry.attributes.aCol.array,sa=tokPts.geometry.attributes.aSize.array;let k=0;
+    if(R&&S.phase!=="design"){
+      for(const t of R.tokens){if(k>=MAXTOK)break;const a=G.N[t.at],b=G.N[t.to],e=edgeMap[t.at+">"+t.to];arc(a,b,t.p,e?e.h:0.5,tmp);
+        /* a request fades as it enters fog and returns as it leaves */
+        const fa=1-(1-a.reveal)*smoothstep(0.22,0,t.p),fb=1-(1-b.reveal)*smoothstep(0.78,1,t.p),vis=fa*fb;
+        pa[k*3]=tmp.x;pa[k*3+1]=tmp.y;pa[k*3+2]=tmp.z;ca[k*3]=2.6*vis;ca[k*3+1]=2.3*vis;ca[k*3+2]=2.0*vis;sa[k]=30+18*t.w;k++;}
+      for(const n of G.list){if(!serves(n.kind)||n.reveal<0.5)continue;
+        n.queue.forEach((t,i)=>{if(k>=MAXTOK)return;const ang=i*0.55+time*0.8,rad=1.55+Math.floor(i/11)*0.34;pa[k*3]=n.x+Math.cos(ang)*rad;pa[k*3+1]=0.5+(i%3)*0.16;pa[k*3+2]=n.z+Math.sin(ang)*rad;ca[k*3]=2.2;ca[k*3+1]=1.25;ca[k*3+2]=0.25;sa[k]=24;k++;});
+        n.busy.forEach((t,i)=>{if(k>=MAXTOK)return;const ang=i*1.571+time*2.4;pa[k*3]=n.x+Math.cos(ang)*0.95;pa[k*3+1]=1.55+Math.sin(time*3+i)*0.1;pa[k*3+2]=n.z+Math.sin(ang)*0.95;ca[k*3]=2.6;ca[k*3+1]=2.3;ca[k*3+2]=2;sa[k]=30;k++;});}
+    }
+    tokPts.geometry.setDrawRange(0,k);tokPts.geometry.attributes.position.needsUpdate=true;tokPts.geometry.attributes.aCol.needsUpdate=true;tokPts.geometry.attributes.aSize.needsUpdate=true;
+    /* sparks */
+    const sp=spPts.geometry.attributes.position.array,scol=spPts.geometry.attributes.aCol.array,ss=spPts.geometry.attributes.aSize.array;let m=0;
+    for(let i=sparks.length-1;i>=0;i--){const s=sparks[i];s.life-=rawDt;if(s.life<=0){sparks.splice(i,1);continue;}s.vy-=5.5*rawDt;s.x+=s.vx*rawDt;s.y=Math.max(0.05,s.y+s.vy*rawDt);s.z+=s.vz*rawDt;}
+    for(const s of sparks){const f=clamp(s.life/0.7,0,1);sp[m*3]=s.x;sp[m*3+1]=s.y;sp[m*3+2]=s.z;scol[m*3]=s.c[0]*f;scol[m*3+1]=s.c[1]*f;scol[m*3+2]=s.c[2]*f;ss[m]=s.s*(0.4+0.6*f);m++;}
+    spPts.geometry.setDrawRange(0,m);spPts.geometry.attributes.position.needsUpdate=true;spPts.geometry.attributes.aCol.needsUpdate=true;spPts.geometry.attributes.aSize.needsUpdate=true;
+    /* lightning and embers at a visible root cause */
+    let bn=0;const rootN=c&&G.N[c.it.target],rootVis=rootN&&rootN.reveal>0.6;
+    if(rootVis&&!reduce){boltT-=rawDt;if(rnd()<0.5)api.burst(rootN.x+(rnd()-0.5),0.6+rnd()*1.6,rootN.z+(rnd()-0.5),[3,0.3,0.12],1,2.2);
+      if(boltT<=0){boltT=0.06;const bp=bolts.geometry.attributes.position.array,targets=G.list.filter(n=>n.deps.includes(rootN.id)||rootN.next.includes(n.id)||rootN.preds.includes(n.id)).slice(0,5);
+        targets.forEach(tg=>{let px=rootN.x,py=1.3,pz=rootN.z;for(let i=1;i<=12&&bn<6*12;i++,bn++){const f=i/12,nx=lerp(rootN.x,tg.x,f)+(rnd()-0.5)*0.7*(1-f*0.6),ny=1.3+Math.sin(f*Math.PI)*1.3+(rnd()-0.5)*0.5,nz=lerp(rootN.z,tg.z,f)+(rnd()-0.5)*0.7*(1-f*0.6);bp.set([px,py,pz,nx,ny,nz],bn*6);px=nx;py=ny;pz=nz;}});
+        bolts.geometry.setDrawRange(0,bn*2);bolts.geometry.attributes.position.needsUpdate=true;}
+    }else bolts.geometry.setDrawRange(0,0);
+    /* uniforms */
+    shock=Math.max(0,shock-rawDt*1.6);alarmS=lerp(alarmS,api.alarm,0.06);
+    floorMat.uniforms.uTime.value=time;floorMat.uniforms.uAlarm.value=alarmS;sky.material.uniforms.uTime.value=time;sky.material.uniforms.uAlarm.value=alarmS;if(flowPts)flowPts.material.uniforms.uTime.value=time;if(fogPts)fogPts.material.uniforms.uTime.value=time;if(sandPts){sandPts.material.uniforms.uTime.value=time;sandPts.material.uniforms.uAlarm.value=alarmS;}
+    /* camera */
+    view.idle+=rawDt;if(!view.drag&&view.idle>2.5&&!reduce)view.th+=rawDt*0.035;
+    view.intro=Math.max(0,view.intro-rawDt*0.45);const ease=view.intro*view.intro;
+    /* direction: push in on a cause you can see, pull back to the whole board when the cause sits in fog */
+    const ci=R&&(S.phase==="run"||S.phase==="replay")?inc():null,seen=ci&&(S.phase==="replay"||curTraced(ci)),rootN2=seen?G.N[ci.it.target]:null;
+    const sel=S.sel&&G.N[S.sel],fx=sel?sel.x*0.45:rootN2?rootN2.x*0.7:0,fz=sel?sel.z*0.45:rootN2?rootN2.z*0.7:0;view.tx=lerp(view.tx,fx,0.04);view.tz=lerp(view.tz,fz,0.04);
+    view.zoom=lerp(view.zoom,reduce||view.drag||!ci?1:seen?0.76:1.17,ci?0.025:0.04);
+    const dist=view.dist*view.zoom*(1+ease*1.6)*(1-shock*0.03),ph=view.ph-ease*0.35,th=view.th+ease*1.4;
+    cam.position.set(view.tx+Math.sin(th)*Math.sin(ph)*dist,view.ty+Math.cos(ph)*dist,view.tz+Math.cos(th)*Math.sin(ph)*dist);
+    if(shock>0)cam.position.add(tmp.set((rnd()-0.5),(rnd()-0.5),(rnd()-0.5)).multiplyScalar(shock*0.5));
+    cam.lookAt(view.tx,view.ty,view.tz);
+    /* labels */
+    for(const n of G.list){const l=labels[n.id];if(!l)continue;tmp2.set(n.x,2.9,n.z).project(cam);if(tmp2.z>1){l.style.display="none";continue;}l.style.display="";l.style.left=((tmp2.x*0.5+0.5)*W)+"px";l.style.top=((-tmp2.y*0.5+0.5)*H)+"px";}
+    for(let i=costs.length-1;i>=0;i--){const c=costs[i];c.t+=rawDt;if(c.t>=c.life){c.e.remove();costs.splice(i,1);continue;}const f=c.t/c.life;tmp2.set(c.x,3.5+(reduce?0.6:f*2.2),c.z).project(cam);if(tmp2.z>1){c.e.style.display="none";continue;}c.e.style.display="";c.e.style.left=((tmp2.x*0.5+0.5)*W)+"px";c.e.style.top=((-tmp2.y*0.5+0.5)*H)+"px";c.e.style.opacity=String(1-f*f*f);}
+    /* render */
+    renderer.setRenderTarget(rtScene);renderer.setClearColor(0x000000,1);renderer.clear();renderer.render(scene,cam);
+    brightMat.uniforms.tex.value=rtScene.texture;pass(brightMat,rtA[0]);
+    for(let i=0;i<3;i++){if(i>0){blurMat.uniforms.tex.value=rtA[i-1].texture;blurMat.uniforms.uDir.value.set(0,0);pass(blurMat,rtA[i]);}
+      blurMat.uniforms.tex.value=rtA[i].texture;blurMat.uniforms.uDir.value.set(1/rtA[i].width,0);pass(blurMat,rtB[i]);
+      blurMat.uniforms.tex.value=rtB[i].texture;blurMat.uniforms.uDir.value.set(0,1/rtA[i].height);pass(blurMat,rtA[i]);}
+    finalMat.uniforms.tS.value=rtScene.texture;finalMat.uniforms.t1.value=rtA[0].texture;finalMat.uniforms.t2.value=rtA[1].texture;finalMat.uniforms.t3.value=rtA[2].texture;
+    HUE.frame(rawDt);finalMat.uniforms.uHue.value=HUE.st.deg/360;finalMat.uniforms.uTime.value=time;finalMat.uniforms.uShock.value=shock;finalMat.uniforms.uAlarm.value=alarmS;pass(finalMat,null);
+    /* light interface refresh */
+    uiTick(rawDt);
+  }
+  function smoothstep(a,b,x){const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);}
+  api.start=function(){resize();requestAnimationFrame(frame);
+    if(window.fetch)fetch("art/workflow_meshes.json").then(r=>r.ok?r.json():null).then(d=>{if(d){FORMS=d;api.rebuild();resize();}}).catch(()=>{});};
+  api.rebuildDone=resize;
+  const baseRebuild=api.rebuild;api.rebuild=function(){baseRebuild();if(rtScene)resize();};
+  return api;
+})();
+let uiAcc=0,lastState="";
+function uiTick(dt){
+  const live=R&&(S.phase==="run"||S.phase==="replay"),c0=live?inc():null;
+  if(live)SND.frame(clamp(R.tokens.length/40,0,1),FX.alarm,c0&&c0.fixAt==null&&S.phase==="run"&&S.speed>0?clamp((R.t-c0.onset)/ESC(),0,1):-1);else SND.idle();
+  uiAcc+=dt;if(uiAcc<0.25)return;uiAcc=0;if(!live)return;renderTiles();FX.sync();
+  if(S.phase==="replay"){const rb=$("rbar");if(rb)rb.style.width=clamp(R.t/(NR()*HOUR),0,1)*100+"%";const rs=RP?RP.cap:"";if(rs!==lastState){lastState=rs;render();}return;}
+  const c=inc(),f=$("fuse");if(c&&f)f.style.width=clamp(1-(R.t-c.onset)/ESC(),0,1)*100+"%";
+  const st=(c?c.it.hour+":"+(c.fixAt!=null)+":"+(R.t<c.lockUntil)+":"+curTraced(c):"-")+"|"+R.records.length+"|"+(S.sel&&!c?G.N[S.sel].queue.length+"/"+G.N[S.sel].busy.length+"/"+G.N[S.sel].fails:"");
+  if(st!==lastState){lastState=st;render();}
+}
+
+/* ---------- Start ---------- */
+buildGraph();FX.rebuild();render();
+if(FX.ok)FX.start();else $("hint").textContent="This browser could not start the 3D view. The controls still work.";
+if(window.claude&&window.claude.use){window.claude.use("sample").then(s=>{if(s){sample=s;if(S.phase==="design"){S.gm="claude";render();}}}).catch(()=>{});}
+function mixPanel(){
+  const m=$("mix");m.innerHTML="";const rows=[["master","Master"],["hum","Hum"],["beep","Countdown"],["incident","Incidents"],["call","Your Calls"],["flow","Requests"]];
+  m.append(h("h2",{},"Sound"));
+  rows.forEach(([k,name])=>{const out=h("span",{},Math.round(SND.vol[k]*100)+"");const inp=h("input",{type:"range",min:"0",max:"100",step:"5",value:String(Math.round(SND.vol[k]*100)),"aria-label":name+" volume"});
+    inp.addEventListener("input",()=>{SND.set(k,inp.value/100);out.textContent=inp.value;});inp.addEventListener("change",()=>{if(k!=="hum")SND.test(k);});m.append(h("label",{},name,inp,out));});
+  m.append(h("div",{class:"row"},h("button",{class:"ghost",onclick:()=>{SND.toggle();mixPanel();sndLabel();}},SND.isOn()?"Mute All":"Unmute"),h("button",{class:"ghost",onclick:()=>{SND.reset();mixPanel();sndLabel();}},"Reset"),h("button",{class:"ghost",onclick:()=>{m.hidden=true;}},"Close")));
+}
+function sndLabel(){$("snd").textContent=SND.isOn()?"Sound":"Sound Off";}
+sndLabel();
+$("snd").addEventListener("click",()=>{const m=$("mix");$("huep").hidden=true;m.hidden=!m.hidden;if(!m.hidden)mixPanel();});
+$("hueb").addEventListener("click",()=>{const m=$("huep");$("mix").hidden=true;m.hidden=!m.hidden;if(!m.hidden)huePanel();});
+HUE.set("deg",HUE.st.deg);
+["pointerdown","keydown"].forEach(ev=>addEventListener(ev,()=>SND.init(),{passive:true}));
+window.__ds={S,get R(){return R;},set R(v){R=v;},get G(){return G;},get RP(){return RP;},FX,SND,act,begin,step,render,startReplay,replayFrame,startGuide,traceMid,DT};
+})();
+</script>
